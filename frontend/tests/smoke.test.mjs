@@ -34,3 +34,10 @@ test("logout is not allowed through GET", async () => {
  const response = await fetch(base + "/api/logout", { redirect: "manual" });
  assert.equal(response.status, 405);
 });
+for (const path of ["/app/timesheets", "/app/timesheets/2026/10"]) {
+ test(`anonymous ${path} cannot access employee content`, async () => {
+  const response = await fetch(base + path);
+  assert.equal(new URL(response.url).pathname, "/login");
+  assert.match(await response.text(), /Sign in with your work account/);
+ });
+}

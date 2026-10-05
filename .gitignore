@@ -10,3 +10,6 @@ node_modules/
 .tools/
 .verification/
 *.log
+
+frontend/test-results/
+frontend/playwright-report/
