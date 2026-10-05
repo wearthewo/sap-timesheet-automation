@@ -9,6 +9,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <Link href="/app" className="text-lg font-bold tracking-widest text-blue-900">WORKFORCE</Link>
     <nav aria-label="Main navigation" className="flex flex-wrap gap-5 text-sm font-semibold">
      <Link href="/app" className="rounded px-1 py-2 hover:text-blue-700">Overview</Link>
+     <Link href="/app/timesheets" className="rounded px-1 py-2 hover:text-blue-700">Timesheets</Link>
      <Link href="/app/projects" className="rounded px-1 py-2 hover:text-blue-700">My projects</Link>
     </nav>
     <div className="flex w-full min-w-0 items-center justify-between gap-4 sm:ml-auto sm:w-auto">

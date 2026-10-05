@@ -25,8 +25,8 @@ public class SecurityConfiguration {
   @Value("${app.cors-allowed-origins}") String origins) throws Exception {
   var cors=new CorsConfiguration();
   cors.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::strip).filter(s->!s.isEmpty()).toList());
-  cors.setAllowedMethods(List.of("GET","POST","PUT","OPTIONS"));
-  cors.setAllowedHeaders(List.of("Authorization","Content-Type"));
+  cors.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
+  cors.setAllowedHeaders(List.of("Authorization","Content-Type","X-Timesheet-Version"));
   cors.setAllowCredentials(false);
   var source=new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/api/**",cors);
   http.csrf(csrf->csrf.disable()).cors(c->c.configurationSource(source))

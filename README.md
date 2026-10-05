@@ -1,8 +1,8 @@
 # Employee Timesheet & SAP Automation Platform
 
-Phase 1 provides the repository foundation and identity, employee, project and assignment domain. It establishes which employee may access which project before later time recording, review and finance integration.
+Phase 2 adds employee monthly timesheets to the Phase 1 identity, employee, project and assignment foundation. Employees can record decimal hours on assigned projects, save drafts, see daily/monthly totals and submit immutable monthly timesheets.
 
-**No timesheets, approvals, reporting, SAP integration, workers, messaging, notifications or payroll are implemented. Nothing is deployed.**
+**No approvals, reporting, SAP integration, workers, messaging, notifications or payroll are implemented. Nothing is deployed.**
 
 ## Architecture and stack
 
@@ -85,6 +85,12 @@ Roles are exclusively database-owned. No endpoint accepts role changes. MANAGER 
 
 Use Swagger UI with a valid Keycloak access token and an ADMIN application user to create projects and assignments. Tokens must include the workforce-api audience; never commit or log them.
 
+## Employee timesheets
+
+Open Timesheets in the authenticated navigation, choose a month, create a draft, and save individual entries. Each save persists progress. Submit after checking totals; submitted months are read-only. The lifecycle is DRAFT → SUBMITTED, with no reverse transition. Approval comes in Phase 3.
+
+See [timesheet usage, API and concurrency rules](docs/timesheets.md), including version headers, ownership, assignment-date validation, daily limits, and browser-test setup.
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -102,6 +108,7 @@ Use Swagger UI with a valid Keycloak access token and an ADMIN application user 
 | KEYCLOAK_PUBLIC_URL | Compose public Keycloak hostname URL |
 | KEYCLOAK_ADMIN_USERNAME / KEYCLOAK_ADMIN_PASSWORD | Local Keycloak bootstrap account |
 | CORS_ALLOWED_ORIGINS | Comma-separated exact origins, local or future Render frontend |
+| MAX_DAILY_HOURS | Backend maximum total hours per work date across projects; default 24 |
 | PORT | Runtime listening port, respected by both applications |
 
 Root .env is read by Compose. For host development, export backend variables into the shell; copy relevant frontend variables into frontend/.env.local. Never use NEXT_PUBLIC_ for secrets. The browser does not call Spring Boot directly. Next.js attaches a bearer token server-side and disables fetch caching for user data.
@@ -127,15 +134,18 @@ Errors use timestamp/status/code/message/path. Expected responses include 400 va
 - Swagger UI: http://localhost:8080/swagger-ui/index.html
 - Frontend liveness: http://localhost:3000/api/health
 
-Future TypeScript client generation will consume /v3/api-docs using a pinned OpenAPI generator in CI. Phase 1 has only minimal presentation types, not a manually maintained duplicate schema.
+Future TypeScript client generation will consume /v3/api-docs using a pinned OpenAPI generator in CI. The frontend has only minimal presentation types, not a manually maintained duplicate schema.
 
 ## Development and verification
+
+Latest results and executed commands: [Phase 2 verification](docs/phase2-verification.md).
 
 Use a Java 21 version manager and Node 24 (nvm use with the root .nvmrc), or the scoped container procedure in [verification](docs/verification.md). No global replacement is required.
 
 ```sh
 cd backend
 ./mvnw test
+./mvnw clean package -DskipTests
 ./mvnw spring-boot:run
 ```
 
@@ -162,4 +172,4 @@ Frontend root frontend: install pnpm install --frozen-lockfile, build pnpm build
 
 Use Render's private backend/database addresses for server traffic, HTTPS public frontend/Keycloak URLs, and secret environment variables. Supply a production Keycloak deployment separately; local start-dev is not suitable. Set exact issuer, JWKS reachability, audience, redirect/logout URIs and canonical NEXTAUTH_URL. No production URLs are hardcoded.
 
-See [architecture](docs/architecture.md) for future module boundaries. Phase 2 has not started.
+See [architecture](docs/architecture.md) for future module boundaries. Approval will be introduced in Phase 3. Phase 3 has not started.

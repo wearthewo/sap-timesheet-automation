@@ -1,6 +1,6 @@
-# Phase 1 architecture
+# Platform architecture (Phase 2)
 
-The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. This phase implements identity, employee records, projects and project assignments only.
+The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments and employee monthly timesheets.
 
 ## Modular monolith
 
@@ -8,6 +8,7 @@ Spring Boot is a single application with feature packages:
 - identity: application users, JWT subject provisioning, database role checks.
 - employee: employee identity, manager reference, current employee project endpoint.
 - project: projects and date-bounded assignments.
+- timesheet: owned monthly drafts, date-valid time entries, transactional totals and immutable submission.
 - common: small shared error, pagination, security and timestamp facilities.
 
 Each feature uses api/application/domain/infrastructure where needed. There are no generic service/repository layers, message brokers or microservices. UUID references keep aggregate boundaries simple and avoid recursive JPA serialization; PostgreSQL foreign keys enforce relationships. A small mapped superclass centralizes UUID and timestamp lifecycle behavior.
@@ -16,9 +17,9 @@ Each feature uses api/application/domain/infrastructure where needed. There are 
 
 Browser → Next.js Node BFF → Spring Boot → PostgreSQL.
 
-Next.js renders the authenticated shell and calls the backend from Server Components. It owns OIDC protocol/session mechanics and presentation, not domain decisions. It uses Auth.js/NextAuth's stable v4 Keycloak provider with authorization code, PKCE and state. The confidential client secret and backend URL are server-only variables. OIDC endpoints are explicit: authorization uses the public issuer URL; token exchange, userinfo and signing-key requests use KEYCLOAK_INTERNAL_URL. Discovery is disabled so container backchannels do not follow browser-only localhost addresses. ID-token validation still uses the exact public issuer.
+Next.js renders the authenticated shell and calls the backend from Server Components and authenticated Server Actions. It owns OIDC protocol/session mechanics and presentation, not domain decisions. It uses Auth.js/NextAuth's stable v4 Keycloak provider with authorization code, PKCE and state. The confidential client secret and backend URL are server-only variables. OIDC endpoints are explicit: authorization uses the public issuer URL; token exchange, userinfo and signing-key requests use KEYCLOAK_INTERNAL_URL. Discovery is disabled so container backchannels do not follow browser-only localhost addresses. ID-token validation still uses the exact public issuer.
 
-Auth.js stores the access token inside an encrypted, HttpOnly, SameSite=Lax JWT session cookie (Secure when NEXTAUTH_URL is HTTPS). This is a stateless encrypted cookie session, not a server-side session database. Browser JavaScript cannot read the cookie; the browser-visible session never contains access or refresh tokens. Server Components decrypt it, check access-token expiration and send Authorization: Bearer to Spring Boot. Sessions require reauthentication at access-token expiry (15 minutes in the local realm); automatic refresh is intentionally deferred. Shared NEXTAUTH_SECRET permits multiple frontend instances. No tokens go into localStorage.
+Auth.js stores the access token inside an encrypted, HttpOnly, SameSite=Lax JWT session cookie (Secure when NEXTAUTH_URL is HTTPS). This is a stateless encrypted cookie session, not a server-side session database. Browser JavaScript cannot read the cookie; the browser-visible session never contains access or refresh tokens. Server Components and Server Actions decrypt it, check access-token expiration and send Authorization: Bearer to Spring Boot. Sessions require reauthentication at access-token expiry (15 minutes in the local realm); automatic refresh is intentionally deferred. Shared NEXTAUTH_SECRET permits multiple frontend instances. No tokens go into localStorage.
 
 Logout is POST-only with exact Origin checking; it clears all Auth.js cookie chunks and redirects to Keycloak's end-session endpoint. Keycloak may ask for confirmation because no ID token is placed in the redirect. Complete that confirmation to close SSO as well as the local session.
 
@@ -40,11 +41,11 @@ Lists return content, page, size, totalElements and totalPages, with bounded pag
 
 ## Future boundaries (not implemented)
 
-Future modules: timesheets, approvals, reporting, SAP adapter, SAP export processing, retries/idempotency, notifications and audit logs.
+Future modules: approvals (Phase 3), reporting, SAP adapter, SAP export processing, retries/idempotency, notifications and audit logs.
 
 A future application-owned SapTimesheetGateway port will expose business-level export operations. The SAP adapter will translate them to SAP S/4HANA payloads and protocol errors. SAP field names, credentials, SDK classes and transport behavior must remain inside that adapter. Domain services should not depend on SAP availability or vendor schemas. Export processing will later define durable state, idempotency and retry policy.
 
-No gateway interface, exports, timesheets or processing infrastructure exist in this phase.
+No gateway interface, exports, approvals or background processing infrastructure exist in this phase.
 
 ## Render target
 
@@ -57,4 +58,8 @@ flowchart TD
  Gateway -. future .-> SAP["SAP S/4HANA"]
 ```
 
-The three application services also depend on a separately operated production Keycloak/OIDC service. Local Compose Keycloak start-dev is not a production identity deployment. Use HTTPS and deliberate issuer/client configuration before deploying. No Render resources are created in Phase 1.
+The three application services also depend on a separately operated production Keycloak/OIDC service. Local Compose Keycloak start-dev is not a production identity deployment. Use HTTPS and deliberate issuer/client configuration before deploying. No Render resources have been created.
+
+## Timesheet aggregate
+
+The state model is DRAFT → SUBMITTED. Approval will be introduced in Phase 3. The timesheet module owns both the monthly aggregate and entries. Self-service ownership comes from the authenticated application user; entries reference projects through UUID foreign keys. Persisted totals, entry changes, and the parent optimistic version commit atomically. Every mutation requires the client version and submitted months cannot be changed. Next.js Server Actions propagate authenticated requests and display backend validation without implementing business rules. See [timesheet rules](timesheets.md) for assignment validity, daily limits, error semantics, snapshot reads, and concurrency decisions.

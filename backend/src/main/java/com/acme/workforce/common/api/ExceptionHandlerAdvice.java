@@ -20,7 +20,7 @@ public class ExceptionHandlerAdvice {
  }
  @ExceptionHandler(DomainException.class)
  ResponseEntity<ApiError> domain(DomainException ex,HttpServletRequest request) { return error(ex.status(),ex.code(),ex.getMessage(),request); }
- @ExceptionHandler({MethodArgumentNotValidException.class,ConstraintViolationException.class,HandlerMethodValidationException.class,HttpMessageNotReadableException.class,MethodArgumentTypeMismatchException.class})
+ @ExceptionHandler({org.springframework.web.bind.ServletRequestBindingException.class,MethodArgumentNotValidException.class,ConstraintViolationException.class,HandlerMethodValidationException.class,HttpMessageNotReadableException.class,MethodArgumentTypeMismatchException.class})
  ResponseEntity<ApiError> validation(Exception ex,HttpServletRequest request) { return error(400,"VALIDATION_ERROR","Request fields or parameters are invalid",request); }
  @ExceptionHandler(AccessDeniedException.class)
  ResponseEntity<ApiError> forbidden(Exception ex,HttpServletRequest request) { return error(403,"FORBIDDEN","You do not have permission for this action",request); }
@@ -30,6 +30,7 @@ public class ExceptionHandlerAdvice {
  ResponseEntity<ApiError> integrity(DataIntegrityViolationException ex,HttpServletRequest request) {
   String detail=ex.getMostSpecificCause().getMessage();
   if(detail!=null) {
+   if(detail.contains("uk_timesheet_employee_month")) return error(409,"TIMESHEET_ALREADY_EXISTS","This month already has a timesheet",request);
    if(detail.contains("uk_project_code")) return error(409,"DUPLICATE_PROJECT_CODE","Project code already exists",request);
    if(detail.contains("uk_employee_number")) return error(409,"DUPLICATE_EMPLOYEE_NUMBER","Employee number already exists",request);
    if(detail.contains("uk_active_assignment")) return error(409,"DUPLICATE_ASSIGNMENT","An active assignment already exists",request);
@@ -37,6 +38,8 @@ public class ExceptionHandlerAdvice {
   }
   return error(409,"DATA_CONFLICT","The request conflicts with existing data",request);
  }
+ @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+ ResponseEntity<ApiError> concurrent(Exception ex,HttpServletRequest request) { return error(409,"CONCURRENT_MODIFICATION","This timesheet changed in another session. Reload it before editing.",request); }
  @ExceptionHandler(Exception.class)
  ResponseEntity<ApiError> unexpected(Exception ex,HttpServletRequest request) {
   log.error("Unexpected request failure type={} path={}",ex.getClass().getSimpleName(),request.getRequestURI());

@@ -1,3 +1,4 @@
+import CurrentMonth from "./timesheets/current-month";
 import Link from "next/link";
 import { currentUser, assignedProjects } from "@/lib/backend";
 export default async function Dashboard() {
@@ -19,5 +20,6 @@ export default async function Dashboard() {
     <Link href="/app/projects" className="button">View my projects</Link>
    </section>
   </div>
+  <CurrentMonth />
  </>;
 }
