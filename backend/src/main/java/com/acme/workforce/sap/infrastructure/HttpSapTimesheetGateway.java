@@ -37,7 +37,7 @@ public class HttpSapTimesheetGateway implements SapTimesheetGateway {
     .headers(h->{h.setBearerAuth(token);h.set("Idempotency-Key",payload.idempotencyKey());h.set("X-Correlation-ID",payload.timesheetId().toString());})
     .contentType(MediaType.APPLICATION_JSON).body(body).exchange((request,response)->{
      int status=response.getStatusCode().value();
-     if(status==400||status==422)throw new SapGatewayException(Failure.VALIDATION);
+     if(status==400||status==413||status==422)throw new SapGatewayException(Failure.VALIDATION);
      if(status==401||status==403)throw new SapGatewayException(Failure.AUTHENTICATION);
      if(status==409)throw new SapGatewayException(Failure.DUPLICATE);
      if(status>=500)throw new SapGatewayException(Failure.UNAVAILABLE);
@@ -52,8 +52,33 @@ public class HttpSapTimesheetGateway implements SapTimesheetGateway {
     });
   }catch(SapGatewayException ex){throw ex;}
   catch(ResourceAccessException ex){
-   for(Throwable cause=ex;cause!=null;cause=cause.getCause())if(cause instanceof HttpTimeoutException||cause instanceof java.net.SocketTimeoutException)throw new SapGatewayException(Failure.TIMEOUT);
+   for(Throwable cause=ex;cause!=null;cause=cause.getCause()){
+    if(cause instanceof HttpConnectTimeoutException||cause instanceof java.net.ConnectException)throw new SapGatewayException(Failure.CONNECTION);
+    if(cause instanceof HttpTimeoutException||cause instanceof java.net.SocketTimeoutException)throw new SapGatewayException(Failure.TIMEOUT);
+   }
    throw new SapGatewayException(Failure.UNAVAILABLE);
   }catch(RuntimeException ex){throw new SapGatewayException(Failure.UNKNOWN);}
+ }
+ @Override public Optional<SapExportResult> findByExportIdentity(String identity){
+  if(baseUrl.isBlank()||token.isBlank())throw new SapGatewayException(Failure.CONFIGURATION);
+  try{
+   return client.get().uri(URI.create(baseUrl.replaceAll("/+$","")+"/sap/timesheets/by-identity?identity="+java.net.URLEncoder.encode(identity,java.nio.charset.StandardCharsets.UTF_8)))
+    .headers(h->{h.setBearerAuth(token);h.set("X-Correlation-ID",identity);})
+    .exchange((request,response)->{
+     int status=response.getStatusCode().value();
+     if(status==404)return Optional.empty();
+     if(status==401||status==403)throw new SapGatewayException(Failure.AUTHENTICATION);
+     if(status>=500)throw new SapGatewayException(Failure.UNAVAILABLE);
+     if(status!=200)throw new SapGatewayException(Failure.UNKNOWN);
+     var bytes=response.getBody().readNBytes(65537);
+     if(bytes.length>65536)throw new SapGatewayException(Failure.UNKNOWN);
+     com.fasterxml.jackson.databind.JsonNode node;
+     try{node=json.readTree(bytes);}catch(com.fasterxml.jackson.core.JsonProcessingException ex){throw new SapGatewayException(Failure.UNKNOWN);}
+     String ref=node==null?"":node.path("externalReference").asText("");
+     if(node==null||!node.path("success").asBoolean(false)||!node.path("exportIdentity").asText().equals(identity)||!ref.matches("[A-Za-z0-9][A-Za-z0-9._/-]{0,127}"))throw new SapGatewayException(Failure.UNKNOWN);
+     return Optional.of(new SapExportResult(ref));
+    });
+  }catch(SapGatewayException ex){throw ex;}
+  catch(RuntimeException ex){throw new SapGatewayException(Failure.UNKNOWN);}
  }
 }

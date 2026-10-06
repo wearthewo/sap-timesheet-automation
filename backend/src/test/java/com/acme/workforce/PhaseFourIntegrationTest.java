@@ -40,6 +40,7 @@ class PhaseFourIntegrationTest {
   p.add("app.sap.connect-timeout",()->"1s");p.add("app.sap.response-timeout",()->"600ms");
  }
  @Autowired MockMvc mvc;@Autowired ObjectMapper json;@Autowired JdbcTemplate sql;
+ @Autowired com.acme.workforce.sap.application.SapExportWorker worker;
  @Autowired IdentityService identity;@Autowired EmployeeRepository employees;
  @MockitoBean JwtDecoder decoder;
  UUID owner,manager,sheet; AtomicInteger calls; AtomicReference<JsonNode> captured; AtomicReference<String> key;
@@ -60,14 +61,14 @@ class PhaseFourIntegrationTest {
  UUID user(String subject,String role){var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("name",subject).build()).getId();sql.update("UPDATE app_users SET role=? WHERE id=?",role,id);return id;}
  String path(){return "/api/v1/sap/timesheets/"+sheet+"/export";}
  ResultActions req(MockHttpServletRequestBuilder r,String actor)throws Exception{return mvc.perform(r.with(jwt().jwt(j->j.subject(actor))));}
- ResultActions export(String actor)throws Exception{return req(post(path()).header("X-Timesheet-Version",3),actor);}
+ ResultActions export(String actor)throws Exception{var queued=req(post(path()).header("X-Timesheet-Version",3),actor);if(queued.andReturn().getResponse().getStatus()!=202)return queued;worker.runOnce();return req(get(path()),actor);}
  static void respond(HttpExchange e,int status,String body){try{byte[] bytes=body.getBytes(StandardCharsets.UTF_8);e.getResponseHeaders().set("Content-Type","application/json");e.sendResponseHeaders(status,bytes.length);e.getResponseBody().write(bytes);e.close();}catch(java.io.IOException ignored){e.close();}}
  @ParameterizedTest @ValueSource(strings={"finance","admin"})
  void authorizedSuccessPersistsReferenceAndTimestamp(String actor)throws Exception{
   export(actor).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("SUCCEEDED")).andExpect(jsonPath("$.externalReference").value("SAP-TS-TEST")).andExpect(jsonPath("$.exportedAt").isNotEmpty());
   assertThat(sql.queryForObject("SELECT external_reference FROM sap_timesheet_exports WHERE timesheet_id=?",String.class,sheet)).isEqualTo("SAP-TS-TEST");
   assertThat(sql.queryForObject("SELECT version FROM timesheets WHERE id=?",Long.class,sheet)).isEqualTo(3);
-  export(actor).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SAP_ALREADY_EXPORTED"));
+  export(actor).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("SUCCEEDED"));
   assertThat(calls.get()).isEqualTo(1);
  }
  @ParameterizedTest @ValueSource(strings={"DRAFT","PENDING_APPROVAL","REJECTED"})
@@ -109,23 +110,23 @@ class PhaseFourIntegrationTest {
  @ParameterizedTest @CsvSource({"400,SAP_VALIDATION_ERROR,FAILED","401,SAP_AUTHENTICATION_FAILED,FAILED","403,SAP_AUTHENTICATION_FAILED,FAILED","409,SAP_DUPLICATE,UNKNOWN","500,SAP_UNAVAILABLE,UNKNOWN","503,SAP_UNAVAILABLE,UNKNOWN","302,SAP_EXPORT_UNKNOWN,UNKNOWN"})
  void safeFailureMapping(int status,String code,String state)throws Exception{
   handler=e->{calls.incrementAndGet();respond(e,status,"{\"message\":\"SECRET upstream stack trace and credentials\"}");};
-  var response=export("finance").andExpect(status().isBadGateway()).andExpect(jsonPath("$.code").value(code)).andReturn().getResponse().getContentAsString();
+  var response=export("finance").andExpect(status().isOk()).andExpect(jsonPath("$.failureCode").value(code)).andReturn().getResponse().getContentAsString();
   assertThat(response).doesNotContain("SECRET","stack trace","credentials");
   req(get(path()),"finance").andExpect(status().isOk()).andExpect(jsonPath("$.status").value(state)).andExpect(jsonPath("$.failureCode").value(code)).andExpect(jsonPath("$.externalReference").isEmpty()).andExpect(jsonPath("$.exportedAt").isEmpty());
-  export("finance").andExpect(status().isConflict());
+  export("finance").andExpect(status().isOk());
   assertThat(sql.queryForObject("SELECT count(*) FROM sap_timesheet_exports",Integer.class)).isEqualTo(1);assertThat(calls.get()).isEqualTo(1);
  }
  @ParameterizedTest @ValueSource(strings={"{\"success\":true}","not-json","{\"success\":true,\"externalReference\":\"unsafe\\nreference\"}","{\"success\":false,\"externalReference\":\"SAP-TS-X\"}"})
  void malformedSuccessIsUnknown(String body)throws Exception{
   handler=e->respond(e,200,body);
-  export("admin").andExpect(status().isBadGateway()).andExpect(jsonPath("$.code").value("SAP_EXPORT_UNKNOWN"));
+  export("admin").andExpect(status().isOk()).andExpect(jsonPath("$.failureCode").value("SAP_EXPORT_UNKNOWN"));
   assertThat(sql.queryForObject("SELECT status FROM sap_timesheet_exports",String.class)).isEqualTo("UNKNOWN");
  }
  @Test void timeoutIsUnknownAndNoSecondAttempt()throws Exception{
   handler=e->{calls.incrementAndGet();try{Thread.sleep(1200);}catch(InterruptedException ex){Thread.currentThread().interrupt();}respond(e,201,"{\"success\":true,\"externalReference\":\"SAP-TS-LATE\"}");};
-  export("finance").andExpect(status().isGatewayTimeout()).andExpect(jsonPath("$.code").value("SAP_TIMEOUT"));
+  export("finance").andExpect(status().isOk()).andExpect(jsonPath("$.failureCode").value("SAP_TIMEOUT"));
   req(get(path()),"finance").andExpect(jsonPath("$.status").value("UNKNOWN")).andExpect(jsonPath("$.idempotencyKey").value("SAP_TIMESHEET:"+sheet));
-  export("finance").andExpect(status().isConflict());assertThat(calls.get()).isEqualTo(1);
+  export("finance").andExpect(status().isOk());assertThat(calls.get()).isEqualTo(1);
  }
  @Test void reservationCommittedAndNoDatabaseTransactionSpansHttp()throws Exception{
   var observed=new AtomicReference<String>();var inTransaction=new AtomicInteger(-1);
@@ -134,7 +135,7 @@ class PhaseFourIntegrationTest {
    inTransaction.set(sql.queryForObject("SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND state='idle in transaction'",Integer.class));
    respond(e,201,"{\"success\":true,\"externalReference\":\"SAP-TS-COMMITTED\"}");
   };
-  export("admin").andExpect(status().isOk());assertThat(observed.get()).isEqualTo("PENDING");assertThat(inTransaction.get()).isZero();
+  export("admin").andExpect(status().isOk());assertThat(observed.get()).isEqualTo("PROCESSING");assertThat(inTransaction.get()).isZero();
   var result=sql.queryForMap("SELECT status,external_reference,exported_at,failure_code FROM sap_timesheet_exports");
   assertThat(result.get("status")).isEqualTo("SUCCEEDED");assertThat(result.get("external_reference")).isNotNull();assertThat(result.get("exported_at")).isNotNull();assertThat(result.get("failure_code")).isNull();
  }
@@ -144,7 +145,7 @@ class PhaseFourIntegrationTest {
   try(var executor=Executors.newVirtualThreadPerTaskExecutor()){
    var first=executor.submit(()->export("finance").andReturn().getResponse().getStatus());
    assertThat(entered.await(10,TimeUnit.SECONDS)).isTrue();
-   export("admin").andExpect(status().isConflict());release.countDown();assertThat(first.get(10,TimeUnit.SECONDS)).isEqualTo(200);
+   export("admin").andExpect(status().isOk());release.countDown();assertThat(first.get(10,TimeUnit.SECONDS)).isEqualTo(200);
   }
   assertThat(calls.get()).isEqualTo(1);assertThat(sql.queryForObject("SELECT count(*) FROM sap_timesheet_exports",Integer.class)).isEqualTo(1);
  }

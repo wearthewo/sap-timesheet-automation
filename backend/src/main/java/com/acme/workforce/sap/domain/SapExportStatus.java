@@ -1,2 +1,2 @@
 package com.acme.workforce.sap.domain;
-public enum SapExportStatus { PENDING, SUCCEEDED, FAILED, UNKNOWN }
+public enum SapExportStatus { QUEUED, PROCESSING, SUCCEEDED, FAILED, UNKNOWN }

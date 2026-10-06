@@ -12,10 +12,7 @@ public class SapTimesheetExport extends TimestampedEntity {
  @Column(length=500) private String failureMessage;
  private Instant exportedAt;
  protected SapTimesheetExport(){}
- public SapTimesheetExport(UUID timesheetId){this.timesheetId=timesheetId;this.status=SapExportStatus.PENDING;}
- public void succeed(String reference){requirePending();status=SapExportStatus.SUCCEEDED;externalReference=reference;exportedAt=Instant.now();}
- public void fail(SapGatewayException.Failure failure){requirePending();status=failure.ambiguous?SapExportStatus.UNKNOWN:SapExportStatus.FAILED;failureCode=failure.code;failureMessage=failure.message;}
- private void requirePending(){if(status!=SapExportStatus.PENDING)throw new IllegalStateException("Export already finalized");}
+ public SapTimesheetExport(UUID timesheetId){this.timesheetId=timesheetId;this.status=SapExportStatus.QUEUED;}
  public UUID getTimesheetId(){return timesheetId;} public SapExportStatus getStatus(){return status;}
  public String getExternalReference(){return externalReference;} public String getFailureCode(){return failureCode;}
  public String getFailureMessage(){return failureMessage;} public Instant getExportedAt(){return exportedAt;}

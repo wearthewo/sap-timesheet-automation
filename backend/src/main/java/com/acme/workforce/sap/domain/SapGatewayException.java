@@ -2,6 +2,7 @@ package com.acme.workforce.sap.domain;
 /** Only safe application messages cross the adapter boundary. */
 public class SapGatewayException extends RuntimeException {
  public enum Failure {
+  CONNECTION("SAP_CONNECTION_FAILED","SAP could not be reached. A retry may be scheduled.",false),
   VALIDATION("SAP_VALIDATION_ERROR","SAP rejected the timesheet data.",false),
   AUTHENTICATION("SAP_AUTHENTICATION_FAILED","SAP authentication failed. Contact your administrator.",false),
   DUPLICATE("SAP_DUPLICATE","SAP reports an existing timesheet. Reconciliation is required.",true),

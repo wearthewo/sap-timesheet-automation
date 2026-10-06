@@ -44,3 +44,36 @@ test("response loss can follow acceptance without creating a second document", a
   assert.equal((await send(app.base, body)).status, 409);
  } finally { app.server.closeAllConnections(); await new Promise(resolve => app.server.close(resolve)); }
 });
+
+test("lookup by stable identity distinguishes missing and accepted records", async () => {
+ const app = await start();
+ try {
+  const body = payload();
+  const lookup = () => fetch(app.base + "/sap/timesheets/by-identity?identity=" + encodeURIComponent(body.ExternalSystemReference), { headers: { Authorization: "Bearer " + token } });
+  assert.equal((await lookup()).status, 404);
+  await send(app.base, body);
+  const result = await (await lookup()).json();
+  assert.equal(result.exportIdentity, body.ExternalSystemReference); assert.match(result.externalReference, /^SAP-TS-/);
+ } finally { await new Promise(resolve => app.server.close(resolve)); }
+});
+for (const code of ["MOCK-TRANSIENT-500", "MOCK-TRANSIENT-503"]) test(code + " succeeds after bounded simulated failures using the same identity", async () => {
+ const app = await start();
+ try {
+  const body = payload(code); const failure = code.endsWith("500") ? 500 : 503;
+  assert.equal((await send(app.base, body)).status, failure);
+  assert.equal((await send(app.base, body)).status, failure);
+  assert.equal((await send(app.base, body)).status, 201);
+  assert.equal((await send(app.base, body)).status, 409);
+ } finally { await new Promise(resolve => app.server.close(resolve)); }
+});
+test("timeout before creation reconciles missing and can safely reuse its identity", async () => {
+ const app = await start({ timeoutMs: 100 });
+ try {
+  const body = payload("MOCK-TIMEOUT-BEFORE");
+  await assert.rejects(fetch(app.base + "/sap/timesheets", { method: "POST", headers: { Authorization: "Bearer " + token, "Idempotency-Key": body.ExternalSystemReference }, body: JSON.stringify(body), signal: AbortSignal.timeout(30) }));
+  const lookup = await fetch(app.base + "/sap/timesheets/by-identity?identity=" + encodeURIComponent(body.ExternalSystemReference), { headers: { Authorization: "Bearer " + token } });
+  assert.equal(lookup.status, 404);
+  assert.equal((await send(app.base, body)).status, 201);
+  assert.equal((await send(app.base, body)).status, 409);
+ } finally { app.server.closeAllConnections(); await new Promise(resolve => app.server.close(resolve)); }
+});

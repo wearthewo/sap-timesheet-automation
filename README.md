@@ -1,8 +1,8 @@
 # Employee Timesheet & SAP Automation Platform
 
-Phase 4 adds manual SAP export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
+Phase 5 adds durable asynchronous SAP export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
 
-**No production SAP connection, workers, automatic retries, reporting, messaging, notifications or payroll are implemented. Nothing is deployed.**
+**Exports now run in the existing backend worker with PostgreSQL jobs, bounded retries and reconciliation. No production SAP connection, reporting, messaging, notifications, payroll or deployment is included.**
 
 ## Architecture and stack
 
@@ -114,7 +114,6 @@ See [manager approval rules and UI](docs/approvals.md) for direct-report authori
 | MAX_DAILY_HOURS | Backend maximum total hours per work date across projects; default 24 |
 | SAP_BASE_URL / SAP_API_TOKEN | Server-only HTTP integration destination and credential |
 | SAP_CONNECT_TIMEOUT / SAP_RESPONSE_TIMEOUT | Positive backend durations, defaults 2s / 5s |
-| SAP_EXPORT_REQUEST_TIMEOUT_MS | BFF export timeout, default 20000; exceed SAP timeouts |
 | PORT | Runtime listening port, respected by both applications |
 
 Root .env is read by Compose. For host development, export backend variables into the shell; copy relevant frontend variables into frontend/.env.local. Never use NEXT_PUBLIC_ for secrets. The browser does not call Spring Boot directly. Next.js attaches a bearer token server-side and disables fetch caching for user data.
@@ -136,7 +135,7 @@ Root .env is read by Compose. For host development, export backend variables int
 | POST | /api/v1/approvals/timesheets/{id}/reject | MANAGER, direct reports; version and comment required |
 | POST | /api/v1/timesheets/{id}/reopen | Owner of REJECTED sheet; version required |
 
-Lists accept page (zero-based) and size (1–100, default 20). Creation POSTs return 201; lifecycle decisions and SAP export return 200 on success. Project creation includes Location. Project write fields: code, name, description (optional), active. Assignment write fields: employeeId, projectId, validFrom, validTo (optional), active. PUT is full replacement of editable project fields.
+Lists accept page (zero-based) and size (1–100, default 20). Creation POSTs return 201; lifecycle decisions return 200 and SAP enqueue commands return 202. Project creation includes Location. Project write fields: code, name, description (optional), active. Assignment write fields: employeeId, projectId, validFrom, validTo (optional), active. PUT is full replacement of editable project fields.
 
 Errors use timestamp/status/code/message/path. Expected responses include 400 validation/date errors, 401 unauthenticated, 403 forbidden, 404 not found and 409 duplicates/conflicts.
 
@@ -149,7 +148,7 @@ Future TypeScript client generation will consume /v3/api-docs using a pinned Ope
 
 ## Development and verification
 
-Latest results and executed commands: [Phase 4 verification](docs/phase4-verification.md).
+Latest results and executed commands: [Phase 5 verification](docs/phase5-verification.md).
 
 Use a Java 21 version manager and Node 24 (nvm use with the root .nvmrc), or the scoped container procedure in [verification](docs/verification.md). No global replacement is required.
 
@@ -183,10 +182,16 @@ Frontend root frontend: install pnpm install --frozen-lockfile, build pnpm build
 
 Use Render's private backend/database addresses for server traffic, HTTPS public frontend/Keycloak URLs, and secret environment variables. Supply a production Keycloak deployment separately; local start-dev is not suitable. Set exact issuer, JWKS reachability, audience, redirect/logout URIs and canonical NEXTAUTH_URL. No production URLs are hardcoded.
 
-See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 4 adds manual SAP export; Phase 5 has not started.
+See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 5 adds durable SAP processing; Phase 6 has not started.
 
-## Phase 4: manual SAP export
+## Phase 5: durable SAP export
 
-ADMIN/FINANCE users open **SAP exports**, choose an approved timesheet, then **Export to SAP**. Confirm SUCCEEDED and the external reference. Export status remains separate from approval status. Employee and manager views show read-only SAP state. Each month has one export record; a failed or uncertain attempt has no retry action in this phase.
+ADMIN/FINANCE open **SAP exports**, select an approved month and choose **Export to SAP**. The command returns 202 and queues durable work. Status updates automatically while processing. Eligible terminal failures show **Retry export**; uncertain results show **Reconcile export**. Success displays the external reference. Employee/manager views remain read-only.
 
-See [SAP integration](docs/sap-integration.md) for the four new APIs, V9 migration, HTTP contract, configuration, authorization, transaction boundaries and response-loss handling. [Phase 4 verification](docs/phase4-verification.md) records test results and scoped runtime commands.
+PostgreSQL stores one export/job per timesheet and immutable attempt history. Workers claim with SKIP LOCKED, recover expired leases through reconciliation, reuse the stable identity and payload snapshot, and apply bounded exponential backoff. No external queue or separate worker deployment is needed.
+
+See [worker design](docs/sap-export-worker.md), [adapter contract](docs/sap-integration.md) and [verification](docs/phase5-verification.md). V10 creates durable jobs and migrates old PENDING exports safely; V11 creates attempt history. V1-V9 are unchanged.
+
+New commands: POST /api/v1/sap/timesheets/{id}/export/retry and POST /api/v1/sap/timesheets/{id}/export/reconcile. GET /api/v1/sap/timesheets/{id}/export/attempts provides paginated history. Existing export POST now returns 202 and is idempotent.
+
+Worker configuration: SAP_EXPORT_WORKER_ENABLED, SAP_EXPORT_BATCH_SIZE, SAP_EXPORT_POLL_INTERVAL, SAP_EXPORT_MAX_ATTEMPTS, SAP_EXPORT_INITIAL_BACKOFF, SAP_EXPORT_MAX_BACKOFF, SAP_EXPORT_PROCESSING_TIMEOUT and SAP_RECONCILIATION_INTERVAL. Defaults and runtime-role options are documented in the worker guide and .env.example. Compose enables the worker inside the backend; API-only execution can disable it.
