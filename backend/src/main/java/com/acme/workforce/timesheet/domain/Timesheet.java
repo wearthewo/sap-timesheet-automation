@@ -33,8 +33,22 @@ public class Timesheet extends TimestampedEntity {
         updatedAt = now.equals(updatedAt) ? now.plusNanos(1000) : now;
     }
     public void submit() {
-        status = TimesheetStatus.SUBMITTED;
+        status = TimesheetStatus.PENDING_APPROVAL;
         submittedAt = Instant.now();
+    }
+    public void requirePending() {
+        if (status != TimesheetStatus.PENDING_APPROVAL) throw new com.acme.workforce.common.application.DomainException(409,
+            status == TimesheetStatus.APPROVED ? "TIMESHEET_ALREADY_APPROVED" : "TIMESHEET_NOT_PENDING_APPROVAL",
+            "Only pending timesheets can receive a manager decision");
+    }
+    public void decide(boolean approved) {
+        requirePending();
+        status = approved ? TimesheetStatus.APPROVED : TimesheetStatus.REJECTED;
+    }
+    public void reopen() {
+        if (status != TimesheetStatus.REJECTED) throw new com.acme.workforce.common.application.DomainException(409,"TIMESHEET_NOT_REJECTED","Only rejected timesheets can be reopened");
+        status = TimesheetStatus.DRAFT;
+        submittedAt = null;
     }
     public UUID getEmployeeId() { return employeeId; }
     public int getYear() { return year; }

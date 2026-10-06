@@ -28,12 +28,13 @@ public class TimesheetService {
     private final ProjectRepository projects;
     private final AssignmentRepository assignments;
     private final TimesheetPolicy policy;
+    private final com.acme.workforce.approval.infrastructure.ApprovalRepository approvals;
 
     public TimesheetService(TimesheetRepository sheets, TimesheetEntryRepository entries,
             EmployeeRepository employees, ProjectRepository projects,
-            AssignmentRepository assignments, TimesheetPolicy policy) {
+            AssignmentRepository assignments, TimesheetPolicy policy, com.acme.workforce.approval.infrastructure.ApprovalRepository approvals) {
         this.sheets = sheets; this.entries = entries; this.employees = employees;
-        this.projects = projects; this.assignments = assignments; this.policy = policy;
+        this.projects = projects; this.assignments = assignments; this.policy = policy; this.approvals = approvals;
     }
     private Employee employee(UUID userId, boolean writing) {
         var employee = employees.findByUserId(userId).orElseThrow(() ->
@@ -48,7 +49,7 @@ public class TimesheetService {
     private Timesheet editable(UUID userId, UUID id, long version) {
         var sheet = owned(userId, id, true);
         if (sheet.getStatus() != TimesheetStatus.DRAFT) {
-            throw new DomainException(409, "TIMESHEET_ALREADY_SUBMITTED", "Submitted timesheets are read-only");
+            throw new DomainException(409, sheet.getStatus() == TimesheetStatus.APPROVED ? "TIMESHEET_ALREADY_APPROVED" : "TIMESHEET_ALREADY_SUBMITTED", sheet.getStatus() == TimesheetStatus.REJECTED ? "Reopen this rejected timesheet before editing" : "Pending and approved timesheets are read-only");
         }
         if (sheet.getVersion() != version) throw new DomainException(409, "CONCURRENT_MODIFICATION", "This timesheet changed in another session. Reload it before editing.");
         return sheet;
@@ -130,6 +131,18 @@ public class TimesheetService {
         log.info("Submitted timesheet id={} version={}", sheet.getId(), sheet.getVersion());
         return detail(sheet, current);
     }
+    @Transactional
+    public Detail reopen(UUID userId, UUID id, long version) {
+        var sheet = owned(userId,id,true);
+        if (sheet.getVersion()!=version) throw new DomainException(409,"CONCURRENT_MODIFICATION","This timesheet changed in another session. Reload it before reopening.");
+        sheet.reopen();
+        sheets.flush();
+        return describe(sheet);
+    }
+    // Internal DTO composition; approval callers must authorize the aggregate first.
+    public Detail describe(Timesheet sheet) {
+        return detail(sheet,entries.findByTimesheetIdOrderByWorkDateAscIdAsc(sheet.getId()));
+    }
     private void validateEntry(Timesheet sheet, WriteEntry request) {
         policy.checkDate(sheet, request.workDate());
         var project = projects.findById(request.projectId()).orElseThrow(() -> DomainException.notFound("Project"));
@@ -154,6 +167,6 @@ public class TimesheetService {
         current.forEach(e -> daily.merge(e.getWorkDate(), e.getHours(), BigDecimal::add));
         return new Detail(sheet.getId(), sheet.getYear(), sheet.getMonth(), sheet.getStatus(),
                 sheet.getTotalHours(), sheet.getSubmittedAt(), sheet.getVersion(), views,
-                daily.entrySet().stream().map(d -> new DailyTotal(d.getKey(), d.getValue())).toList(), policy.maximum());
+                daily.entrySet().stream().map(d -> new DailyTotal(d.getKey(), d.getValue())).toList(), policy.maximum(), approvals.findByTimesheetIdOrderByDecidedAtAscIdAsc(sheet.getId()).stream().map(a -> new com.acme.workforce.approval.api.ApprovalDtos.DecisionView(a.getId(),a.getManagerEmployeeId(),a.getDecision(),a.getComment(),a.getDecidedAt())).toList());
     }
 }

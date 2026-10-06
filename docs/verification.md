@@ -1,6 +1,6 @@
 # Phase 1 verification record (historical)
 
-Current results: [Phase 2 verification](phase2-verification.md).
+Current results: [Phase 3 verification](phase3-verification.md).
 
 Builds and automated tests verified on 2026-10-03; final browser verification continued on 2026-10-04. No deployment was performed.
 

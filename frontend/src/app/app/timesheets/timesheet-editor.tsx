@@ -2,6 +2,7 @@
 import { useEffect, useState, useTransition } from "react";
 
 import type { Entry, ProjectOption, Timesheet } from "@/lib/timesheet-view";
+import ApprovalHistory from "./approval-history";
 import { availableProjects, changeTimesheet, createMonth } from "./actions";
 
 export default function TimesheetEditor({ initial, year, month }: { initial: Timesheet | null; year: number; month: number }) {
@@ -40,7 +41,7 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
   setHours(entry.hours); setDescription(entry.description ?? ""); setError(""); setNotice("");
   if (date !== entry.workDate) { setOptions([]); setLoading(true); }
  }
- function change(operation: "add" | "edit" | "delete" | "submit", entry?: Entry) {
+ function change(operation: "add" | "edit" | "delete" | "submit" | "reopen", entry?: Entry) {
   if (!sheet) return;
   setError(""); setNotice("");
   startTransition(async () => {
@@ -50,7 +51,7 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
    if (result.error !== undefined) { setError(result.error); return; }
    setSheet(result.data); setConfirm(false);
    if (operation !== "delete" || entry?.id === editing) reset();
-   setNotice(operation === "submit" ? "Timesheet submitted. This month is now read-only." : "Draft saved.");
+   setNotice(operation === "submit" ? "Timesheet submitted for manager review. This month is now read-only." : "Draft saved.");
   });
  }
  if (!sheet) return <section className="rounded-xl border border-slate-200 bg-white p-6">
@@ -70,6 +71,12 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
   </section>
   {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-900">{error} <button className="ml-2 font-semibold underline" onClick={() => window.location.reload()}>Reload latest timesheet</button></div>}
   {notice && <p role="status" className="text-green-800">{notice}</p>}
+  {sheet.status === "REJECTED" && <section aria-label="Rejection reason" className="rounded-xl border border-red-200 bg-red-50 p-6">
+   <h2 className="font-semibold text-red-900">Changes requested</h2>
+   <p className="mt-3 whitespace-pre-wrap break-words">{sheet.approvalHistory.at(-1)?.comment}</p>
+   <p className="mt-2 text-sm text-slate-600">Rejected {new Date(sheet.approvalHistory.at(-1)!.decidedAt).toLocaleString("en-GB",{timeZone:"UTC"})} UTC</p>
+   <button className="button mt-4" disabled={pending} onClick={() => change("reopen")}>Reopen draft</button>
+  </section>}
   {editable && <section className="rounded-xl border border-slate-200 bg-white p-6" aria-label="Entry editor">
    <h2 className="mb-4 text-lg font-semibold">{editing ? "Edit entry" : "Add entry"}</h2>
    <form className="grid gap-4 sm:grid-cols-2" onSubmit={e => { e.preventDefault(); change(editing ? "edit" : "add"); }}>
@@ -101,9 +108,10 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
     </li>)}</ul>
    </section>)}
   </section>
+  <ApprovalHistory history={sheet.approvalHistory}/>
   {editable && <section className="rounded-xl border border-blue-200 bg-blue-50 p-6">
-   <h2 className="font-semibold">Ready to submit?</h2><p className="mt-2 mb-4 text-sm text-slate-600">Check your entries and totals. Submission makes this month read-only.</p>
-   {confirm ? <div className="flex flex-wrap items-center gap-4"><p className="w-full font-semibold">Submit this month? You will no longer be able to edit it.</p><button className="button" disabled={pending} onClick={() => change("submit")}>Confirm submission</button><button disabled={pending} onClick={() => setConfirm(false)}>Cancel</button></div>
+   <h2 className="font-semibold">Ready to submit?</h2><p className="mt-2 mb-4 text-sm text-slate-600">Check your entries and totals. Submission sends this month to your manager and makes it read-only during review.</p>
+   {confirm ? <div className="flex flex-wrap items-center gap-4"><p className="w-full font-semibold">Submit this month? It will be read-only while your manager reviews it.</p><button className="button" disabled={pending} onClick={() => change("submit")}>Confirm submission</button><button disabled={pending} onClick={() => setConfirm(false)}>Cancel</button></div>
     : <button className="button" disabled={pending || sheet.entries.length === 0} onClick={() => setConfirm(true)}>Submit month</button>}
   </section>}
  </div>;

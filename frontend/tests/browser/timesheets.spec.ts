@@ -44,6 +44,7 @@ test("employee creates, edits, deletes, totals, submits and reviews a month", as
   await page.getByLabel("Description").fill(description);
   await page.getByRole("button",{name:"Save entry",exact:true}).click();
   await expect(page.getByRole("status")).toHaveText("Draft saved.");
+  await expect(page.getByRole("button",{name:"Edit "+code+" "+workDate,exact:true})).toBeVisible();
  }
  await add(firstProject!,"6.25","Browser verification A");
  await add(secondProject!,"2.50","Browser verification B");
@@ -79,7 +80,7 @@ test("employee creates, edits, deletes, totals, submits and reviews a month", as
  await expect(page.getByTestId("monthly-total")).toContainText("6.75");
  await page.screenshot({path:"test-results/submitted-desktop.png",fullPage:true});
  await page.getByRole("link",{name:"All timesheets",exact:false}).click();
- await expect(page.getByRole("region",{name:"Your monthly timesheets"})).toContainText("SUBMITTED");
+ await expect(page.getByRole("region",{name:"Your monthly timesheets"})).toContainText("PENDING_APPROVAL");
  await expect(page.getByRole("region",{name:"Your monthly timesheets"})).toContainText("6.75 h");
  await logout(page);
 });
