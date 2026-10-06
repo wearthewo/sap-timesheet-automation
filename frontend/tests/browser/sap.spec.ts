@@ -1,0 +1,62 @@
+import { test, expect, type Page } from "@playwright/test";
+async function login(page: Page, kind: "FINANCE" | "ADMIN" | "EMPLOYEE" | "MANAGER") {
+ const username = process.env[kind === "EMPLOYEE" ? "TEST_USERNAME" : `TEST_${kind}_USERNAME`];
+ const password = process.env[kind === "EMPLOYEE" ? "TEST_PASSWORD" : `TEST_${kind}_PASSWORD`];
+ if (!username || !password) throw new Error("Set Phase 4 role fixture credentials before browser tests.");
+ await page.goto("/login");
+ await page.getByRole("button", { name: "Sign in with your work account" }).click();
+ await page.locator("#username").fill(username); await page.locator("#password").fill(password); await page.locator("#kc-login").click();
+ await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
+}
+async function logout(page: Page) {
+ await page.getByRole("button", { name: "Log out", exact: true }).click();
+ await page.getByRole("button", { name: /logout/i }).click();
+ await expect(page).toHaveURL(/\/login$/);
+}
+test("finance exports once, admin sees safe validation failure, employee and manager have read-only state", async ({ page }) => {
+ test.setTimeout(180000);
+ const success = process.env.TEST_SAP_SUCCESS_ID; const failure = process.env.TEST_SAP_FAILURE_ID;
+ if (!success || !failure) throw new Error("Prepare two unexported APPROVED fixtures: normal and MOCK-INVALID project. Set TEST_SAP_SUCCESS_ID and TEST_SAP_FAILURE_ID.");
+ await login(page, "FINANCE");
+ await page.getByRole("link", { name: "SAP exports", exact: true }).click();
+ await expect(page.getByRole("heading", { name: "SAP exports", exact: true })).toBeVisible();
+ await page.goto(`/app/sap/${success}`);
+ await expect(page.getByText("APPROVED · 6.25 hours", { exact: true })).toBeVisible();
+ const region = page.getByRole("region", { name: "SAP export", exact: true });
+ await region.getByRole("button", { name: "Export to SAP", exact: true }).click();
+ await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
+ await expect(region).toContainText(/SAP-TS-[A-F0-9]+/);
+ await expect(region.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await page.reload();
+ await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
+ await expect(region.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await page.screenshot({ path: "test-results/sap-success-desktop.png", fullPage: true });
+ await logout(page);
+ await page.setViewportSize({ width: 375, height: 812 });
+ await login(page, "ADMIN");
+ await expect(page.getByRole("link", { name: "SAP exports", exact: true })).toBeVisible();
+ await page.goto(`/app/sap/${failure}`);
+ await region.getByRole("button", { name: "Export to SAP", exact: true }).click();
+ await expect(region.getByRole("status")).toHaveText("FAILED");
+ await expect(region.getByRole("alert")).toHaveText("SAP rejected the timesheet data.");
+ await expect(region.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+ await page.screenshot({ path: "test-results/sap-failure-mobile.png", fullPage: true });
+ await logout(page);
+ await login(page, "EMPLOYEE");
+ await expect(page.getByRole("link", { name: "SAP exports", exact: true })).toHaveCount(0);
+ await page.goto("/app/timesheets/2027/1");
+ await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
+ await expect(page.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await page.goto(`/app/sap/${success}`);
+ await expect(page.getByText("You do not have access to SAP export commands.")).toBeVisible();
+ await logout(page);
+ await login(page, "MANAGER");
+ await expect(page.getByRole("link", { name: "SAP exports", exact: true })).toHaveCount(0);
+ await page.goto(`/app/approvals/${success}`);
+ await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
+ await expect(page.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await expect(page.getByRole("link", { name: "Approvals", exact: true })).toBeVisible();
+ expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+ await logout(page);
+});

@@ -1,6 +1,6 @@
-# Platform architecture (Phase 3)
+# Platform architecture (Phase 4)
 
-The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets and manager approval history.
+The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets, manager approval history and manual SAP exports.
 
 ## Modular monolith
 
@@ -10,6 +10,7 @@ Spring Boot is a single application with feature packages:
 - project: projects and date-bounded assignments.
 - timesheet: owned monthly drafts, date-valid time entries, transactional totals, versioned submission and explicit reopening.
 - approval: direct-report manager authorization, pending queue and atomic immutable decisions.
+- sap: approved export authorization, durable reservation/results, gateway and HTTP adapter.
 - common: small shared error, pagination, security and timestamp facilities.
 
 Each feature uses api/application/domain/infrastructure where needed. There are no generic service/repository layers, message brokers or microservices. UUID references keep aggregate boundaries simple and avoid recursive JPA serialization; PostgreSQL foreign keys enforce relationships. A small mapped superclass centralizes UUID and timestamp lifecycle behavior.
@@ -42,11 +43,9 @@ Lists return content, page, size, totalElements and totalPages, with bounded pag
 
 ## Future boundaries (not implemented)
 
-Future modules: reporting, SAP adapter, SAP export processing, retries/idempotency, notifications and audit logs.
+Future modules: reporting, production SAP adapter, background SAP export processing, retries/reconciliation, notifications and broader audit logs.
 
-A future application-owned SapTimesheetGateway port will expose business-level export operations. The SAP adapter will translate them to SAP S/4HANA payloads and protocol errors. SAP field names, credentials, SDK classes and transport behavior must remain inside that adapter. Domain services should not depend on SAP availability or vendor schemas. Export processing will later define durable state, idempotency and retry policy.
-
-No gateway interface, exports or background processing infrastructure exist in this phase.
+Phase 4 implements the application-owned SapTimesheetGateway port and a synchronous HTTP adapter targeting a local Node mock. SAP fields and protocol errors stay inside infrastructure. The sap module owns durable export records, deterministic identity, role authorization and safe outcomes. A future production S/4HANA adapter can replace the mock-facing adapter without changing timesheet or approval business logic. No background processing infrastructure exists.
 
 ## Render target
 
@@ -55,7 +54,7 @@ flowchart TD
  Browser --> Next["Render Next.js service / BFF"]
  Next --> Spring["Render Spring Boot service"]
  Spring --> DB["Render PostgreSQL"]
- Spring -. future .-> Gateway["SapTimesheetGateway"]
+ Spring --> Gateway["SapTimesheetGateway"]
  Gateway -. future .-> SAP["SAP S/4HANA"]
 ```
 
@@ -70,3 +69,9 @@ The state model is DRAFT → PENDING_APPROVAL → APPROVED or REJECTED, with exp
 The approval module authorizes the database MANAGER role against Employee.managerId, excluding self-review and inactive manager profiles. It uses the existing timesheet aggregate version for atomic status/history writes. Timesheet detail composition includes append-only decision DTOs; no approval entity is exposed. PostgreSQL enforces immutable history in addition to JPA immutability. The employee module remains the source of manager relationships, and identity remains the source of application roles. No independent manager identity or approval microservice was introduced.
 
 See [approvals](approvals.md) for migration, authorization, lifecycle and concurrency rules.
+
+## SAP export boundary
+
+APPROVED timesheet -> manual export command -> SapTimesheetGateway -> HTTP SAP adapter -> mock SAP locally / real SAP later.
+
+The sap feature reserves one export per timesheet in a short transaction, calls HTTP without an open database transaction, then commits the result in a second transaction. Approved content and approval history remain immutable. ADMIN/FINANCE get a command worklist, not finance reports. UNKNOWN and stranded PENDING records require future reconciliation; no implicit retry is performed. See [SAP integration](sap-integration.md) for the complete model and failure windows.

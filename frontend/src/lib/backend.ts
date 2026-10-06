@@ -17,7 +17,7 @@ export async function backendRequest<T>(path: string, init: RequestInit = {}): P
  try {
   response = await fetch((process.env.BACKEND_API_URL ?? "http://localhost:8080") + path, {
    ...init, headers: { ...init.headers, Authorization: `Bearer ${token.accessToken}`, Accept: "application/json" },
-   cache: "no-store", signal: AbortSignal.timeout(10000),
+   cache: "no-store", signal: init.signal ?? AbortSignal.timeout(10000),
   });
  } catch {
   throw new BackendError(503, "SERVICE_UNAVAILABLE", "The application service is temporarily unavailable. Please try again.");

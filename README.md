@@ -1,14 +1,14 @@
 # Employee Timesheet & SAP Automation Platform
 
-Phase 3 adds manager review to employee monthly timesheets. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
+Phase 4 adds manual SAP export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
 
-**No reporting, SAP integration, workers, messaging, notifications or payroll are implemented. Nothing is deployed.**
+**No production SAP connection, workers, automatic retries, reporting, messaging, notifications or payroll are implemented. Nothing is deployed.**
 
 ## Architecture and stack
 
 Browser → Render Next.js service / BFF → Render Spring Boot service → Render PostgreSQL
 
-Future only: Spring Boot → SapTimesheetGateway → SAP S/4HANA
+Local mock now, real SAP adapter later: Spring Boot → SapTimesheetGateway → SAP S/4HANA
 
 See [architecture](docs/architecture.md) for the diagram, authentication boundaries and future modules.
 
@@ -21,9 +21,10 @@ See [architecture](docs/architecture.md) for the diagram, authentication boundar
 ```text
 backend/       Spring Boot feature modules, Flyway, integration tests, Maven Wrapper
 frontend/      Next.js UI, OIDC session handling, server-side backend calls
+mock-sap/      Node 24 HTTP mock, persistent idempotency, contract tests
 infra/         Local Keycloak realm import and PostgreSQL initialization
 docs/          Architecture and verification notes
-compose.yaml   Four-service local stack
+compose.yaml   Five-service local stack
 .env.example   Configuration template (no secrets)
 AGENTS.md      Coding and scope rules
 .nvmrc         Node 24
@@ -34,7 +35,7 @@ AGENTS.md      Coding and scope rules
 Install Docker Desktop/Engine with Compose. Java and Node are not required on the host for Compose.
 
 1. Copy .env.example to .env.
-2. Fill DATABASE_PASSWORD, KEYCLOAK_ADMIN_PASSWORD, KEYCLOAK_CLIENT_SECRET and NEXTAUTH_SECRET with independent random values (e.g. openssl rand -hex 32).
+2. Fill DATABASE_PASSWORD, KEYCLOAK_ADMIN_PASSWORD, KEYCLOAK_CLIENT_SECRET, NEXTAUTH_SECRET and SAP_API_TOKEN with independent random values (e.g. openssl rand -hex 32).
 3. Run:
    ```sh
    docker compose config --quiet
@@ -111,6 +112,9 @@ See [manager approval rules and UI](docs/approvals.md) for direct-report authori
 | KEYCLOAK_ADMIN_USERNAME / KEYCLOAK_ADMIN_PASSWORD | Local Keycloak bootstrap account |
 | CORS_ALLOWED_ORIGINS | Comma-separated exact origins, local or future Render frontend |
 | MAX_DAILY_HOURS | Backend maximum total hours per work date across projects; default 24 |
+| SAP_BASE_URL / SAP_API_TOKEN | Server-only HTTP integration destination and credential |
+| SAP_CONNECT_TIMEOUT / SAP_RESPONSE_TIMEOUT | Positive backend durations, defaults 2s / 5s |
+| SAP_EXPORT_REQUEST_TIMEOUT_MS | BFF export timeout, default 20000; exceed SAP timeouts |
 | PORT | Runtime listening port, respected by both applications |
 
 Root .env is read by Compose. For host development, export backend variables into the shell; copy relevant frontend variables into frontend/.env.local. Never use NEXT_PUBLIC_ for secrets. The browser does not call Spring Boot directly. Next.js attaches a bearer token server-side and disables fetch caching for user data.
@@ -132,7 +136,7 @@ Root .env is read by Compose. For host development, export backend variables int
 | POST | /api/v1/approvals/timesheets/{id}/reject | MANAGER, direct reports; version and comment required |
 | POST | /api/v1/timesheets/{id}/reopen | Owner of REJECTED sheet; version required |
 
-Lists accept page (zero-based) and size (1–100, default 20). POSTs return 201; project creation includes Location. Project write fields: code, name, description (optional), active. Assignment write fields: employeeId, projectId, validFrom, validTo (optional), active. PUT is full replacement of editable project fields.
+Lists accept page (zero-based) and size (1–100, default 20). Creation POSTs return 201; lifecycle decisions and SAP export return 200 on success. Project creation includes Location. Project write fields: code, name, description (optional), active. Assignment write fields: employeeId, projectId, validFrom, validTo (optional), active. PUT is full replacement of editable project fields.
 
 Errors use timestamp/status/code/message/path. Expected responses include 400 validation/date errors, 401 unauthenticated, 403 forbidden, 404 not found and 409 duplicates/conflicts.
 
@@ -145,7 +149,7 @@ Future TypeScript client generation will consume /v3/api-docs using a pinned Ope
 
 ## Development and verification
 
-Latest results and executed commands: [Phase 3 verification](docs/phase3-verification.md).
+Latest results and executed commands: [Phase 4 verification](docs/phase4-verification.md).
 
 Use a Java 21 version manager and Node 24 (nvm use with the root .nvmrc), or the scoped container procedure in [verification](docs/verification.md). No global replacement is required.
 
@@ -179,4 +183,10 @@ Frontend root frontend: install pnpm install --frozen-lockfile, build pnpm build
 
 Use Render's private backend/database addresses for server traffic, HTTPS public frontend/Keycloak URLs, and secret environment variables. Supply a production Keycloak deployment separately; local start-dev is not suitable. Set exact issuer, JWKS reachability, audience, redirect/logout URIs and canonical NEXTAUTH_URL. No production URLs are hardcoded.
 
-See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 4 has not started.
+See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 4 adds manual SAP export; Phase 5 has not started.
+
+## Phase 4: manual SAP export
+
+ADMIN/FINANCE users open **SAP exports**, choose an approved timesheet, then **Export to SAP**. Confirm SUCCEEDED and the external reference. Export status remains separate from approval status. Employee and manager views show read-only SAP state. Each month has one export record; a failed or uncertain attempt has no retry action in this phase.
+
+See [SAP integration](docs/sap-integration.md) for the four new APIs, V9 migration, HTTP contract, configuration, authorization, transaction boundaries and response-loss handling. [Phase 4 verification](docs/phase4-verification.md) records test results and scoped runtime commands.
