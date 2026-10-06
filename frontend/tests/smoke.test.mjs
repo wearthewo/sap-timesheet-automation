@@ -47,3 +47,9 @@ for (const path of ["/app/approvals", "/app/approvals/00000000-0000-0000-0000-00
   assert.equal(new URL(response.url).pathname, "/login");
  });
 }
+for (const path of ["/app/sap", "/app/sap/00000000-0000-0000-0000-000000000001"]) {
+ test(`anonymous ${path} cannot access export commands`, async () => {
+  const response = await fetch(base + path);
+  assert.equal(new URL(response.url).pathname, "/login");
+ });
+}

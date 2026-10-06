@@ -41,3 +41,9 @@ app:
 
   timesheets:
     max-daily-hours: ${MAX_DAILY_HOURS:24}
+
+  sap:
+    base-url: ${SAP_BASE_URL:}
+    api-token: ${SAP_API_TOKEN:}
+    connect-timeout: ${SAP_CONNECT_TIMEOUT:2s}
+    response-timeout: ${SAP_RESPONSE_TIMEOUT:5s}

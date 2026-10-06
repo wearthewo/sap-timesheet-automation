@@ -19,6 +19,8 @@ async function logout(page:Page) {
 async function openMonth(page:Page) {
  await page.getByRole("link",{name:"Timesheets",exact:true}).click();await page.getByLabel("Choose a month").fill(period!);
  await page.getByRole("button",{name:"Open month"}).click();
+ const [year,month]=period!.split("-");
+ await expect(page).toHaveURL(new RegExp(`/app/timesheets/${year}/${Number(month)}$`));
 }
 test("employee submits, manager rejects, employee reopens and resubmits, manager approves",async({page})=>{
  test.setTimeout(180000);
