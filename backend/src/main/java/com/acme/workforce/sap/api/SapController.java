@@ -19,5 +19,11 @@ public class SapController {
  }
  @GetMapping("/{id}") public ExportDetail detail(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id){return queries.detail(identity.current(jwt).getId(),id);}
  @GetMapping("/{id}/export") public ExportView state(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id){return queries.state(identity.current(jwt).getId(),id);}
- @PostMapping("/{id}/export") public ExportView export(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestHeader("X-Timesheet-Version") @Min(0) long version){return service.export(identity.current(jwt).getId(),id,version);}
+ @ResponseStatus(org.springframework.http.HttpStatus.ACCEPTED) @PostMapping("/{id}/export") public ExportView export(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestHeader("X-Timesheet-Version") @Min(0) long version){return service.export(identity.current(jwt).getId(),id,version);}
+ @ResponseStatus(org.springframework.http.HttpStatus.ACCEPTED) @PostMapping("/{id}/export/retry")
+ public ExportView retry(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id){return service.retry(identity.current(jwt).getId(),id);}
+ @ResponseStatus(org.springframework.http.HttpStatus.ACCEPTED) @PostMapping("/{id}/export/reconcile")
+ public ExportView reconcile(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id){return service.reconcile(identity.current(jwt).getId(),id);}
+ @GetMapping("/{id}/export/attempts")
+ public PageResponse<AttemptView> attempts(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@RequestParam(defaultValue="0") @Min(0) int page,@RequestParam(defaultValue="20") @Min(1) @Max(100) int size){return PageResponse.from(queries.attempts(identity.current(jwt).getId(),id,PageRequest.of(page,size)));}
 }

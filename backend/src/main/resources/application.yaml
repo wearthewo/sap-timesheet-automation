@@ -47,3 +47,12 @@ app:
     api-token: ${SAP_API_TOKEN:}
     connect-timeout: ${SAP_CONNECT_TIMEOUT:2s}
     response-timeout: ${SAP_RESPONSE_TIMEOUT:5s}
+    worker:
+      enabled: ${SAP_EXPORT_WORKER_ENABLED:false}
+      batch-size: ${SAP_EXPORT_BATCH_SIZE:5}
+      poll-interval: ${SAP_EXPORT_POLL_INTERVAL:5s}
+      max-attempts: ${SAP_EXPORT_MAX_ATTEMPTS:4}
+      initial-backoff: ${SAP_EXPORT_INITIAL_BACKOFF:30s}
+      max-backoff: ${SAP_EXPORT_MAX_BACKOFF:10m}
+      processing-timeout: ${SAP_EXPORT_PROCESSING_TIMEOUT:5m}
+      reconciliation-interval: ${SAP_RECONCILIATION_INTERVAL:30s}

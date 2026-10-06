@@ -27,9 +27,11 @@ test("finance exports once, admin sees safe validation failure, employee and man
  await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
  await expect(region).toContainText(/SAP-TS-[A-F0-9]+/);
  await expect(region.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await expect(region.getByRole("button", { name: "Retry export", exact: true })).toHaveCount(0);
  await page.reload();
  await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
  await expect(region.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await expect(region.getByRole("button", { name: "Retry export", exact: true })).toHaveCount(0);
  await page.screenshot({ path: "test-results/sap-success-desktop.png", fullPage: true });
  await logout(page);
  await page.setViewportSize({ width: 375, height: 812 });
@@ -40,6 +42,7 @@ test("finance exports once, admin sees safe validation failure, employee and man
  await expect(region.getByRole("status")).toHaveText("FAILED");
  await expect(region.getByRole("alert")).toHaveText("SAP rejected the timesheet data.");
  await expect(region.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await expect(region.getByRole("button", { name: "Retry export", exact: true })).toHaveCount(0);
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
  await page.screenshot({ path: "test-results/sap-failure-mobile.png", fullPage: true });
  await logout(page);
@@ -48,6 +51,7 @@ test("finance exports once, admin sees safe validation failure, employee and man
  await page.goto("/app/timesheets/2027/1");
  await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
  await expect(page.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await expect(page.getByRole("button", { name: /^(Retry|Reconcile) export$/ })).toHaveCount(0);
  await page.goto(`/app/sap/${success}`);
  await expect(page.getByText("You do not have access to SAP export commands.")).toBeVisible();
  await logout(page);
@@ -56,6 +60,7 @@ test("finance exports once, admin sees safe validation failure, employee and man
  await page.goto(`/app/approvals/${success}`);
  await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
  await expect(page.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await expect(page.getByRole("button", { name: /^(Retry|Reconcile) export$/ })).toHaveCount(0);
  await expect(page.getByRole("link", { name: "Approvals", exact: true })).toBeVisible();
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
  await logout(page);

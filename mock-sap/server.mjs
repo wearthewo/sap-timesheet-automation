@@ -8,6 +8,7 @@ export function createMockSap({ token, storePath, timeoutMs = 10000 } = {}) {
  if (!token) throw new Error("SAP_API_TOKEN is required");
  const records = new Map(storePath && existsSync(storePath) ? JSON.parse(readFileSync(storePath, "utf8")) : []);
  const timers = new Set();
+ const requestCounts = new Map();
  function save() {
   if (!storePath) return;
   mkdirSync(dirname(storePath), { recursive: true });
@@ -20,6 +21,12 @@ export function createMockSap({ token, storePath, timeoutMs = 10000 } = {}) {
   const supplied = Buffer.from(req.headers.authorization ?? "");
   const expected = Buffer.from("Bearer " + token);
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return reply(res, 401, { code: "UNAUTHORIZED", message: "Invalid credentials" });
+  const url = new URL(req.url, "http://mock-sap");
+  if (req.method === "GET" && url.pathname === "/sap/timesheets/by-identity") {
+   const identity = url.searchParams.get("identity");
+   const record = records.get(identity);
+   return reply(res, record ? 200 : 404, record ? { success: true, externalReference: record.externalReference, exportIdentity: identity } : { code: "NOT_FOUND" });
+  }
   if (req.method === "GET" && /^\/sap\/timesheets\/SAP-TS-[A-F0-9]+$/.test(req.url)) {
    const record = [...records.values()].find(r => "/sap/timesheets/" + r.externalReference === req.url);
    return reply(res, record ? 200 : 404, record ? { success: true, externalReference: record.externalReference, document: record.document } : { code: "NOT_FOUND" });
@@ -46,6 +53,12 @@ export function createMockSap({ token, storePath, timeoutMs = 10000 } = {}) {
     return reply(res, 400, { code: "INVALID_TIMESHEET", message: "Invalid timesheet fields" });
    if (records.has(key)) return reply(res, 409, { code: "DUPLICATE_TIMESHEET", message: "Timesheet already exists" });
    const scenarios = new Set(entries.map(e => e.ProjectCode));
+   const attempt = (requestCounts.get(key) ?? 0) + 1; requestCounts.set(key, attempt);
+   if ((scenarios.has("MOCK-TRANSIENT-500") || scenarios.has("MOCK-TRANSIENT-503")) && attempt <= 2) return reply(res, scenarios.has("MOCK-TRANSIENT-500") ? 500 : 503, { code: "TEMPORARILY_UNAVAILABLE" });
+   if (scenarios.has("MOCK-RETRY") && attempt <= 4) return reply(res, 503, { code: "TEMPORARILY_UNAVAILABLE" });
+   if (scenarios.has("MOCK-TIMEOUT-BEFORE") && attempt === 1) {
+    const timer = setTimeout(() => { timers.delete(timer); reply(res, 503, { code: "NOT_CREATED" }); }, timeoutMs); timers.add(timer); return;
+   }
    if (scenarios.has("MOCK-INVALID")) return reply(res, 400, { code: "INVALID_PROJECT", message: "Project code is invalid" });
    if (scenarios.has("MOCK-AUTH")) return reply(res, 403, { code: "FORBIDDEN", message: "Personnel not authorized" });
    if (scenarios.has("MOCK-SERVER")) return reply(res, 503, { code: "SERVICE_UNAVAILABLE", message: "SAP unavailable" });

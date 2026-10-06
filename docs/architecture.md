@@ -1,6 +1,6 @@
-# Platform architecture (Phase 4)
+# Platform architecture (Phase 5)
 
-The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets, manager approval history and manual SAP exports.
+The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets, manager approval history and durable asynchronous SAP exports.
 
 ## Modular monolith
 
@@ -10,7 +10,7 @@ Spring Boot is a single application with feature packages:
 - project: projects and date-bounded assignments.
 - timesheet: owned monthly drafts, date-valid time entries, transactional totals, versioned submission and explicit reopening.
 - approval: direct-report manager authorization, pending queue and atomic immutable decisions.
-- sap: approved export authorization, durable reservation/results, gateway and HTTP adapter.
+- sap: approved export authorization, durable jobs, fenced claims, retry/reconciliation policy, immutable attempt history, gateway and HTTP adapter.
 - common: small shared error, pagination, security and timestamp facilities.
 
 Each feature uses api/application/domain/infrastructure where needed. There are no generic service/repository layers, message brokers or microservices. UUID references keep aggregate boundaries simple and avoid recursive JPA serialization; PostgreSQL foreign keys enforce relationships. A small mapped superclass centralizes UUID and timestamp lifecycle behavior.
@@ -43,9 +43,9 @@ Lists return content, page, size, totalElements and totalPages, with bounded pag
 
 ## Future boundaries (not implemented)
 
-Future modules: reporting, production SAP adapter, background SAP export processing, retries/reconciliation, notifications and broader audit logs.
+Future modules: reporting, production SAP adapter,  notifications and broader audit logs.
 
-Phase 4 implements the application-owned SapTimesheetGateway port and a synchronous HTTP adapter targeting a local Node mock. SAP fields and protocol errors stay inside infrastructure. The sap module owns durable export records, deterministic identity, role authorization and safe outcomes. A future production S/4HANA adapter can replace the mock-facing adapter without changing timesheet or approval business logic. No background processing infrastructure exists.
+Phase 4 implements the application-owned SapTimesheetGateway port and a synchronous HTTP adapter targeting a local Node mock. SAP fields and protocol errors stay inside infrastructure. The sap module owns durable export records, deterministic identity, role authorization and safe outcomes. A future production S/4HANA adapter can replace the mock-facing adapter without changing timesheet or approval business logic. PostgreSQL-backed processing now runs within the same backend artifact.
 
 ## Render target
 
@@ -72,6 +72,8 @@ See [approvals](approvals.md) for migration, authorization, lifecycle and concur
 
 ## SAP export boundary
 
-APPROVED timesheet -> manual export command -> SapTimesheetGateway -> HTTP SAP adapter -> mock SAP locally / real SAP later.
+Browser -> Next.js BFF -> API -> PostgreSQL export/job -> Worker -> SapTimesheetGateway -> HTTP SAP adapter -> mock SAP locally / real SAP later.
 
-The sap feature reserves one export per timesheet in a short transaction, calls HTTP without an open database transaction, then commits the result in a second transaction. Approved content and approval history remain immutable. ADMIN/FINANCE get a command worklist, not finance reports. UNKNOWN and stranded PENDING records require future reconciliation; no implicit retry is performed. See [SAP integration](sap-integration.md) for the complete model and failure windows.
+API commands commit jobs and return 202. The same Spring Boot artifact claims with PostgreSQL SKIP LOCKED and performs external calls outside transactions. Results, job state and immutable history commit together. Lease fencing, stable identity, payload snapshots and reconciliation protect ambiguous outcomes. Repeated enqueue is idempotent. The existing approval status remains APPROVED and is separate from export status.
+
+No Kafka, RabbitMQ, Redis, microservice or separate worker deployment is required. Future Render API instances may disable scheduling while worker-enabled instances use the same artifact and shared database. See [worker architecture](sap-export-worker.md) for status models, configuration, crash recovery and bounded retry policy.
