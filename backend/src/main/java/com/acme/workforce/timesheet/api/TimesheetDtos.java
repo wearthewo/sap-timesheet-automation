@@ -26,5 +26,5 @@ public final class TimesheetDtos {
     public record Detail(UUID id, int year, int month, TimesheetStatus status,
             @io.swagger.v3.oas.annotations.media.Schema(type = "string", example = "6.50") @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal totalHours,
             Instant submittedAt, long version, List<EntryView> entries, List<DailyTotal> dailyTotals,
-            @io.swagger.v3.oas.annotations.media.Schema(type = "string", example = "6.50") @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal maxDailyHours) {}
+            @io.swagger.v3.oas.annotations.media.Schema(type = "string", example = "6.50") @JsonFormat(shape = JsonFormat.Shape.STRING) BigDecimal maxDailyHours, List<com.acme.workforce.approval.api.ApprovalDtos.DecisionView> approvalHistory) {}
 }

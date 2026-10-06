@@ -41,3 +41,9 @@ for (const path of ["/app/timesheets", "/app/timesheets/2026/10"]) {
   assert.match(await response.text(), /Sign in with your work account/);
  });
 }
+for (const path of ["/app/approvals", "/app/approvals/00000000-0000-0000-0000-000000000001"]) {
+ test(`anonymous ${path} cannot access manager content`, async () => {
+  const response = await fetch(base + path);
+  assert.equal(new URL(response.url).pathname, "/login");
+ });
+}

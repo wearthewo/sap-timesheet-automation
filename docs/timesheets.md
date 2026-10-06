@@ -1,10 +1,10 @@
-# Employee timesheets (Phase 2)
+# Employee timesheets (Phases 2–3)
 
 ## Using the UI
 
 Sign in, open **Timesheets**, choose a month, and select **Create draft** if it has not been started. A missing month is not created by viewing it. Select a work date first: the project dropdown contains active assignments valid on that date. Enter decimal hours and an optional description, then **Save entry**. Each save persists the draft; there is no separate whole-month save button.
 
-Entries are grouped by date with daily totals. The monthly total stays visible above the editor. Edit or delete entries until ready, then select **Submit month** and **Confirm submission**. Submitted months remain in the paginated month list and open read-only with their submitted timestamp. Approval will be introduced in Phase 3; Phase 2 has no approval or return-to-draft operation.
+Entries are grouped by date with daily totals. The monthly total stays visible above the editor. Edit or delete entries until ready, then select **Submit month** and **Confirm submission**. Submitted months enter PENDING_APPROVAL and remain read-only during review. Managers can approve or reject; REJECTED months show the decision reason and can be explicitly reopened to DRAFT. APPROVED months remain read-only. See [approval workflow](approvals.md) for the lifecycle and manager APIs.
 
 ## API
 
@@ -35,15 +35,17 @@ Years 1–9999 and months 1–12 are accepted. Entry dates must be within the sh
 
 MAX_DAILY_HOURS defaults to 24, accepts a positive decimal with up to two decimal places (maximum 99999.99), and is configured on Spring Boot. The limit applies across all projects on each work date, not to individual entries alone. No eight-hour restriction exists. UTC determines the UI's current month/date; work dates themselves are timezone-free calendar dates.
 
-**totalHours is persisted**, allowing efficient paginated month summaries. Every add/edit/delete recalculates daily limits and the monthly sum inside the same transaction as the entry change. Submission recalculates before setting SUBMITTED and submittedAt. The backend is the only application writer; direct operator edits to timesheets/entries would bypass these invariants and are unsupported.
+**totalHours is persisted**, allowing efficient paginated month summaries. Every add/edit/delete recalculates daily limits and the monthly sum inside the same transaction as the entry change. Submission recalculates before setting PENDING_APPROVAL and submittedAt. The backend is the only application writer; direct operator edits to timesheets/entries would bypass these invariants and are unsupported.
 
 Timesheet is the concurrency aggregate. Every mutation dirties the parent, even description-only edits with unchanged hours, so its JPA @Version advances. The client version rejects stale tabs early, and the database version predicate catches simultaneous writes. Losing transactions roll back all entry and total changes and return 409; the UI offers reload instead of silently overwriting. TimesheetEntry has no separate version because every entry operation participates in the parent transaction/version. Read-only detail transactions use a repeatable-read snapshot so parent version and entry totals describe the same committed state.
 
-Submitted sheets have no employee write transition. Historical reads do not reapply a later daily-limit setting or assignment change. Project names/codes in views reflect the current project catalog; Phase 2 does not snapshot project names.
+PENDING_APPROVAL and APPROVED sheets have no employee write transition; REJECTED sheets require explicit versioned reopening. Historical reads do not reapply a later daily-limit setting or assignment change. Project names/codes in views reflect the current project catalog; Phase 2 does not snapshot project names.
+
+Phase 3 adds immutable approvalHistory to detail responses. POST /timesheets/{id}/reopen requires X-Timesheet-Version and REJECTED state; it retains entries/history and clears submittedAt. V7 migrates SUBMITTED to PENDING_APPROVAL, and V8 adds decision history without changing V1–V6.
 
 ## Repeatable browser verification
 
-The Playwright suite uses real Keycloak, BFF, Spring Boot and PostgreSQL; it does not mock authentication or business responses. Use a dedicated local employee and an unstarted month with two valid project assignments. The test submits that month permanently. Set TEST_USERNAME, TEST_PASSWORD, TEST_MONTH (YYYY-MM), TEST_PROJECT_ONE and TEST_PROJECT_TWO (project codes). Optional TEST_WORK_DATE defaults to the fifth day; BROWSER_BASE_URL defaults to http://localhost:3000.
+The Playwright suite uses real Keycloak, BFF, Spring Boot and PostgreSQL; it does not mock authentication or business responses. Use a dedicated local employee and an unstarted month with two valid project assignments. The test creates and submits real fixture data; use an unstarted month for each run. Set TEST_USERNAME, TEST_PASSWORD, TEST_MONTH (YYYY-MM), TEST_PROJECT_ONE and TEST_PROJECT_TWO (project codes). Optional TEST_WORK_DATE defaults to the fifth day; BROWSER_BASE_URL defaults to http://localhost:3000.
 
 With Node 24 and pnpm:
 ```sh
@@ -51,8 +53,10 @@ pnpm exec playwright install chromium
 pnpm test:browser
 ```
 
-The two browser cases cover desktop creation/add/edit/delete, two-project totals, a stale-tab conflict, submission/read-only history, mobile layout/navigation and both desktop/mobile logout. Traces are disabled to avoid retaining credentials/tokens. Screenshots are saved only after authentication, under ignored test-results/.
+The two entry-flow browser cases cover desktop creation/add/edit/delete, two-project totals, a stale-tab conflict, submission/read-only history, mobile layout/navigation and both desktop/mobile logout. Traces are disabled to avoid retaining credentials/tokens. Screenshots are saved only after authentication, under ignored test-results/.
 
 A scoped Node 24/Chromium runtime is available in frontend/tests/Dockerfile. Build from the frontend directory: docker build -f tests/Dockerfile -t workforce-browser-tests . Pass test variables with docker run -e NAME (values inherited from your shell). On Docker Desktop, BROWSER_HOST_MAP=1 maps Chromium's localhost to host.docker.internal while preserving the public OIDC issuer/origin. Follow the [Playwright Docker guidance](https://playwright.dev/docs/docker) for browser dependencies and container operation.
+
+The full suite also runs the approval scenario described in [approvals.md](approvals.md); provide manager credentials and a separate unstarted TEST_APPROVAL_MONTH.
 
 Manual onboarding remains unchanged. For a local fixture, create a dedicated Keycloak user, log in once, insert an employee tied to its verified subject, then create two projects and assignments covering TEST_WORK_DATE. No production seed or admin UI was added.

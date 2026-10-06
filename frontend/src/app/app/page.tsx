@@ -1,3 +1,4 @@
+import PendingCount from "./approvals/pending-count";
 import CurrentMonth from "./timesheets/current-month";
 import Link from "next/link";
 import { currentUser, assignedProjects } from "@/lib/backend";
@@ -21,5 +22,6 @@ export default async function Dashboard() {
    </section>
   </div>
   <CurrentMonth />
+  {user.role === "MANAGER" && <PendingCount />}
  </>;
 }

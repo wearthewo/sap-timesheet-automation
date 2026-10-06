@@ -137,13 +137,13 @@ class PhaseTwoIntegrationTest {
  @Test void submittedSheetIsImmutable() throws Exception {
   var s=add(create("alice"),project,"2");
   s=json(request(submit(s),"alice").andExpect(status().isOk()));
-  assertThat(s.get("status").asText()).isEqualTo("SUBMITTED"); assertThat(s.get("submittedAt").isNull()).isFalse();
+  assertThat(s.get("status").asText()).isEqualTo("PENDING_APPROVAL"); assertThat(s.get("submittedAt").isNull()).isFalse();
   String entry=s.get("entries").get(0).get("id").asText();
   request(addRequest(s,project,"2026-10-05","1"),"alice").andExpect(status().isConflict());
   request(put(base(s)+"/entries/"+entry).header("X-Timesheet-Version",s.get("version").asLong()).contentType("application/json").content(body(project,"2026-10-05","1")),"alice").andExpect(status().isConflict());
   request(delete(base(s)+"/entries/"+entry).header("X-Timesheet-Version",s.get("version").asLong()),"alice").andExpect(status().isConflict());
   request(submit(s),"alice").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TIMESHEET_ALREADY_SUBMITTED"));
-  request(get("/api/v1/timesheets"),"alice").andExpect(jsonPath("$.content[0].status").value("SUBMITTED"));
+  request(get("/api/v1/timesheets"),"alice").andExpect(jsonPath("$.content[0].status").value("PENDING_APPROVAL"));
  }
  @Test void emptySubmissionRejected() throws Exception {
   request(submit(create("alice")),"alice").andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("TIMESHEET_EMPTY"));

@@ -1,6 +1,6 @@
-# Platform architecture (Phase 2)
+# Platform architecture (Phase 3)
 
-The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments and employee monthly timesheets.
+The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets and manager approval history.
 
 ## Modular monolith
 
@@ -8,7 +8,8 @@ Spring Boot is a single application with feature packages:
 - identity: application users, JWT subject provisioning, database role checks.
 - employee: employee identity, manager reference, current employee project endpoint.
 - project: projects and date-bounded assignments.
-- timesheet: owned monthly drafts, date-valid time entries, transactional totals and immutable submission.
+- timesheet: owned monthly drafts, date-valid time entries, transactional totals, versioned submission and explicit reopening.
+- approval: direct-report manager authorization, pending queue and atomic immutable decisions.
 - common: small shared error, pagination, security and timestamp facilities.
 
 Each feature uses api/application/domain/infrastructure where needed. There are no generic service/repository layers, message brokers or microservices. UUID references keep aggregate boundaries simple and avoid recursive JPA serialization; PostgreSQL foreign keys enforce relationships. A small mapped superclass centralizes UUID and timestamp lifecycle behavior.
@@ -41,11 +42,11 @@ Lists return content, page, size, totalElements and totalPages, with bounded pag
 
 ## Future boundaries (not implemented)
 
-Future modules: approvals (Phase 3), reporting, SAP adapter, SAP export processing, retries/idempotency, notifications and audit logs.
+Future modules: reporting, SAP adapter, SAP export processing, retries/idempotency, notifications and audit logs.
 
 A future application-owned SapTimesheetGateway port will expose business-level export operations. The SAP adapter will translate them to SAP S/4HANA payloads and protocol errors. SAP field names, credentials, SDK classes and transport behavior must remain inside that adapter. Domain services should not depend on SAP availability or vendor schemas. Export processing will later define durable state, idempotency and retry policy.
 
-No gateway interface, exports, approvals or background processing infrastructure exist in this phase.
+No gateway interface, exports or background processing infrastructure exist in this phase.
 
 ## Render target
 
@@ -62,4 +63,10 @@ The three application services also depend on a separately operated production K
 
 ## Timesheet aggregate
 
-The state model is DRAFT → SUBMITTED. Approval will be introduced in Phase 3. The timesheet module owns both the monthly aggregate and entries. Self-service ownership comes from the authenticated application user; entries reference projects through UUID foreign keys. Persisted totals, entry changes, and the parent optimistic version commit atomically. Every mutation requires the client version and submitted months cannot be changed. Next.js Server Actions propagate authenticated requests and display backend validation without implementing business rules. See [timesheet rules](timesheets.md) for assignment validity, daily limits, error semantics, snapshot reads, and concurrency decisions.
+The state model is DRAFT → PENDING_APPROVAL → APPROVED or REJECTED, with explicit REJECTED → DRAFT reopening. The timesheet module owns both the monthly aggregate and entries. Self-service ownership comes from the authenticated application user; entries reference projects through UUID foreign keys. Persisted totals, entry changes, and the parent optimistic version commit atomically. Every mutation requires the client version and pending/approved months cannot be changed by employees. Next.js Server Actions propagate authenticated requests and display backend validation without implementing business rules. See [timesheet rules](timesheets.md) for assignment validity, daily limits, error semantics, snapshot reads, and concurrency decisions.
+
+## Approval boundary
+
+The approval module authorizes the database MANAGER role against Employee.managerId, excluding self-review and inactive manager profiles. It uses the existing timesheet aggregate version for atomic status/history writes. Timesheet detail composition includes append-only decision DTOs; no approval entity is exposed. PostgreSQL enforces immutable history in addition to JPA immutability. The employee module remains the source of manager relationships, and identity remains the source of application roles. No independent manager identity or approval microservice was introduced.
+
+See [approvals](approvals.md) for migration, authorization, lifecycle and concurrency rules.

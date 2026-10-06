@@ -63,6 +63,11 @@ public class TimesheetController {
             @RequestHeader("X-Timesheet-Version") @Min(0) long version) {
         return timesheets.delete(user(jwt), id, entryId, version);
     }
+    @PostMapping("/{id}/reopen")
+    public Detail reopen(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+            @RequestHeader("X-Timesheet-Version") @Min(0) long version) {
+        return timesheets.reopen(user(jwt),id,version);
+    }
     @PostMapping("/{id}/submit")
     public Detail submit(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
             @RequestHeader("X-Timesheet-Version") @Min(0) long version) {

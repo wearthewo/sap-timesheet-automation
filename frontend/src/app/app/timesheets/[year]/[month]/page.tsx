@@ -12,6 +12,6 @@ export default async function Month({ params }: { params: Promise<{ year: string
  return <>
   <Link href="/app/timesheets" className="text-sm font-semibold text-blue-700">← All timesheets</Link>
   <h1 className="mt-5 mb-7 text-3xl font-bold">{monthLabel(year,month)}</h1>
-  {error ? <p role="alert">{error}</p> : <TimesheetEditor key={sheet?.id ?? `${year}-${month}`} initial={sheet} year={year} month={month} />}
+  {error ? <p role="alert">{error}</p> : <TimesheetEditor key={`${year}-${month}`} initial={sheet} year={year} month={month} />}
  </>;
 }

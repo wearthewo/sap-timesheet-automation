@@ -1,8 +1,8 @@
 # Employee Timesheet & SAP Automation Platform
 
-Phase 2 adds employee monthly timesheets to the Phase 1 identity, employee, project and assignment foundation. Employees can record decimal hours on assigned projects, save drafts, see daily/monthly totals and submit immutable monthly timesheets.
+Phase 3 adds manager review to employee monthly timesheets. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
 
-**No approvals, reporting, SAP integration, workers, messaging, notifications or payroll are implemented. Nothing is deployed.**
+**No reporting, SAP integration, workers, messaging, notifications or payroll are implemented. Nothing is deployed.**
 
 ## Architecture and stack
 
@@ -87,9 +87,11 @@ Use Swagger UI with a valid Keycloak access token and an ADMIN application user 
 
 ## Employee timesheets
 
-Open Timesheets in the authenticated navigation, choose a month, create a draft, and save individual entries. Each save persists progress. Submit after checking totals; submitted months are read-only. The lifecycle is DRAFT → SUBMITTED, with no reverse transition. Approval comes in Phase 3.
+Open Timesheets in the authenticated navigation, choose a month, create a draft, and save individual entries. Each save persists progress. Submit after checking totals; pending and approved months are read-only. The lifecycle is DRAFT → PENDING_APPROVAL → APPROVED or REJECTED. Rejected months require explicit reopening to DRAFT before editing/resubmission. Managers use Approvals to review direct reports.
 
 See [timesheet usage, API and concurrency rules](docs/timesheets.md), including version headers, ownership, assignment-date validation, daily limits, and browser-test setup.
+
+See [manager approval rules and UI](docs/approvals.md) for direct-report authorization, decisions/history, rejection/reopen behavior and version checks. Existing SUBMITTED data migrates to PENDING_APPROVAL without losing entries or submission timestamps.
 
 ## Environment variables
 
@@ -124,6 +126,11 @@ Root .env is read by Compose. For host development, export backend variables int
 | POST | /api/v1/projects | ADMIN |
 | PUT | /api/v1/projects/{id} | ADMIN |
 | POST | /api/v1/project-assignments | ADMIN |
+| GET | /api/v1/approvals/pending | MANAGER, direct reports |
+| GET | /api/v1/approvals/timesheets/{id} | MANAGER, direct reports |
+| POST | /api/v1/approvals/timesheets/{id}/approve | MANAGER, direct reports; version required |
+| POST | /api/v1/approvals/timesheets/{id}/reject | MANAGER, direct reports; version and comment required |
+| POST | /api/v1/timesheets/{id}/reopen | Owner of REJECTED sheet; version required |
 
 Lists accept page (zero-based) and size (1–100, default 20). POSTs return 201; project creation includes Location. Project write fields: code, name, description (optional), active. Assignment write fields: employeeId, projectId, validFrom, validTo (optional), active. PUT is full replacement of editable project fields.
 
@@ -138,7 +145,7 @@ Future TypeScript client generation will consume /v3/api-docs using a pinned Ope
 
 ## Development and verification
 
-Latest results and executed commands: [Phase 2 verification](docs/phase2-verification.md).
+Latest results and executed commands: [Phase 3 verification](docs/phase3-verification.md).
 
 Use a Java 21 version manager and Node 24 (nvm use with the root .nvmrc), or the scoped container procedure in [verification](docs/verification.md). No global replacement is required.
 
@@ -172,4 +179,4 @@ Frontend root frontend: install pnpm install --frozen-lockfile, build pnpm build
 
 Use Render's private backend/database addresses for server traffic, HTTPS public frontend/Keycloak URLs, and secret environment variables. Supply a production Keycloak deployment separately; local start-dev is not suitable. Set exact issuer, JWKS reachability, audience, redirect/logout URIs and canonical NEXTAUTH_URL. No production URLs are hardcoded.
 
-See [architecture](docs/architecture.md) for future module boundaries. Approval will be introduced in Phase 3. Phase 3 has not started.
+See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 4 has not started.

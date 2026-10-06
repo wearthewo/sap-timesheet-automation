@@ -21,12 +21,12 @@ export async function createMonth(year: number, month: number) {
 export async function availableProjects(id: string, date: string) {
  return result(() => backendRequest<ProjectOption[]>(`/api/v1/timesheets/${encodeURIComponent(id)}/available-projects?workDate=${encodeURIComponent(date)}`));
 }
-export async function changeTimesheet(id: string, version: number, operation: "add" | "edit" | "delete" | "submit", form?: { entryId?: string; projectId: string; workDate: string; hours: string; description: string }) {
+export async function changeTimesheet(id: string, version: number, operation: "add" | "edit" | "delete" | "submit" | "reopen", form?: { entryId?: string; projectId: string; workDate: string; hours: string; description: string }) {
  // Fixed operations only: never accept an arbitrary backend URL or HTTP method.
- if (!["add","edit","delete","submit"].includes(operation)) return { error: "Unknown operation." } as ActionResult<Timesheet>;
- let suffix = "/submit";
+ if (!["add","edit","delete","submit","reopen"].includes(operation)) return { error: "Unknown operation." } as ActionResult<Timesheet>;
+ let suffix = operation === "reopen" ? "/reopen" : "/submit";
  let method = "POST";
- if (operation !== "submit") {
+ if (operation !== "submit" && operation !== "reopen") {
   suffix = "/entries";
   if (operation !== "add") {
    if (!form?.entryId) return { error: "An entry is required." } as ActionResult<Timesheet>;
