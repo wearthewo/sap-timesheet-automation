@@ -1,8 +1,8 @@
 # Employee Timesheet & SAP Automation Platform
 
-Phase 5 adds durable asynchronous SAP export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
+Phase 6 adds FINANCE/ADMIN monthly operational reporting, approved-hours and SAP-exported-hours projections, and CSV/Excel downloads. Phase 5 durable asynchronous SAP export remains in place: export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
 
-**Exports now run in the existing backend worker with PostgreSQL jobs, bounded retries and reconciliation. No production SAP connection, reporting, messaging, notifications, payroll or deployment is included.**
+**Exports now run in the existing backend worker with PostgreSQL jobs, bounded retries and reconciliation. No production SAP connection, messaging, notifications, payroll or deployment is included.**
 
 ## Architecture and stack
 
@@ -82,7 +82,7 @@ UPDATE employees SET manager_id = '<manager-employee-uuid>', updated_at = now()
 WHERE id = '<employee-uuid>';
 ```
 
-Roles are exclusively database-owned. No endpoint accepts role changes. MANAGER and FINANCE currently have authenticated read access, like EMPLOYEE. Only ADMIN can write projects and assignments. Employee number duplicates are rejected by the database and mapped by the shared error handler when surfaced through application code.
+Roles are exclusively database-owned. No endpoint accepts role changes. MANAGER can review direct reports; FINANCE and ADMIN can operate SAP exports and access Finance reports. Only ADMIN can write projects and assignments. Employee number duplicates are rejected by the database and mapped by the shared error handler when surfaced through application code.
 
 Use Swagger UI with a valid Keycloak access token and an ADMIN application user to create projects and assignments. Tokens must include the workforce-api audience; never commit or log them.
 
@@ -148,7 +148,7 @@ Future TypeScript client generation will consume /v3/api-docs using a pinned Ope
 
 ## Development and verification
 
-Latest results and executed commands: [Phase 5 verification](docs/phase5-verification.md).
+Latest results and executed commands: [Phase 6 verification](docs/phase6-verification.md).
 
 Use a Java 21 version manager and Node 24 (nvm use with the root .nvmrc), or the scoped container procedure in [verification](docs/verification.md). No global replacement is required.
 
@@ -182,7 +182,7 @@ Frontend root frontend: install pnpm install --frozen-lockfile, build pnpm build
 
 Use Render's private backend/database addresses for server traffic, HTTPS public frontend/Keycloak URLs, and secret environment variables. Supply a production Keycloak deployment separately; local start-dev is not suitable. Set exact issuer, JWKS reachability, audience, redirect/logout URIs and canonical NEXTAUTH_URL. No production URLs are hardcoded.
 
-See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 5 adds durable SAP processing; Phase 6 has not started.
+See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 5 adds durable SAP processing and Phase 6 adds Finance reporting. Phase 7 has not started.
 
 ## Phase 5: durable SAP export
 
@@ -195,3 +195,11 @@ See [worker design](docs/sap-export-worker.md), [adapter contract](docs/sap-inte
 New commands: POST /api/v1/sap/timesheets/{id}/export/retry and POST /api/v1/sap/timesheets/{id}/export/reconcile. GET /api/v1/sap/timesheets/{id}/export/attempts provides paginated history. Existing export POST now returns 202 and is idempotent.
 
 Worker configuration: SAP_EXPORT_WORKER_ENABLED, SAP_EXPORT_BATCH_SIZE, SAP_EXPORT_POLL_INTERVAL, SAP_EXPORT_MAX_ATTEMPTS, SAP_EXPORT_INITIAL_BACKOFF, SAP_EXPORT_MAX_BACKOFF, SAP_EXPORT_PROCESSING_TIMEOUT and SAP_RECONCILIATION_INTERVAL. Defaults and runtime-role options are documented in the worker guide and .env.example. Compose enables the worker inside the backend; API-only execution can disable it.
+
+## Finance reporting (Phase 6)
+
+Open **Reports** as FINANCE or ADMIN, select year/month, and filter employees, projects, timesheet state or SAP state. The operational view includes active employees without a timesheet. Approved-hours detail includes only APPROVED; SAP-exported mode additionally requires SUCCEEDED.
+
+Download CSV for detailed entries or Excel for five sheets: Summary, Employees, Project Totals, Employee Project Hours, and Approved Hour Details. Summary/Employees are operational context; the other sheets follow the selected approved-hours mode. Set REPORT_MAX_DOWNLOAD_ROWS (default 10000) to bound download memory. No V12 migration was required.
+
+See [reporting semantics, APIs and local fixtures](docs/reporting.md) and [verification results](docs/phase6-verification.md).
