@@ -1,6 +1,6 @@
-# Platform architecture (Phase 5)
+# Platform architecture (Phase 6)
 
-The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets, manager approval history and durable asynchronous SAP exports.
+The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets, manager approval history, durable asynchronous SAP exports and Finance reporting.
 
 ## Modular monolith
 
@@ -11,6 +11,7 @@ Spring Boot is a single application with feature packages:
 - timesheet: owned monthly drafts, date-valid time entries, transactional totals, versioned submission and explicit reopening.
 - approval: direct-report manager authorization, pending queue and atomic immutable decisions.
 - sap: approved export authorization, durable jobs, fenced claims, retry/reconciliation policy, immutable attempt history, gateway and HTTP adapter.
+- reporting: active-employee operational projections, approved/SAP-exported hour aggregates and bounded CSV/XLSX downloads.
 - common: small shared error, pagination, security and timestamp facilities.
 
 Each feature uses api/application/domain/infrastructure where needed. There are no generic service/repository layers, message brokers or microservices. UUID references keep aggregate boundaries simple and avoid recursive JPA serialization; PostgreSQL foreign keys enforce relationships. A small mapped superclass centralizes UUID and timestamp lifecycle behavior.
@@ -43,7 +44,7 @@ Lists return content, page, size, totalElements and totalPages, with bounded pag
 
 ## Future boundaries (not implemented)
 
-Future modules: reporting, production SAP adapter,  notifications and broader audit logs.
+Future modules: production SAP adapter, notifications and broader audit logs.
 
 Phase 4 implements the application-owned SapTimesheetGateway port and a synchronous HTTP adapter targeting a local Node mock. SAP fields and protocol errors stay inside infrastructure. The sap module owns durable export records, deterministic identity, role authorization and safe outcomes. A future production S/4HANA adapter can replace the mock-facing adapter without changing timesheet or approval business logic. PostgreSQL-backed processing now runs within the same backend artifact.
 
@@ -77,3 +78,18 @@ Browser -> Next.js BFF -> API -> PostgreSQL export/job -> Worker -> SapTimesheet
 API commands commit jobs and return 202. The same Spring Boot artifact claims with PostgreSQL SKIP LOCKED and performs external calls outside transactions. Results, job state and immutable history commit together. Lease fencing, stable identity, payload snapshots and reconciliation protect ambiguous outcomes. Repeated enqueue is idempotent. The existing approval status remains APPROVED and is separate from export status.
 
 No Kafka, RabbitMQ, Redis, microservice or separate worker deployment is required. Future Render API instances may disable scheduling while worker-enabled instances use the same artifact and shared database. See [worker architecture](sap-export-worker.md) for status models, configuration, crash recovery and bounded retry policy.
+
+## Finance reporting boundary (Phase 6)
+
+```mermaid
+flowchart TD
+ Roles["FINANCE / ADMIN"] --> UI["Next.js reports UI / authenticated file proxy"]
+ UI --> API["Spring Boot Reporting API"]
+ API --> DB["PostgreSQL authoritative operational data"]
+ DB --> Reads["Read projections / grouped aggregation"]
+ Reads --> Files["CSV / XLSX after read transaction closes"]
+```
+
+The reporting feature owns read-only DTOs, reporting-only states, SQL projections and bounded file formatting. It does not own a second copy of timesheets, approvals or SAP state. Database roles authorize every read/download. PostgreSQL numeric and BigDecimal preserve exact totals. Operational rows include currently active employees without a timesheet; approved and SAP-exported details have explicit separate filters. Existing worker/approval transaction boundaries remain unchanged.
+
+No reporting microservice, warehouse, materialized view or new schema migration was justified. Existing join indexes support the read paths. See [reporting](reporting.md) for query strategy, snapshot limits, file layout and inclusion semantics. Payroll and notifications remain future scope.

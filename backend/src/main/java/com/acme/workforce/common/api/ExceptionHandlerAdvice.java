@@ -16,7 +16,7 @@ import org.slf4j.*;
 public class ExceptionHandlerAdvice {
  private static final Logger log=LoggerFactory.getLogger(ExceptionHandlerAdvice.class);
  private ResponseEntity<ApiError> error(int status,String code,String message,HttpServletRequest request) {
-  return ResponseEntity.status(status).body(ApiError.of(status,code,message,request.getRequestURI()));
+  return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(ApiError.of(status,code,message,request.getRequestURI()));
  }
  @ExceptionHandler(DomainException.class)
  ResponseEntity<ApiError> domain(DomainException ex,HttpServletRequest request) { return error(ex.status(),ex.code(),ex.getMessage(),request); }

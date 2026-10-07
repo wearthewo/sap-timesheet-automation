@@ -53,3 +53,10 @@ for (const path of ["/app/sap", "/app/sap/00000000-0000-0000-0000-000000000001"]
   assert.equal(new URL(response.url).pathname, "/login");
  });
 }
+
+for (const path of ["/app/reports/monthly", "/api/reports/csv?year=2028&month=10", "/api/reports/xlsx?year=2028&month=10"]) {
+ test(`anonymous ${path} cannot access Finance content`, async () => {
+  const response = await fetch(base + path);
+  assert.equal(new URL(response.url).pathname, "/login");
+ });
+}
