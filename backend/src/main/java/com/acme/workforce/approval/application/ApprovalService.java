@@ -28,9 +28,9 @@ public class ApprovalService {
  private final EmployeeRepository employees;
  private final TimesheetRepository sheets;
  private final ApprovalRepository approvals;
- private final TimesheetService timesheets;
- public ApprovalService(UserRepository users,EmployeeRepository employees,TimesheetRepository sheets,ApprovalRepository approvals,TimesheetService timesheets) {
-  this.users=users; this.employees=employees; this.sheets=sheets; this.approvals=approvals; this.timesheets=timesheets;
+ private final TimesheetService timesheets; private final com.acme.workforce.notification.application.NotificationIntents notifications;
+ public ApprovalService(UserRepository users,EmployeeRepository employees,TimesheetRepository sheets,ApprovalRepository approvals,TimesheetService timesheets,com.acme.workforce.notification.application.NotificationIntents notifications) {
+  this.users=users; this.employees=employees; this.sheets=sheets; this.approvals=approvals; this.timesheets=timesheets; this.notifications=notifications;
  }
  private Employee manager(UUID userId) {
   var user=users.findById(userId).orElseThrow(this::unauthorized);
@@ -69,9 +69,10 @@ public class ApprovalService {
   if(decision==ApprovalDecision.REJECTED && (normalized==null || normalized.isBlank())) throw new DomainException(400,"REJECTION_COMMENT_REQUIRED","A rejection comment is required");
   if(normalized!=null && normalized.length()>2000) throw new DomainException(400,"VALIDATION_ERROR","Comment must not exceed 2000 characters");
   var manager=manager(userId);
-  approvals.save(new TimesheetApproval(id,manager.getId(),decision,normalized));
+  var decisionRecord=approvals.save(new TimesheetApproval(id,manager.getId(),decision,normalized));
   sheet.decide(decision==ApprovalDecision.APPROVED);
   sheets.flush(); // Status/version and append-only decision commit or roll back together.
+  notifications.approval(decisionRecord.getId());
   log.info("Manager decision timesheetId={} managerEmployeeId={} decision={}",id,manager.getId(),decision);
   return view(sheet);
  }

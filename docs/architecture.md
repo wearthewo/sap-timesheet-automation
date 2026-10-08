@@ -1,4 +1,4 @@
-# Platform architecture (Phase 6)
+# Platform architecture (Phase 7)
 
 The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets, manager approval history, durable asynchronous SAP exports and Finance reporting.
 
@@ -44,7 +44,7 @@ Lists return content, page, size, totalElements and totalPages, with bounded pag
 
 ## Future boundaries (not implemented)
 
-Future modules: production SAP adapter, notifications and broader audit logs.
+Future modules: production SAP/email adapters and broader audit logs.
 
 Phase 4 implements the application-owned SapTimesheetGateway port and a synchronous HTTP adapter targeting a local Node mock. SAP fields and protocol errors stay inside infrastructure. The sap module owns durable export records, deterministic identity, role authorization and safe outcomes. A future production S/4HANA adapter can replace the mock-facing adapter without changing timesheet or approval business logic. PostgreSQL-backed processing now runs within the same backend artifact.
 
@@ -92,4 +92,20 @@ flowchart TD
 
 The reporting feature owns read-only DTOs, reporting-only states, SQL projections and bounded file formatting. It does not own a second copy of timesheets, approvals or SAP state. Database roles authorize every read/download. PostgreSQL numeric and BigDecimal preserve exact totals. Operational rows include currently active employees without a timesheet; approved and SAP-exported details have explicit separate filters. Existing worker/approval transaction boundaries remain unchanged.
 
-No reporting microservice, warehouse, materialized view or new schema migration was justified. Existing join indexes support the read paths. See [reporting](reporting.md) for query strategy, snapshot limits, file layout and inclusion semantics. Payroll and notifications remain future scope.
+No reporting microservice, warehouse, materialized view or new schema migration was justified. Existing join indexes support the read paths. See [reporting](reporting.md) for query strategy, snapshot limits, file layout and inclusion semantics. Payroll remains future scope; email notifications are implemented in Phase 7 below.
+
+## Phase 7 notification module
+
+The notification feature owns business-state evaluation, templates, durable delivery state, owner-only history, and the EmailGateway port. The SMTP implementation stays in its infrastructure package. Approval and SAP result transactions invoke NotificationIntents; they never call SMTP. Scheduled evaluation is independent and testable through an injected Clock.
+
+```mermaid
+flowchart TD
+ Business[Business transaction] --> Intent[PostgreSQL notification intent]
+ Scheduler --> Evaluation[Evaluate business state]
+ Evaluation --> Intent
+ Intent --> Worker[Notification worker]
+ Worker --> Gateway[EmailGateway]
+ Gateway --> SMTP[SMTP / local Mailpit]
+```
+
+Database unique keys deduplicate intent. SKIP LOCKED, bounded leases and claim tokens protect delivery across instances. No network call spans a database transaction. SMTP delivery is at-least-once under ambiguous failures; a stable Message-ID does not promise exactly-once receipt. See [notifications.md](notifications.md) for state models, timezone/calendar rules, recipient eligibility, retry classification and privacy boundaries. This adds no external queue, omnichannel framework or deployment.

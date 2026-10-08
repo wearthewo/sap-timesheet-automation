@@ -1,8 +1,8 @@
 # Employee Timesheet & SAP Automation Platform
 
-Phase 6 adds FINANCE/ADMIN monthly operational reporting, approved-hours and SAP-exported-hours projections, and CSV/Excel downloads. Phase 5 durable asynchronous SAP export remains in place: export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
+Phase 7 adds durable email notifications, scheduled reminders and owner-only notification history. Phase 6 provides FINANCE/ADMIN monthly operational reporting, approved-hours and SAP-exported-hours projections, and CSV/Excel downloads. Phase 5 durable asynchronous SAP export remains in place: export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
 
-**Exports now run in the existing backend worker with PostgreSQL jobs, bounded retries and reconciliation. No production SAP connection, messaging, notifications, payroll or deployment is included.**
+**Exports now run in the existing backend worker with PostgreSQL jobs, bounded retries and reconciliation. No production SAP/email provider, additional channels, payroll or deployment is included.**
 
 ## Architecture and stack
 
@@ -148,7 +148,7 @@ Future TypeScript client generation will consume /v3/api-docs using a pinned Ope
 
 ## Development and verification
 
-Latest results and executed commands: [Phase 6 verification](docs/phase6-verification.md).
+Earlier results: [Phase 6 verification](docs/phase6-verification.md). Current results: [Phase 7 verification](docs/phase7-verification.md).
 
 Use a Java 21 version manager and Node 24 (nvm use with the root .nvmrc), or the scoped container procedure in [verification](docs/verification.md). No global replacement is required.
 
@@ -182,7 +182,7 @@ Frontend root frontend: install pnpm install --frozen-lockfile, build pnpm build
 
 Use Render's private backend/database addresses for server traffic, HTTPS public frontend/Keycloak URLs, and secret environment variables. Supply a production Keycloak deployment separately; local start-dev is not suitable. Set exact issuer, JWKS reachability, audience, redirect/logout URIs and canonical NEXTAUTH_URL. No production URLs are hardcoded.
 
-See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 5 adds durable SAP processing and Phase 6 adds Finance reporting. Phase 7 has not started.
+See [architecture](docs/architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 5 adds durable SAP processing and Phase 6 adds Finance reporting. Phase 7 adds local Mailpit email and durable notification processing.
 
 ## Phase 5: durable SAP export
 
@@ -203,3 +203,19 @@ Open **Reports** as FINANCE or ADMIN, select year/month, and filter employees, p
 Download CSV for detailed entries or Excel for five sheets: Summary, Employees, Project Totals, Employee Project Hours, and Approved Hour Details. Summary/Employees are operational context; the other sheets follow the selected approved-hours mode. Set REPORT_MAX_DOWNLOAD_ROWS (default 10000) to bound download memory. No V12 migration was required.
 
 See [reporting semantics, APIs and local fixtures](docs/reporting.md) and [verification results](docs/phase6-verification.md).
+
+## Phase 7: email notifications
+
+Approval/rejection and terminal SAP FAILED/UNKNOWN events now create durable notification intent inside the business transaction. A PostgreSQL-backed worker delivers email asynchronously through Spring SMTP, with bounded retries, leases and immutable attempt history. Scheduled employee reminders, manager direct-report digests and prior-month Finance summaries use an explicit business timezone and database deduplication.
+
+Open **Notifications** in the authenticated navigation to see your own email history. Delivery status is not read/unread status. Local mail is captured by Mailpit at http://localhost:8025; Docker Compose now runs six services. No real provider credentials are needed.
+
+See [notification architecture, reminder rules, SMTP configuration and delivery limitations](docs/notifications.md). New Flyway migrations are V12 (notifications) and V13 (attempt history); the dependency added is Spring Boot's managed mail starter. APIs: GET /api/v1/notifications and GET /api/v1/notifications/{id}, both owner-only.
+
+Copy the new mail/notification settings from .env.example when needed. Compose enables evaluation every 15 minutes and delivery every five seconds. Standalone backend runs leave both schedulers disabled unless enabled explicitly. SMTP unavailability does not prevent backend startup or approval commits.
+
+### Exploring the roles locally
+
+Use four separate Keycloak test accounts (EMPLOYEE, MANAGER, FINANCE, ADMIN) to explore every workflow. Start at http://localhost:3000/login; Keycloak returns you to the app. The Keycloak administration account is for identity setup, not an application ADMIN role. Assign application roles through the trusted database onboarding procedure above. Employees need active profiles and date-valid project assignments; review requires a MANAGER profile referenced by the employee's manager_id. Finance/Admin do not require an employee profile just to operate SAP or reports.
+
+Local verification creates role accounts with credentials in the ignored .verification/phase7-users.json file. This is a local test artifact, not committed seed data or a production onboarding mechanism.
