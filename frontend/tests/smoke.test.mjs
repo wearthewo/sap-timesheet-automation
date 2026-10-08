@@ -60,3 +60,9 @@ for (const path of ["/app/reports/monthly", "/api/reports/csv?year=2028&month=10
   assert.equal(new URL(response.url).pathname, "/login");
  });
 }
+
+test("anonymous notifications history redirects to login", async () => {
+ const response = await fetch(base + "/app/notifications");
+ assert.equal(new URL(response.url).pathname, "/login");
+ assert.match(await response.text(), /Sign in with your work account/);
+});

@@ -13,8 +13,8 @@ import java.util.*;
 
 @Repository
 public class SapJobStore {
- private final JdbcTemplate sql;private final ObjectMapper json;private final SapWorkerPolicy policy;
- public SapJobStore(JdbcTemplate sql,ObjectMapper json,SapWorkerPolicy policy){this.sql=sql;this.json=json;this.policy=policy;}
+ private final JdbcTemplate sql;private final ObjectMapper json;private final SapWorkerPolicy policy; private final com.acme.workforce.notification.application.NotificationIntents notifications;
+ public SapJobStore(JdbcTemplate sql,ObjectMapper json,SapWorkerPolicy policy,com.acme.workforce.notification.application.NotificationIntents notifications){this.sql=sql;this.json=json;this.policy=policy;this.notifications=notifications;}
  public record Claim(UUID id,UUID exportId,UUID timesheetId,String operation,UUID token,int execution,int attempts,int cycleAttempts,int reconciliations,Instant started,ApprovedTimesheetPayload payload){}
  private Claim claimRow(ResultSet r,int row)throws SQLException {
   try{return new Claim(r.getObject("id",UUID.class),r.getObject("export_id",UUID.class),r.getObject("timesheet_id",UUID.class),r.getString("operation"),r.getObject("claim_token",UUID.class),r.getInt("execution_count"),r.getInt("attempt_count"),r.getInt("cycle_attempts"),r.getInt("reconciliation_count"),r.getTimestamp("locked_at").toInstant(),json.readValue(r.getString("payload"),ApprovedTimesheetPayload.class));}
@@ -89,7 +89,9 @@ public class SapJobStore {
   }
  }
  private void setExport(Claim c,String status,String reference,String code,String message){
+  String previous=sql.queryForObject("SELECT status FROM sap_timesheet_exports WHERE id=?",String.class,c.exportId());
   sql.update("UPDATE sap_timesheet_exports SET status=?,external_reference=?,exported_at=CASE WHEN ?='SUCCEEDED' THEN now() ELSE NULL END,failure_code=?,failure_message=?,updated_at=now() WHERE id=?",status,reference,status,code,message,c.exportId());
+  if(!status.equals(previous))notifications.sap(c.exportId(),c.execution(),status);
  }
  private void schedule(Claim c,String status,String operation,Instant next,String code,boolean retry){
   sql.update("UPDATE sap_export_jobs SET status=?,operation=?,next_attempt_at=?,last_error_code=?,retry_eligible=?,locked_at=NULL,locked_by=NULL,claim_token=NULL,updated_at=now() WHERE id=?",status,operation,Timestamp.from(next),code,retry,c.id());

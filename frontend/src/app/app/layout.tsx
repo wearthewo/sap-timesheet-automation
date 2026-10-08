@@ -14,6 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
      {user.role === "MANAGER" && <Link href="/app/approvals" className="rounded px-1 py-2 hover:text-blue-700">Approvals</Link>}
      {["ADMIN", "FINANCE"].includes(user.role) && <Link href="/app/sap" className="rounded px-1 py-2 hover:text-blue-700">SAP exports</Link>}
      {["ADMIN", "FINANCE"].includes(user.role) && <Link href="/app/reports" className="rounded px-1 py-2 hover:text-blue-700">Reports</Link>}
+     <Link href="/app/notifications" className="rounded px-1 py-2 hover:text-blue-700">Notifications</Link>
     </nav>
     <div className="flex w-full min-w-0 items-center justify-between gap-4 sm:ml-auto sm:w-auto">
      <div className="min-w-0 text-sm"><p className="break-words font-semibold">{user.displayName}</p><p className="text-xs text-slate-500">{user.role}</p></div>

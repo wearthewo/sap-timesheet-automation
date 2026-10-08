@@ -24,6 +24,12 @@ public class ExceptionHandlerAdvice {
  ResponseEntity<ApiError> validation(Exception ex,HttpServletRequest request) { return error(400,"VALIDATION_ERROR","Request fields or parameters are invalid",request); }
  @ExceptionHandler(AccessDeniedException.class)
  ResponseEntity<ApiError> forbidden(Exception ex,HttpServletRequest request) { return error(403,"FORBIDDEN","You do not have permission for this action",request); }
+ @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+ ResponseEntity<ApiError> methodNotAllowed(org.springframework.web.HttpRequestMethodNotSupportedException ex,HttpServletRequest request) {
+  var headers=new HttpHeaders();headers.setContentType(MediaType.APPLICATION_JSON);
+  if(ex.getSupportedHttpMethods()!=null)headers.setAllow(ex.getSupportedHttpMethods());
+  return new ResponseEntity<>(ApiError.of(405,"METHOD_NOT_ALLOWED","This HTTP method is not supported",request.getRequestURI()),headers,HttpStatus.METHOD_NOT_ALLOWED);
+ }
  @ExceptionHandler(NoResourceFoundException.class)
  ResponseEntity<ApiError> notFound(Exception ex,HttpServletRequest request) { return error(404,"NOT_FOUND","Resource not found",request); }
  @ExceptionHandler(DataIntegrityViolationException.class)
