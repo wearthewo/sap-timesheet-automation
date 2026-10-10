@@ -38,7 +38,7 @@ class PhaseFiveIntegrationTest {
   p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
   p.add("app.sap.base-url",()->"http://localhost:"+server.getAddress().getPort());p.add("app.sap.api-token",()->"test-only-secret");
   p.add("app.sap.worker.max-attempts",()->"3");p.add("app.sap.worker.batch-size",()->"2");p.add("app.sap.worker.initial-backoff",()->"1s");p.add("app.sap.worker.max-backoff",()->"4s");p.add("app.sap.worker.reconciliation-interval",()->"1s");
-  p.add("app.sap.connect-timeout",()->"1s");p.add("app.sap.response-timeout",()->"600ms");
+  p.add("app.sap.connect-timeout",()->"3s");p.add("app.sap.response-timeout",()->"3s");
  }
  @Autowired MockMvc mvc;@Autowired ObjectMapper json;@Autowired JdbcTemplate sql;
  @Autowired com.acme.workforce.sap.application.SapExportWorker worker;
@@ -155,11 +155,12 @@ class PhaseFiveIntegrationTest {
   assertThat(captured.get().path("PersonnelNumber").asText()).isEqualTo("E001");assertThat(captured.get().path("TimeEntries").get(0).path("ProjectCode").asText()).isEqualTo("PROJECT-A");
  }
  void timeout(boolean created)throws Exception{
+  var releaseResponse=new CountDownLatch(1);
   handler=e->{
    if(e.getRequestMethod().equals("GET")){respond(e,created?200:404,created?"{\"success\":true,\"externalReference\":\"SAP-TS-FOUND\",\"exportIdentity\":\"SAP_TIMESHEET:"+sheet+"\"}":"{}");return;}
-   calls.incrementAndGet();try{Thread.sleep(1200);}catch(InterruptedException ex){Thread.currentThread().interrupt();}respond(e,201,"{\"success\":true,\"externalReference\":\"SAP-TS-FOUND\"}");
+   calls.incrementAndGet();try{releaseResponse.await(30,TimeUnit.SECONDS);}catch(InterruptedException ex){Thread.currentThread().interrupt();}respond(e,201,"{\"success\":true,\"externalReference\":\"SAP-TS-FOUND\"}");
   };
-  queue("finance");worker.runOnce();assertThat(state()).isEqualTo("UNKNOWN");
+  queue("finance");try{worker.runOnce();assertThat(state()).isEqualTo("UNKNOWN");}finally{releaseResponse.countDown();}
  }
  @Test void timeoutAfterCreateReconcilesWithoutAnotherPost()throws Exception{
   timeout(true);req(post(path()+"/retry"),"finance").andExpect(status().isConflict());
@@ -228,8 +229,9 @@ class PhaseFiveIntegrationTest {
  }
 
  @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
- @Test void manualReconciliationWaitingBehindCompletionCannotRequeueSuccess()throws Exception{
-  unknown();due();jobs.claim("worker");
+ @ParameterizedTest @ValueSource(booleans={true,false})
+ void manualActionWaitingBehindCompletionCannotRequeueSuccess(boolean reconcile)throws Exception{
+  if(reconcile){unknown();due();jobs.claim("worker");}else{exhaust();}
   var locked=new CountDownLatch(1);var release=new CountDownLatch(1);
   try(var pool=Executors.newVirtualThreadPerTaskExecutor()){
    var completing=pool.submit(()->new org.springframework.transaction.support.TransactionTemplate(transactionManager).executeWithoutResult(tx->{
@@ -239,7 +241,7 @@ class PhaseFiveIntegrationTest {
     sql.update("UPDATE sap_export_jobs SET status='COMPLETED',locked_at=NULL,locked_by=NULL,claim_token=NULL");
    }));
    assertThat(locked.await(10,TimeUnit.SECONDS)).isTrue();
-   var manual=pool.submit(()->req(post(path()+"/reconcile"),"finance").andReturn().getResponse().getStatus());
+   var manual=pool.submit(()->req(post(path()+(reconcile?"/reconcile":"/retry")),"finance").andReturn().getResponse().getStatus());
    try{
     long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(5);boolean waiting=false;
     while(System.nanoTime()<deadline){

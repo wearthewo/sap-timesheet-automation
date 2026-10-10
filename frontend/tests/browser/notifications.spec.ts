@@ -24,13 +24,16 @@ async function delivered(role: Role, subject: string) {
  const item = (await messages(role, subject))[0];
  expect(item.To.map(to => to.Address)).toContain(username(role) + "@example.test");
  const response = await fetch(api + "/api/v1/message/" + item.ID);
- return await response.json() as { Text: string; HTML: string };
+ const message = await response.json() as { Text: string; HTML: string };
+ // SMTP uses CRLF; normalize transport line endings without changing the comment text.
+ return { ...message, Text: message.Text.replace(/\r\n/g, "\n") };
 }
 test("Mailpit captures reminders, rejection and approval; history is private and mobile navigation works", async ({ page, context }) => {
  test.setTimeout(240000);
  await login(page, "EMPLOYEE");
  const reminder = await delivered("EMPLOYEE", "Timesheet reminder");
  expect(reminder.Text).toContain("/app/timesheets/2026/10");
+ expect(reminder.Text).toContain(process.env.TEST_EMPLOYEE_NAME ?? "Phase Three Employee");
  await page.goto("/app/timesheets/2026/12"); await page.getByRole("button", { name: "Create draft", exact: true }).click();
  await page.getByLabel("Work date").fill("2026-12-05");
  const select = page.getByRole("combobox", { name: "Project", exact: true });
@@ -41,15 +44,22 @@ test("Mailpit captures reminders, rejection and approval; history is private and
  await expect(page.getByText("PENDING_APPROVAL", { exact: true })).toBeVisible();
  const digest = await delivered("MANAGER", "waiting for approval — 2026-12");
  expect(digest.Text).toContain("/app/approvals");
+ expect(digest.Text).toContain(process.env.TEST_MANAGER_NAME ?? "Phase Three Manager");
+ expect(digest.Text).toContain(process.env.TEST_EMPLOYEE_NAME ?? "Phase Three Employee");
+ expect(digest.Text).toContain("QA3-E-");
  await logout(page); await login(page, "MANAGER"); await page.getByRole("link", { name: "Approvals", exact: true }).click();
  await page.getByRole("region", { name: "Pending timesheets" }).getByRole("link").filter({ hasText: "2.50 hours" }).click();
  await expect(page.getByRole("region", { name: "Review entries" })).toContainText("2.50");
  const reviewUrl = page.url();
  await page.getByRole("button", { name: "Reject timesheet", exact: true }).click();
- const comment = "Please correct Δοκιμή <script>alert('unsafe')</script>";
+ const comment = "Please correct Δοκιμή & \"quoted\"\n<script>alert('unsafe')</script>";
  await page.getByLabel("Rejection comment (required)").fill(comment); await page.getByRole("button", { name: "Confirm rejection" }).click();
  await expect(page.getByText("REJECTED", { exact: true })).toBeVisible();
  const rejection = await delivered("EMPLOYEE", "Timesheet rejected — 2026-12");
+ expect(rejection.Text).toContain(process.env.TEST_EMPLOYEE_NAME ?? "Phase Three Employee");
+ expect(rejection.Text).toContain(process.env.TEST_MANAGER_NAME ?? "Phase Three Manager");
+ expect(rejection.Text).toContain("Europe/Athens");
+ expect(rejection.Text).toContain("reopen your timesheet");
  expect(rejection.Text).toContain(comment); expect(rejection.Text).toContain("/app/timesheets/2026/12"); expect(rejection.HTML ?? "").not.toContain("<script>");
  const mailbox = await context.newPage(); await mailbox.goto("http://localhost:8025");
  await expect(mailbox.getByText("Timesheet rejected — 2026-12", { exact: true }).first()).toBeVisible();
@@ -69,6 +79,9 @@ test("Mailpit captures reminders, rejection and approval; history is private and
  await page.getByRole("button", { name: "Approve timesheet", exact: true }).click(); await page.getByRole("button", { name: "Confirm approval" }).click();
  await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
  const approved = await delivered("EMPLOYEE", "Timesheet approved — 2026-12"); expect(approved.Text).toContain("read-only");
+ expect(approved.Text).toContain(process.env.TEST_EMPLOYEE_NAME ?? "Phase Three Employee");
+ expect(approved.Text).toContain(process.env.TEST_MANAGER_NAME ?? "Phase Three Manager");
+ expect(approved.Text).toContain("Europe/Athens");
  await page.getByRole("link", { name: "Notifications", exact: true }).click();
  await expect(page.getByRole("article").filter({ hasText: "Timesheet rejected — 2026-12" })).toHaveCount(0);
  await logout(page); await login(page, "EMPLOYEE"); await page.goto("/app/notifications");
@@ -90,6 +103,8 @@ test("Finance and Admin receive safe SAP FAILED and UNKNOWN email and own histor
   await expect(panel.getByRole("status")).toHaveText(state, { timeout: 30000 });
   for (const role of ["FINANCE", "ADMIN"] as const) {
    const message = await delivered(role, `SAP export ${state} — ${month}`);
+   expect(message.Text).toContain("SAP_TIMESHEET:" + id);
+   expect(message.Text).toContain("Status: " + state);
    expect(message.Text).toContain("/app/sap/" + id); expect(message.Text).not.toMatch(/Bearer|stack trace|api.token/i);
    if (state === "UNKNOWN") expect(message.Text).toContain("Reconciliation is required");
   }

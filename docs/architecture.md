@@ -109,3 +109,11 @@ flowchart TD
 ```
 
 Database unique keys deduplicate intent. SKIP LOCKED, bounded leases and claim tokens protect delivery across instances. No network call spans a database transaction. SMTP delivery is at-least-once under ambiguous failures; a stable Message-ID does not promise exactly-once receipt. See [notifications.md](notifications.md) for state models, timezone/calendar rules, recipient eligibility, retry classification and privacy boundaries. This adds no external queue, omnichannel framework or deployment.
+
+## Phase 8 additions
+
+SAP download remains inside the SAP feature. A read-only repeatable-read transaction selects authorization, timesheet eligibility, export metadata and the stored payload consistently. The orchestration service suspends any caller transaction; the reader completes before Apache POI formats the document in memory. No SAP request or persistent workbook storage is involved. The BFF streams the authenticated response; browser JavaScript receives only workbook bytes.
+
+V14 protects the existing job payload, export identity association and timesheet association against updates/deletes. Execution state remains mutable. This closes the previous "immutable in practice" gap without changing the queue architecture. Approval history and SAP/notification attempt histories retain their existing database guards.
+
+Notification templates now include authoritative manager names, stable SAP identities and separate monthly missing/DRAFT/pending/rejected counts. Business decision times use explicit Europe/Athens offsets; durable timestamps remain UTC.
