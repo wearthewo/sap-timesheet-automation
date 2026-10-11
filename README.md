@@ -219,3 +219,11 @@ Copy the new mail/notification settings from .env.example when needed. Compose e
 Use four separate Keycloak test accounts (EMPLOYEE, MANAGER, FINANCE, ADMIN) to explore every workflow. Start at http://localhost:3000/login; Keycloak returns you to the app. The Keycloak administration account is for identity setup, not an application ADMIN role. Assign application roles through the trusted database onboarding procedure above. Employees need active profiles and date-valid project assignments; review requires a MANAGER profile referenced by the employee's manager_id. Finance/Admin do not require an employee profile just to operate SAP or reports.
 
 Local verification creates role accounts with credentials in the ignored .verification/phase7-users.json file. This is a local test artifact, not committed seed data or a production onboarding mechanism.
+
+## Phase 8: pre-deployment verification and SAP Excel
+
+FINANCE and ADMIN can use **Download SAP Excel** on a SUCCEEDED SAP export detail page. The backend generates an in-memory workbook from the immutable queued payload and successful export metadata. It does not contact SAP or store generated files. Other roles receive 403 at the download API.
+
+Endpoint: `GET /api/v1/sap/timesheets/{timesheetId}/export.xlsx`. The authenticated Next.js BFF forwards this through `/api/sap/timesheets/{timesheetId}/export.xlsx` without exposing access tokens. Missing/incomplete exports produce structured errors rather than an invalid workbook.
+
+See [Phase 8 verification](docs/phase8-verification.md) for measured results and limitations, and [SAP integration](docs/sap-integration.md) for workbook details. Optional isolated recovery verification: `powershell -File infra/dev/verify-phase8-recovery.ps1` after building Compose images. This creates disposable containers and never removes the development Compose volumes. No deployment is performed.

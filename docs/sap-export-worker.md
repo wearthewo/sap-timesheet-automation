@@ -15,7 +15,7 @@ flowchart TD
 
 PostgreSQL is the durable queue and concurrency authority. There is one Spring Boot artifact, no separate Maven module, external broker or worker deployment. Kafka/RabbitMQ/Redis are unnecessary for this bounded workflow: enqueue and job creation can commit atomically in the existing database, and SKIP LOCKED allows multiple future instances to claim work safely.
 
-The gateway remains independent of HTTP and persistence. It now supports export and optional lookup by stable export identity. The job stores an immutable-in-practice JSON snapshot of the internal ApprovedTimesheetPayload at enqueue, so later changes to employee numbers or project codes cannot change a retry's payload. Only the infrastructure adapter produces SAP-shaped HTTP fields.
+The gateway remains independent of HTTP and persistence. It now supports export and optional lookup by stable export identity. The job stores an immutable JSON snapshot (database-protected since V14) of the internal ApprovedTimesheetPayload at enqueue, so later changes to employee numbers or project codes cannot change a retry's payload. Only the infrastructure adapter produces SAP-shaped HTTP fields.
 
 ## Status and migration model
 
@@ -139,3 +139,11 @@ The mock keeps accepted documents in its existing persistent volume. Transient s
 Browser fixtures use distinct approved months and real Keycloak roles. The worker browser tests expect max-attempts 4, and recommend local poll 2s, initial backoff 6s, max backoff 12s, reconciliation interval 12s, response timeout 2s and lease 1m to keep scenarios bounded while allowing state observation. These verification overrides live only in ignored local .env; repository defaults remain above. Fixture IDs are TEST_SAP_TRANSIENT_ID, TEST_SAP_UNKNOWN_ID and TEST_SAP_RETRY_ID, in addition to the existing success/failure and role credentials.
 
 No finance reports, payroll, notifications, production SAP credentials, external queues, microservices or deployment are included. Phase 6 has not started.
+
+## Phase 8 snapshot and recovery verification
+
+V14 adds a database trigger rejecting updates to payload/export/timesheet identity and deletion of the durable job snapshot. Worker claim/result columns remain writable. This makes the same payload a durable source for retries, reconciliation and successful-export XLSX downloads.
+
+The optional `infra/dev/verify-phase8-recovery.ps1` uses unique isolated containers and generated ephemeral credentials. It waits for mock SAP persistence, SIGKILLs the backend during the delayed HTTP response, restarts the same artifact, and asserts lease recovery through reconciliation, one POST attempt, an ABANDONED history row, success and unchanged payload. It also checks mock persistence, SMTP outage recovery and PostgreSQL restart. It never calls `docker compose down -v` or removes development data. See the Phase 8 report for actual execution results; the script's existence alone is not evidence of a passed scenario.
+
+Legacy V10 snapshots backfilled after an already-successful export are not proof of the original HTTP payload. Phase 8 refuses the workbook when snapshot creation is later than exported_at, with SAP_EXPORT_SNAPSHOT_INCOMPLETE. No historical payload is fabricated or repaired from current records.

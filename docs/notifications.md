@@ -92,3 +92,15 @@ Logs include notification ID/type, recipient user ID, attempt, duration, outcome
 
 No other channels, automatic attachments, production provider credentials, broker, deployment or Phase 8 functionality is included.
 Spring Mail implementation reference: [JavaMailSenderImpl](https://github.com/spring-projects/spring-framework/blob/v6.2.19/spring-context-support/src/main/java/org/springframework/mail/javamail/JavaMailSenderImpl.java) preserves an explicitly supplied Message-ID across saveChanges. Mailpit setup follows its [official Docker documentation](https://mailpit.axllent.org/docs/install/docker/).
+
+## Phase 8 content contract
+
+Recipient names come from application user records through employee/manager relationships. Initial user provisioning uses the JWT name, then preferred_username, then the generic "Employee" fallback; names are not inferred from email. Approval/rejection notifications resolve the deciding manager through the immutable approval record's manager employee ID. If no authoritative manager name exists, the optional manager line is omitted.
+
+Manager digests greet the active manager by name and list only direct reports for that period, with the full pending count and the existing bounded preview. Employee decisions preserve the actual comment including Unicode, quotes, ampersands, HTML-like text and newlines. Delivery remains plain-text UTF-8 (no HTML template); HTML-like text is not executed. Displayed decision dates include Europe/Athens and its explicit UTC offset.
+
+SAP terminal/UNKNOWN notices include stable `SAP_TIMESHEET:<id>`, employee number, period, safe code/state and detail link. UNKNOWN explicitly requires reconciliation and warns against blind resends. Monthly finance reminders separately report missing, DRAFT, pending, REJECTED, FAILED and UNKNOWN counts using the existing active-employee scope; recipients remain eligible FINANCE/ADMIN users.
+
+Deterministic Clock-based tests cover January, February leap/non-leap, 30/31-day months, midnight UTC boundaries and both Athens DST changes with a deliberately different JVM default timezone. Mailpit evidence and exact scenario coverage are recorded in [Phase 8 verification](phase8-verification.md).
+
+Logical notification deduplication is not exactly-once SMTP delivery. A connection loss after SMTP acceptance can still cause a duplicate physical message; this limitation remains intentional and documented.

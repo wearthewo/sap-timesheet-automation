@@ -45,3 +45,20 @@ Normal success returns 201 with success=true and externalReference. Invalid data
 SAP_BASE_URL defaults to http://mock-sap:8090 in Compose. SAP_API_TOKEN is server-only. SAP_CONNECT_TIMEOUT defaults to 2s and SAP_RESPONSE_TIMEOUT to 5s. See worker documentation for all queue/lease/backoff variables. Do not expose any SAP or OIDC secret through NEXT_PUBLIC_ variables.
 
 Run docker compose config --quiet and docker compose up --build. Existing manual employee/project onboarding remains. No production seeds or new admin onboarding UI were added. Preserve PostgreSQL and mock volumes across normal restarts.
+
+## Successful-export Excel download (Phase 8)
+
+`GET /api/v1/sap/timesheets/{id}/export.xlsx` requires a database FINANCE/ADMIN role, APPROVED timesheet, SUCCEEDED export, external reference, successful timestamp and complete stored job payload. It returns the XLSX media type, no-store, nosniff and an attachment filename such as `sap-export-EMP001-2026-10.xlsx`. Employee numbers are sanitized to ASCII filename characters and bounded in length. EMPLOYEE/MANAGER receive 403; absent export is 404; incomplete/non-successful export is 409. Oversized snapshots return 413. Errors use the existing JSON convention even when XLSX is requested.
+
+The two worksheets are:
+
+| Sheet | Content |
+|---|---|
+| Export Summary | Employee Number; Timesheet Period; Timesheet ID; Export ID; Stable Export Identity; SAP External Reference; Export Status; Exported At; Total Hours; Number of Entries |
+| Exported Time Entries | Work Date; Project Code; Hours; Description; final total-hours row |
+
+Hours are summed with BigDecimal and converted to Excel numeric cells only at the final write. Tests compare Excel doubles using a tolerance. Work dates use native Excel date cells with `yyyy-mm-dd` formatting; pre-1900 dates, unsupported by Excel's normal date system, retain ISO text. The exported timestamp is explicitly UTC. Headings are bold, the first row is frozen, filters exclude totals, and widths/decimal formats are set. All user strings use POI string cells, never formula cells, including strings beginning with =, +, -, @, tabs or newlines; meaningful text is preserved.
+
+Historical employee/project labels and entry data come exclusively from `sap_export_jobs.payload`, not current employee/project records. A legacy success without a complete snapshot, or whose snapshot was created after exported_at (including V10 backfills), is refused; data is never fabricated. V14 prevents subsequent snapshot mutation. Download limits reuse `REPORT_MAX_DOWNLOAD_ROWS` and impose an 8 MiB serialized snapshot bound. These limits also bound in-memory POI work.
+
+A repeatable-read transaction reads the source and ends before formatting. Workbook generation has no filesystem write, object store or database blob. Object storage is unnecessary for this on-demand export; the browser receives the response directly through the authenticated BFF. Test-only Playwright download artifacts are not application storage.

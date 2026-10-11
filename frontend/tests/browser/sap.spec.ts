@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { workbookXml } from "./workbook";
 import { test, expect, type Page } from "@playwright/test";
 async function login(page: Page, kind: "FINANCE" | "ADMIN" | "EMPLOYEE" | "MANAGER") {
  const username = process.env[kind === "EMPLOYEE" ? "TEST_USERNAME" : `TEST_${kind}_USERNAME`];
@@ -32,11 +34,31 @@ test("finance exports once, admin sees safe validation failure, employee and man
  await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
  await expect(region.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
  await expect(region.getByRole("button", { name: "Retry export", exact: true })).toHaveCount(0);
+ const downloadReady = page.waitForEvent("download");
+ await region.getByRole("button", { name: "Download SAP Excel", exact: true }).click();
+ const download = await downloadReady;
+ expect(download.suggestedFilename()).toMatch(/^sap-export-QA3-E-[A-Za-z0-9_-]+-2027-01.xlsx$/);
+ const xml = workbookXml(await readFile((await download.path())!));
+ expect(xml.get("xl/workbook.xml")).toContain('name="Export Summary"');
+ expect(xml.get("xl/workbook.xml")).toContain('name="Exported Time Entries"');
+ const strings = xml.get("xl/sharedStrings.xml")!;
+ expect(strings).toContain(success); expect(strings).toContain("SAP_TIMESHEET:" + success);
+ expect(strings).toContain("PHASE1-DEMO"); expect(strings).toContain("SUCCEEDED");
+ expect(strings).toMatch(/SAP-TS-[A-F0-9]+/);
+ expect(xml.get("xl/worksheets/sheet2.xml")).toContain("<v>6.25</v>");
+ expect([...xml.values()].join("")).not.toContain("<f>");
+ await download.saveAs("test-results/sap-export.xlsx");
+ await page.route("**/api/sap/timesheets/*/export.xlsx", route => route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ message: "The successful export snapshot is unavailable." }) }));
+ await region.getByRole("button", { name: "Download SAP Excel", exact: true }).click();
+ await expect(region.getByRole("alert")).toHaveText("The successful export snapshot is unavailable.");
+ await page.unroute("**/api/sap/timesheets/*/export.xlsx");
  await page.screenshot({ path: "test-results/sap-success-desktop.png", fullPage: true });
  await logout(page);
  await page.setViewportSize({ width: 375, height: 812 });
  await login(page, "ADMIN");
  await expect(page.getByRole("link", { name: "SAP exports", exact: true })).toBeVisible();
+ await page.goto(`/app/sap/${success}`);
+ await expect(region.getByRole("button", { name: "Download SAP Excel", exact: true })).toBeVisible();
  await page.goto(`/app/sap/${failure}`);
  await region.getByRole("button", { name: "Export to SAP", exact: true }).click();
  await expect(region.getByRole("status")).toHaveText("FAILED");
@@ -51,6 +73,8 @@ test("finance exports once, admin sees safe validation failure, employee and man
  await page.goto("/app/timesheets/2027/1");
  await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
  await expect(page.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await expect(page.getByRole("button", { name: "Download SAP Excel", exact: true })).toHaveCount(0);
+ expect(await page.evaluate(async path => (await fetch(path)).status, `/api/sap/timesheets/${success}/export.xlsx`)).toBe(403);
  await expect(page.getByRole("button", { name: /^(Retry|Reconcile) export$/ })).toHaveCount(0);
  await page.goto(`/app/sap/${success}`);
  await expect(page.getByText("You do not have access to SAP export commands.")).toBeVisible();
@@ -60,6 +84,8 @@ test("finance exports once, admin sees safe validation failure, employee and man
  await page.goto(`/app/approvals/${success}`);
  await expect(region.getByRole("status")).toHaveText("SUCCEEDED");
  await expect(page.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
+ await expect(page.getByRole("button", { name: "Download SAP Excel", exact: true })).toHaveCount(0);
+ expect(await page.evaluate(async path => (await fetch(path)).status, `/api/sap/timesheets/${success}/export.xlsx`)).toBe(403);
  await expect(page.getByRole("button", { name: /^(Retry|Reconcile) export$/ })).toHaveCount(0);
  await expect(page.getByRole("link", { name: "Approvals", exact: true })).toBeVisible();
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

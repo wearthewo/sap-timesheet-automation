@@ -59,20 +59,24 @@ public class NotificationEvaluation {
   int created=0;
   for(var item:bodies.entrySet()){
    var d=item.getKey();if(store.enqueue(NotificationType.APPROVAL_REMINDER,d.recipient(),"APPROVAL_REMINDER:"+d.managerId()+":"+d.month()+":"+date,
-    templates.manager(d.month(),d.count(),item.getValue().toString()),d.month()))created++;
+    templates.manager(d.recipient().name(),d.month(),d.count(),item.getValue().toString()),d.month()))created++;
   }
   return created;
  }
  private int finance(YearMonth month){
   var counts=sql.queryForMap("""
    SELECT count(*) FILTER(WHERE t.id IS NULL OR t.status<>'APPROVED') incomplete,
+   count(*) FILTER(WHERE t.id IS NULL) missing,
+   count(*) FILTER(WHERE t.status='DRAFT') draft,
+   count(*) FILTER(WHERE t.status='PENDING_APPROVAL') pending,
+   count(*) FILTER(WHERE t.status='REJECTED') rejected,
    count(*) FILTER(WHERE x.status='FAILED') failed,count(*) FILTER(WHERE x.status='UNKNOWN') unknown
    FROM employees e LEFT JOIN timesheets t ON t.employee_id=e.id AND t.year=? AND t.month=?
    LEFT JOIN sap_timesheet_exports x ON x.timesheet_id=t.id WHERE e.active
    """,month.getYear(),month.getMonthValue());
   long incomplete=((Number)counts.get("incomplete")).longValue(),failed=((Number)counts.get("failed")).longValue(),unknown=((Number)counts.get("unknown")).longValue();
   if(incomplete+failed+unknown==0)return 0;
-  int created=0;var content=templates.finance(month,incomplete,failed,unknown);
+  int created=0;var content=templates.finance(month,incomplete,((Number)counts.get("missing")).longValue(),((Number)counts.get("draft")).longValue(),((Number)counts.get("pending")).longValue(),((Number)counts.get("rejected")).longValue(),failed,unknown);
   for(var user:store.financeRecipients())if(store.enqueue(NotificationType.FINANCE_MONTHLY_REMINDER,user,"FINANCE_MONTHLY_REMINDER:"+month+":"+user.id(),content,month))created++;
   return created;
  }

@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import { workbookXml } from "./workbook";
 import { test,expect,type Page } from "@playwright/test";
 const employee=process.env.TEST_USERNAME;
 const employeePassword=process.env.TEST_PASSWORD;
@@ -23,7 +25,7 @@ async function openMonth(page:Page) {
  await expect(page).toHaveURL(new RegExp(`/app/timesheets/${year}/${Number(month)}$`));
 }
 test("employee submits, manager rejects, employee reopens and resubmits, manager approves",async({page})=>{
- test.setTimeout(180000);
+ test.setTimeout(240000);
  await login(page,employee!,employeePassword!);
  await expect(page.getByRole("link",{name:"Approvals",exact:true})).toHaveCount(0);
  await openMonth(page);
@@ -87,5 +89,32 @@ test("employee submits, manager rejects, employee reopens and resubmits, manager
  await expect(page.getByRole("button",{name:/^Edit /})).toHaveCount(0);
  await expect(page.getByRole("region",{name:"Decision history"}).getByRole("listitem")).toHaveCount(2);
  await page.screenshot({path:"test-results/employee-approved-desktop.png",fullPage:true});
+ await logout(page);
+ await login(page,process.env.TEST_FINANCE_USERNAME!,process.env.TEST_FINANCE_PASSWORD!);
+ const id=reviewUrl.split("/").at(-1)!;
+ await page.goto(`/app/sap/${id}`);
+ const exportPanel=page.getByRole("region",{name:"SAP export",exact:true});
+ await exportPanel.getByRole("button",{name:"Export to SAP",exact:true}).click();
+ await expect(exportPanel.getByRole("status")).toHaveText("SUCCEEDED",{timeout:30000});
+ await expect(exportPanel).toContainText(/SAP-TS-[A-F0-9]+/);
+ await expect(exportPanel.getByRole("button",{name:"Export to SAP",exact:true})).toHaveCount(0);
+ const ready=page.waitForEvent("download");await exportPanel.getByRole("button",{name:"Download SAP Excel"}).click();
+ const download=await ready;
+ const employeeNumber=download.suggestedFilename().replace(/^sap-export-/,"").replace(/-\d{4}-\d{2}\.xlsx$/,"");
+ const xml=workbookXml(await readFile((await download.path())!));
+ expect(xml.get("xl/sharedStrings.xml")).toContain("SAP_TIMESHEET:"+id);
+ expect(xml.get("xl/worksheets/sheet2.xml")).toContain("<v>7.25</v>");
+ const [year,month]=period!.split("-");
+ await page.goto(`/app/reports/monthly?year=${year}&month=${Number(month)}&employee=${employeeNumber}`);
+ const summary=page.getByRole("region",{name:"Monthly summary"});
+ await expect(summary.getByText("Total Approved Hours",{exact:true}).locator("..")).toContainText("7.25");
+ await expect(summary.getByText("Total SAP Exported Hours",{exact:true}).locator("..")).toContainText("7.25");
+ for(const format of ["CSV","Excel"]){
+  const next=page.waitForEvent("download");await page.getByRole("link",{name:"Download "+format,exact:true}).click();
+  expect(await (await next).failure()).toBeNull();
+ }
+ await logout(page);
+ await login(page,process.env.TEST_ADMIN_USERNAME!,process.env.TEST_ADMIN_PASSWORD!);
+ await page.goto(`/app/sap/${id}`);await expect(page.getByRole("button",{name:"Download SAP Excel"})).toBeVisible();
  await logout(page);
 });

@@ -116,3 +116,7 @@ Get-Content infra/dev/reporting-fixtures.sql | docker compose exec -T postgres p
 Use a new unique prefix for each run. The existing local manager profile is used if available. Fixtures contain synthetic application users, no passwords, seven employees (the requested six lifecycle examples plus a permanent SAP failure), two projects and October 2028 hours. Filter employee by the chosen prefix. Expected active count: 7; approved count: 3; approved hours: 14.00; SAP-exported hours: 8.25. SAP reference rows are synthetic reporting fixtures, not calls to production or mock SAP.
 
 Browser tests require the existing Phase 5 role/workflow credentials and fresh SAP fixtures, plus TEST_REPORT_PREFIX for this dataset. Existing Phase 1–5 tests remain unchanged. See [Phase 6 verification](phase6-verification.md) for executed commands and results.
+
+## Phase 8 cross-checks
+
+The SAP export workbook is distinct from monthly reporting downloads: it shows the immutable payload of one successful export. Existing monthly APPROVED and SAP_EXPORTED modes retain their documented projection semantics and filters. Backend business-flow tests compare both monthly totals after successful export against the individual exported workbook, using decimal-safe application calculations. Reporting CSV/XLSX and authorization regressions remain in the full suite. See [Phase 8 verification](phase8-verification.md) for observed coverage and untested cases.

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
+import DownloadExport from "./download-export";
 import { utc, type SapExport } from "@/lib/sap-view";
 import { exportTimesheet, refreshExport, retryExport, reconcileExport } from "./actions";
 export default function ExportPanel({ id, version, initial, canExport = false }: { id: string; version: number; initial: SapExport | null; canExport?: boolean }) {
@@ -58,6 +59,7 @@ export default function ExportPanel({ id, version, initial, canExport = false }:
    <button className="rounded-lg border border-slate-300 px-4 py-2 font-semibold disabled:opacity-50" disabled={pending} onClick={() => act("refresh")}>Refresh export status</button>
    {pending && <span className="self-center text-sm">Updating export queue…</span>}
   </div>}
+  {canExport && state?.status === "SUCCEEDED" && <DownloadExport id={id} />}
   {!!state?.attempts.length && <section aria-label="Export history" className="mt-6 border-t border-slate-200 pt-4">
    <h3 className="font-semibold">Recent operation history</h3>
    <ol className="mt-3 grid gap-3">{state.attempts.map(attempt => <li key={attempt.id} className="rounded-lg bg-slate-50 p-3 text-sm">

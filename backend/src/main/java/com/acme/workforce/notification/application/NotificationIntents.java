@@ -14,13 +14,13 @@ public class NotificationIntents {
  @Transactional(propagation=Propagation.MANDATORY)
  public void approval(UUID decisionId){
   sql.query("""
-   SELECT a.decision,a.comment,a.decided_at,t.year,t.month,u.id,u.email,u.display_name FROM timesheet_approvals a
-   JOIN timesheets t ON t.id=a.timesheet_id JOIN employees e ON e.id=t.employee_id JOIN app_users u ON u.id=e.user_id WHERE a.id=?
+   SELECT a.decision,a.comment,a.decided_at,t.year,t.month,u.id,u.email,u.display_name,mu.display_name manager_name FROM timesheet_approvals a
+   JOIN timesheets t ON t.id=a.timesheet_id JOIN employees e ON e.id=t.employee_id JOIN app_users u ON u.id=e.user_id LEFT JOIN employees m ON m.id=a.manager_employee_id LEFT JOIN app_users mu ON mu.id=m.user_id WHERE a.id=?
    """,rs->{
     boolean approved=rs.getString("decision").equals("APPROVED");
     var type=approved?NotificationType.TIMESHEET_APPROVED:NotificationType.TIMESHEET_REJECTED;
     var user=new Recipient(rs.getObject("id",UUID.class),rs.getString("email"),rs.getString("display_name"));
-    store.enqueue(type,user,type+":"+decisionId+":"+user.id(),templates.decision(user.name(),YearMonth.of(rs.getInt("year"),rs.getInt("month")),approved,rs.getString("comment"),rs.getTimestamp("decided_at").toInstant()));
+    store.enqueue(type,user,type+":"+decisionId+":"+user.id(),templates.decision(user.name(),YearMonth.of(rs.getInt("year"),rs.getInt("month")),approved,rs.getString("comment"),rs.getTimestamp("decided_at").toInstant(),rs.getString("manager_name")));
    },decisionId);
  }
  @Transactional(propagation=Propagation.MANDATORY)
