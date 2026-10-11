@@ -1,0 +1,22 @@
+# Applied only to a uniquely named disposable CI project, never the development stack.
+services:
+  backend:
+    mem_limit: 1536m
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx768m -XX:ActiveProcessorCount=2
+  keycloak:
+    mem_limit: 1024m
+    environment:
+      JAVA_OPTS_KC_HEAP: -Xms128m -Xmx512m -XX:ActiveProcessorCount=2
+    healthcheck:
+      retries: 60
+  postgres:
+    mem_limit: 512m
+  frontend:
+    mem_limit: 768m
+    environment:
+      NODE_OPTIONS: --max-old-space-size=512
+  mock-sap:
+    mem_limit: 256m
+  mailpit:
+    mem_limit: 256m

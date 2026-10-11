@@ -1,5 +1,10 @@
 # Employee Timesheet & SAP Automation Platform
 
+[![CI](https://github.com/wearthewo/sap-timesheet-automation/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/wearthewo/sap-timesheet-automation/actions/workflows/ci.yml)
+[![Full-stack E2E](https://github.com/wearthewo/sap-timesheet-automation/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/wearthewo/sap-timesheet-automation/actions/workflows/e2e.yml)
+
+CI checks pull requests to `main` and pushes to `main`. Full six-service browser verification runs on main pushes, weekly and manually. Badges reflect GitHub results only after the workflows are pushed and run; local verification is separate. See [Phase 8.5 CI verification](docs/phase8-5-ci-verification.md) for commands, diagnostics, synthetic fixtures and required repository settings.
+
 Phase 7 adds durable email notifications, scheduled reminders and owner-only notification history. Phase 6 provides FINANCE/ADMIN monthly operational reporting, approved-hours and SAP-exported-hours projections, and CSV/Excel downloads. Phase 5 durable asynchronous SAP export remains in place: export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
 
 **Exports now run in the existing backend worker with PostgreSQL jobs, bounded retries and reconciliation. No production SAP/email provider, additional channels, payroll or deployment is included.**

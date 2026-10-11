@@ -32,7 +32,9 @@ test("Mailpit captures reminders, rejection and approval; history is private and
  test.setTimeout(240000);
  await login(page, "EMPLOYEE");
  const reminder = await delivered("EMPLOYEE", "Timesheet reminder");
- expect(reminder.Text).toContain("/app/timesheets/2026/10");
+ const reminderMonth = process.env.TEST_REMINDER_MONTH ?? "2026-10";
+ const [reminderYear, reminderNumber] = reminderMonth.split("-");
+ expect(reminder.Text).toContain(`/app/timesheets/${reminderYear}/${Number(reminderNumber)}`);
  expect(reminder.Text).toContain(process.env.TEST_EMPLOYEE_NAME ?? "Phase Three Employee");
  await page.goto("/app/timesheets/2026/12"); await page.getByRole("button", { name: "Create draft", exact: true }).click();
  await page.getByLabel("Work date").fill("2026-12-05");
@@ -61,7 +63,7 @@ test("Mailpit captures reminders, rejection and approval; history is private and
  expect(rejection.Text).toContain("Europe/Athens");
  expect(rejection.Text).toContain("reopen your timesheet");
  expect(rejection.Text).toContain(comment); expect(rejection.Text).toContain("/app/timesheets/2026/12"); expect(rejection.HTML ?? "").not.toContain("<script>");
- const mailbox = await context.newPage(); await mailbox.goto("http://localhost:8025");
+ const mailbox = await context.newPage(); await mailbox.goto(api);
  await expect(mailbox.getByText("Timesheet rejected — 2026-12", { exact: true }).first()).toBeVisible();
  await mailbox.getByText("Timesheet rejected — 2026-12", { exact: true }).first().click();
  await expect(mailbox.locator("body")).toContainText("Timesheet rejected");

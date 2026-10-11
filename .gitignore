@@ -5,6 +5,7 @@
 !.env.example
 target/
 node_modules/
+.pnpm-store/
 .next/
 *.tsbuildinfo
 .tools/
