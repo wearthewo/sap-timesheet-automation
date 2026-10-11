@@ -6,7 +6,7 @@ export default defineConfig({
  retries: 0,
  timeout: 90000,
  expect: { timeout: 15000 },
- reporter: "list",
+ reporter: process.env.CI ? [["list"], ["junit", { outputFile: "test-results/browser.xml" }]] : "list",
  use: {
   baseURL: process.env.BROWSER_BASE_URL ?? "http://localhost:3000",
   viewport: { width: 1280, height: 900 },

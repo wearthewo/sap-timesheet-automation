@@ -1,0 +1,126 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      MAVEN_OPTS: -Xmx768m
+      JAVA_TOOL_OPTIONS: -XX:ActiveProcessorCount=2 -XX:MaxRAMPercentage=50
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - run: chmod +x mvnw
+      - name: Full PostgreSQL integration suite
+        run: ./mvnw -B -ntp test -DargLine="-Xmx1536m -XX:ActiveProcessorCount=2"
+      - name: Preserve reports before clean packaging
+        if: always()
+        run: |
+          mkdir -p ../.verification/backend-reports
+          if [ -d target/surefire-reports ]; then cp -R target/surefire-reports ../.verification/backend-reports/; fi
+          docker ps -a > ../.verification/backend-reports/docker-state.txt
+      - name: Production package
+        run: ./mvnw -B -ntp clean package -DskipTests
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: backend-reports
+          path: .verification/backend-reports/
+          include-hidden-files: true
+          retention-days: 7
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NODE_OPTIONS: --max-old-space-size=3072
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Install repository-declared pnpm
+        run: |
+          npm install --global "$(node -p 'require("./package.json").packageManager')"
+          pnpm config set store-dir "$HOME/.local/share/pnpm/store"
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: ~/.local/share/pnpm/store
+          key: pnpm-${{ runner.os }}-24-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-24-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+      - name: Production server smoke tests
+        run: node ../infra/ci/frontend-smoke.mjs
+      - name: Production dependency vulnerability gate
+        run: pnpm audit --prod --audit-level high
+      - name: Full dependency audit report (including development tooling)
+        if: always()
+        run: |
+          mkdir -p ../.verification/frontend-reports
+          if ! pnpm audit --audit-level high > ../.verification/frontend-reports/dependency-audit.txt 2>&1; then
+            echo '::warning::Full dependency audit needs review; see frontend-reports/dependency-audit.txt. Production vulnerabilities are gated separately.'
+          fi
+          cat ../.verification/frontend-reports/dependency-audit.txt
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: frontend-reports
+          path: .verification/frontend-reports/
+          include-hidden-files: true
+          retention-days: 7
+  mock-sap:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      # The mock uses only Node built-ins: no dependencies, manifest or lockfile.
+      - run: node --test mock-sap/server.test.mjs
+      - run: docker build --tag ci-mock-sap mock-sap
+  quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: .nvmrc
+      - run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+      - run: '"$(go env GOPATH)/bin/actionlint"'
+      - run: node --test infra/ci/ci.test.mjs
+      - run: node infra/ci/stack.mjs prepare
+      - run: node infra/ci/stack.mjs config
