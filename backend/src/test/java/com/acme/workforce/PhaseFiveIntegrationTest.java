@@ -29,7 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
-class PhaseFiveIntegrationTest {
+class PhaseFiveIntegrationTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  static final HttpServer server;
  static volatile java.util.function.Consumer<HttpExchange> handler;
@@ -48,18 +48,18 @@ class PhaseFiveIntegrationTest {
  @BeforeEach void setup(){
   sql.execute("TRUNCATE app_users,employees,projects,project_assignments,timesheets,timesheet_entries,timesheet_approvals,sap_timesheet_exports CASCADE");
   user("finance","FINANCE");user("admin","ADMIN");
-  manager=employees.saveAndFlush(new Employee(user("manager","MANAGER"),"M001",null)).getId();
-  owner=employees.saveAndFlush(new Employee(user("alice","EMPLOYEE"),"E001",manager)).getId();
-  employees.saveAndFlush(new Employee(user("other","EMPLOYEE"),"E002",null));
+  manager=employees.saveAndFlush(new Employee(ORGANIZATION,user("manager","MANAGER"),"M001",null)).getId();
+  owner=employees.saveAndFlush(new Employee(ORGANIZATION,user("alice","EMPLOYEE"),"E001",manager)).getId();
+  employees.saveAndFlush(new Employee(ORGANIZATION,user("other","EMPLOYEE"),"E002",null));
   sheet=UUID.randomUUID();var project=UUID.randomUUID();
-  sql.update("INSERT INTO projects(id,code,name,active) VALUES (?,'PROJECT-A','Example',true)",project);
+  sql.update("INSERT INTO projects(organization_id,id,code,name,active) VALUES ('00000000-0000-0000-0000-000000000001',?,'PROJECT-A','Example',true)",project);
   sql.update("INSERT INTO timesheets(id,employee_id,year,month,status,total_hours,submitted_at,version) VALUES (?,?,2026,10,'APPROVED',6.25,now(),3)",sheet,owner);
   sql.update("INSERT INTO timesheet_entries(id,timesheet_id,project_id,work_date,hours,description) VALUES (?,?,?,'2026-10-05',6.25,?)",UUID.randomUUID(),sheet,project,"<text> & implementation");
   calls=new AtomicInteger();captured=new AtomicReference<>();key=new AtomicReference<>();
   handler=e->{try{calls.incrementAndGet();captured.set(json.readTree(e.getRequestBody()));key.set(e.getRequestHeaders().getFirst("Idempotency-Key"));respond(e,201,"{\"success\":true,\"externalReference\":\"SAP-TS-TEST\"}");}catch(Exception ex){throw new RuntimeException(ex);}};
  }
  @AfterAll static void stop(){server.stop(0);}
- UUID user(String subject,String role){var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("name",subject).build()).getId();sql.update("UPDATE app_users SET role=? WHERE id=?",role,id);return id;}
+ UUID user(String subject,String role){var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("name",subject).build()).getId();member(sql,id,role);return id;}
  String path(){return "/api/v1/sap/timesheets/"+sheet+"/export";}
  ResultActions req(MockHttpServletRequestBuilder r,String actor)throws Exception{return mvc.perform(r.with(jwt().jwt(j->j.subject(actor))));}
  ResultActions export(String actor)throws Exception{var queued=req(post(path()).header("X-Timesheet-Version",3),actor);if(queued.andReturn().getResponse().getStatus()!=202)return queued;worker.runOnce();return req(get(path()),actor);}

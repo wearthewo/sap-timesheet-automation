@@ -104,3 +104,6 @@ SAP terminal/UNKNOWN notices include stable `SAP_TIMESHEET:<id>`, employee numbe
 Deterministic Clock-based tests cover January, February leap/non-leap, 30/31-day months, midnight UTC boundaries and both Athens DST changes with a deliberately different JVM default timezone. Mailpit evidence and exact scenario coverage are recorded in [Phase 8 verification](phase8-verification.md).
 
 Logical notification deduplication is not exactly-once SMTP delivery. A connection loss after SMTP acceptance can still cause a duplicate physical message; this limitation remains intentional and documented.
+# Organization isolation (Phase 9)
+
+Recipients and scheduled evaluations are scoped to the persisted organization. Effective Finance/Admin/Manager roles come from active organization memberships. Histories and deduplication keys are organization-scoped; claims pause for suspended organizations and recheck recipient membership. New message bodies identify the organization and ask recipients to select it before following application links. Existing historical bodies are preserved. See [security](security.md) and [Phase 9 verification](phase9-multitenancy-verification.md).

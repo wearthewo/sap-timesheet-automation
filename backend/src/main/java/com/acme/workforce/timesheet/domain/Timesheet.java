@@ -9,6 +9,8 @@ import java.util.UUID;
 @Entity
 @Table(name = "timesheets")
 public class Timesheet extends TimestampedEntity {
+ @Column(insertable=false,updatable=false) private UUID organizationId;
+ public UUID getOrganizationId() { return organizationId; }
     @Column(nullable = false) private UUID employeeId;
     @Column(nullable = false) private int year;
     @Column(nullable = false) private int month;

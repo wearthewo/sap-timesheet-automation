@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
-class PhaseOneIntegrationTest {
+class PhaseOneIntegrationTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void database(DynamicPropertyRegistry properties) {
   properties.add("spring.datasource.url",postgres::getJdbcUrl);
@@ -56,7 +56,7 @@ class PhaseOneIntegrationTest {
  }
  UUID user(String subject,String role) {
   var user=identity.current(token(subject));
-  sql.update("UPDATE app_users SET role=? WHERE id=?",role,user.getId());
+  member(sql,user.getId(),role);
   return user.getId();
  }
  String projectBody(String code) throws Exception {
@@ -67,14 +67,14 @@ class PhaseOneIntegrationTest {
    .andExpect(status().isCreated()).andExpect(header().exists("Location")).andReturn();
   return UUID.fromString(mapper.readTree(result.getResponse().getContentAsString()).get("id").asText());
  }
- UUID employee(String subject,String number) { return employees.saveAndFlush(new Employee(user(subject,"EMPLOYEE"),number,null)).getId(); }
+ UUID employee(String subject,String number) { return employees.saveAndFlush(new Employee(ORGANIZATION,user(subject,"EMPLOYEE"),number,null)).getId(); }
  String assignment(UUID employee,UUID project,LocalDate from,LocalDate to,boolean active) throws Exception {
   Map<String,Object> body=new HashMap<>(); body.put("employeeId",employee); body.put("projectId",project);
   body.put("validFrom",from); body.put("validTo",to); body.put("active",active); return mapper.writeValueAsString(body);
  }
  @Test void firstLoginProvisionsEmployeeRoleIgnoringClaims() throws Exception {
-  mvc.perform(get("/api/v1/auth/me").with(jwt().jwt(j->j.subject("alice").claim("email","alice@example.test").claim("name","Alice").claim("role","ADMIN"))))
-   .andExpect(status().isOk()).andExpect(jsonPath("$.role").value("EMPLOYEE")).andExpect(jsonPath("$.displayName").value("Alice"));
+  mvc.perform(get("/api/v1/auth/me").with(r->{r.removeHeader("X-Organization-Id");return r;}).with(jwt().jwt(j->j.subject("alice").claim("email","alice@example.test").claim("name","Alice").claim("role","ADMIN"))))
+   .andExpect(status().isOk()).andExpect(jsonPath("$.role").doesNotExist()).andExpect(jsonPath("$.displayName").value("Alice"));
   assertThat(users.count()).isEqualTo(1);
  }
  @Test void existingUserRetainsIdAndDatabaseRole() throws Exception {
@@ -93,7 +93,7 @@ class PhaseOneIntegrationTest {
   }
  }
  @Test void firstAuthenticatedProjectReadAlsoProvisions() throws Exception {
-  mvc.perform(get("/api/v1/projects").with(jwt().jwt(j->j.subject("reader")))).andExpect(status().isOk());
+  mvc.perform(get("/api/v1/projects").with(jwt().jwt(j->j.subject("reader")))).andExpect(status().isForbidden());
   assertThat(users.findByExternalSubject("reader")).isPresent();
  }
  @Test void anonymousIsRejectedWithConsistentError() throws Exception {
@@ -115,6 +115,7 @@ class PhaseOneIntegrationTest {
    .contentType("application/json").content(assignment(UUID.randomUUID(),UUID.randomUUID(),LocalDate.now(),null,true))).andExpect(status().isForbidden());
  }
  @Test void adminCreatesUpdatesAndReadsProject() throws Exception {
+  user("user","EMPLOYEE");
   user("admin","ADMIN"); UUID id=project("P-01");
   mvc.perform(put("/api/v1/projects/"+id).with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(projectBody("P-02")))
    .andExpect(status().isOk()).andExpect(jsonPath("$.code").value("P-02"));
@@ -127,6 +128,7 @@ class PhaseOneIntegrationTest {
   mvc.perform(put("/api/v1/projects/"+other).with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(projectBody("SAME"))).andExpect(status().isConflict());
  }
  @Test void invalidProjectAndPaginationAreRejected() throws Exception {
+  user("user","EMPLOYEE");
   user("admin","ADMIN");
   mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(projectBody(" ")))
    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
@@ -135,6 +137,7 @@ class PhaseOneIntegrationTest {
   mvc.perform(get("/api/v1/projects/not-a-uuid").with(jwt())).andExpect(status().isBadRequest());
  }
  @Test void missingResourceIs404() throws Exception {
+  user("user","EMPLOYEE");
   mvc.perform(get("/api/v1/projects/"+UUID.randomUUID()).with(jwt())).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
  }
  @Test void createsAssignmentAndPreventsDuplicateActiveAssignment() throws Exception {
@@ -169,14 +172,15 @@ class PhaseOneIntegrationTest {
   mvc.perform(get("/api/v1/employees/me/projects").with(jwt().jwt(j->j.subject("alice")))).andExpect(jsonPath("$.totalElements").value(0));
  }
  @Test void noEmployeeReturnsEmptyPage() throws Exception {
+  user("user","EMPLOYEE");
   mvc.perform(get("/api/v1/employees/me/projects").with(jwt())).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
  }
  @Test void databaseEnforcesEmployeeUniquenessAndForeignKeys() {
   employee("alice","E001");
   UUID bob=user("bob","EMPLOYEE");
-  assertThatThrownBy(()->employees.saveAndFlush(new Employee(bob,"E001",null))).isInstanceOf(DataIntegrityViolationException.class);
-  assertThatThrownBy(()->employees.saveAndFlush(new Employee(UUID.randomUUID(),"E003",null))).isInstanceOf(DataIntegrityViolationException.class);
-  assertThatThrownBy(()->employees.saveAndFlush(new Employee(bob,"E004",UUID.randomUUID()))).isInstanceOf(DataIntegrityViolationException.class);
+  assertThatThrownBy(()->employees.saveAndFlush(new Employee(ORGANIZATION,bob,"E001",null))).isInstanceOf(DataIntegrityViolationException.class);
+  assertThatThrownBy(()->employees.saveAndFlush(new Employee(ORGANIZATION,UUID.randomUUID(),"E003",null))).isInstanceOf(DataIntegrityViolationException.class);
+  assertThatThrownBy(()->employees.saveAndFlush(new Employee(ORGANIZATION,bob,"E004",UUID.randomUUID()))).isInstanceOf(DataIntegrityViolationException.class);
  }
  @Test void databaseEnforcesDatesAndAssignmentForeignKeys() throws Exception {
   user("admin","ADMIN"); UUID p=project("DB"); UUID e=employee("alice","E001");

@@ -31,7 +31,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
-class PhaseEightBusinessTest {
+class PhaseEightBusinessTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void config(DynamicPropertyRegistry p){p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);}
  @Autowired MockMvc mvc;@Autowired ObjectMapper json;@Autowired JdbcTemplate sql;@Autowired IdentityService identity;@Autowired EmployeeRepository employees;@Autowired SapExportWorker worker;
@@ -39,16 +39,16 @@ class PhaseEightBusinessTest {
  UUID owner,manager,a,b,unassigned;
  UUID user(String sub,String role){
   var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(sub).claim("email",sub+"@example.test").claim("name",sub).build()).getId();
-  sql.update("UPDATE app_users SET role=? WHERE id=?",role,id);return id;
+  member(sql,id,role);return id;
  }
  @BeforeEach void seed(){
   sql.execute("TRUNCATE app_users,projects CASCADE");user("finance","FINANCE");user("admin","ADMIN");
-  manager=employees.saveAndFlush(new Employee(user("manager","MANAGER"),"M008",null)).getId();
-  owner=employees.saveAndFlush(new Employee(user("employee","EMPLOYEE"),"E008",manager)).getId();
-  employees.saveAndFlush(new Employee(user("other","EMPLOYEE"),"OTHER",null));
-  employees.saveAndFlush(new Employee(user("unrelated","MANAGER"),"UNRELATED",null));
+  manager=employees.saveAndFlush(new Employee(ORGANIZATION,user("manager","MANAGER"),"M008",null)).getId();
+  owner=employees.saveAndFlush(new Employee(ORGANIZATION,user("employee","EMPLOYEE"),"E008",manager)).getId();
+  employees.saveAndFlush(new Employee(ORGANIZATION,user("other","EMPLOYEE"),"OTHER",null));
+  employees.saveAndFlush(new Employee(ORGANIZATION,user("unrelated","MANAGER"),"UNRELATED",null));
   a=UUID.randomUUID();b=UUID.randomUUID();unassigned=UUID.randomUUID();
-  sql.update("INSERT INTO projects(id,code,name,active) VALUES (?,'A','Alpha',true),(?,'B','Beta',true),(?,'C','Unassigned',true)",a,b,unassigned);
+  sql.update("INSERT INTO projects(organization_id,id,code,name,active) VALUES ('00000000-0000-0000-0000-000000000001',?,'A','Alpha',true),('00000000-0000-0000-0000-000000000001',?,'B','Beta',true),('00000000-0000-0000-0000-000000000001',?,'C','Unassigned',true)",a,b,unassigned);
   for(var id:List.of(a,b))sql.update("INSERT INTO project_assignments(id,employee_id,project_id,valid_from,active) VALUES (?,?,?,'2026-01-01',true)",UUID.randomUUID(),owner,id);
   when(gateway.export(any())).thenReturn(new SapExportResult("SAP-TS-BUSINESS"));
  }

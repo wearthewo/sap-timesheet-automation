@@ -21,25 +21,26 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
 public class SapExportTransactions {
+ private final com.acme.workforce.organization.application.OrganizationAccess organization;
  private final com.acme.workforce.sap.infrastructure.SapJobStore jobs; private final com.acme.workforce.sap.infrastructure.SapJobQueries jobQueries; private final org.springframework.jdbc.core.JdbcTemplate sql;
  private final SapExportRepository exports; private final TimesheetRepository sheets;
  private final UserRepository users; private final EmployeeRepository employees; private final TimesheetService timesheets;
- public SapExportTransactions(SapExportRepository exports,TimesheetRepository sheets,UserRepository users,EmployeeRepository employees,TimesheetService timesheets,com.acme.workforce.sap.infrastructure.SapJobStore jobs,com.acme.workforce.sap.infrastructure.SapJobQueries jobQueries,org.springframework.jdbc.core.JdbcTemplate sql){
+ public SapExportTransactions(SapExportRepository exports,TimesheetRepository sheets,UserRepository users,EmployeeRepository employees,TimesheetService timesheets,com.acme.workforce.sap.infrastructure.SapJobStore jobs,com.acme.workforce.sap.infrastructure.SapJobQueries jobQueries,org.springframework.jdbc.core.JdbcTemplate sql, com.acme.workforce.organization.application.OrganizationAccess organization) { this.organization=organization;
   this.jobs=jobs;this.jobQueries=jobQueries;this.sql=sql;this.exports=exports;this.sheets=sheets;this.users=users;this.employees=employees;this.timesheets=timesheets;
  }
  private void exporter(UUID userId){
-  var role=users.findById(userId).orElseThrow(this::forbidden).getRole();
+  var role=organization.role(userId);
   if(role!=UserRole.ADMIN && role!=UserRole.FINANCE)throw forbidden();
  }
  private DomainException forbidden(){return new DomainException(403,"SAP_EXPORT_NOT_AUTHORIZED","Only ADMIN and FINANCE users may export timesheets.");}
- private Timesheet sheet(UUID id){return sheets.findById(id).orElseThrow(()->new DomainException(404,"TIMESHEET_NOT_FOUND","Timesheet not found"));}
+ private Timesheet sheet(UUID id){return sheets.findByIdAndOrganizationId(id,organization.id()).orElseThrow(()->new DomainException(404,"TIMESHEET_NOT_FOUND","Timesheet not found"));}
  private EmployeeView employee(Timesheet s){
   var e=employees.findById(s.getEmployeeId()).orElseThrow();
   return new EmployeeView(e.getId(),e.getEmployeeNumber(),users.findById(e.getUserId()).orElseThrow().getDisplayName());
  }
  public Page<WorkItem> list(UUID userId,Pageable pageable){
   exporter(userId);
-  var page=sheets.findByStatus(TimesheetStatus.APPROVED,pageable);
+  var page=sheets.findByOrganizationIdAndStatus(organization.id(),TimesheetStatus.APPROVED,pageable);
   var employeeMap=employees.findAllById(page.stream().map(Timesheet::getEmployeeId).toList()).stream().collect(Collectors.toMap(e->e.getId(),Function.identity()));
   var userMap=users.findAllById(employeeMap.values().stream().map(e->e.getUserId()).toList()).stream().collect(Collectors.toMap(u->u.getId(),Function.identity()));
   var exportMap=exports.findByTimesheetIdIn(page.stream().map(Timesheet::getId).toList()).stream().collect(Collectors.toMap(SapTimesheetExport::getTimesheetId,Function.identity()));
@@ -50,9 +51,10 @@ public class SapExportTransactions {
  }
  public ExportDetail detail(UUID userId,UUID id){exporter(userId);var s=sheet(id);return new ExportDetail(employee(s),timesheets.describe(s),exports.findByTimesheetId(id).map(this::view).orElse(null));}
  public ExportView state(UUID userId,UUID id){
-  var role=users.findById(userId).orElseThrow(this::forbidden).getRole();
+  sheet(id);
+  var role=organization.role(userId);
   if(role!=UserRole.ADMIN && role!=UserRole.FINANCE){
-   var current=employees.findByUserId(userId).orElseThrow(this::forbidden);
+   var current=employees.findByUserIdAndOrganizationId(userId,organization.id()).orElseThrow(this::forbidden);
    var owner=employees.findById(sheet(id).getEmployeeId()).orElseThrow(this::forbidden);
    if(!current.isActive() || !(owner.getId().equals(current.getId()) || (role==UserRole.MANAGER && current.getId().equals(owner.getManagerId()))))throw forbidden();
   }
@@ -63,7 +65,7 @@ public class SapExportTransactions {
  @Transactional(propagation=Propagation.REQUIRES_NEW)
  public ExportView enqueue(UUID userId,UUID id,long version){
   exporter(userId);
-  sql.queryForList("SELECT id FROM timesheets WHERE id=? FOR UPDATE",UUID.class,id);
+  sql.queryForList("SELECT id FROM timesheets WHERE id=? AND organization_id=? FOR UPDATE",UUID.class,id,organization.id());
   var s=sheet(id);
   if(s.getStatus()!=TimesheetStatus.APPROVED)throw new DomainException(409,"SAP_EXPORT_NOT_ALLOWED","Only approved timesheets may be exported.");
   if(s.getVersion()!=version)throw new DomainException(409,"CONCURRENT_MODIFICATION","This timesheet changed. Reload before exporting.");
@@ -77,5 +79,5 @@ public class SapExportTransactions {
   return view(reserved);
  }
  @Transactional(propagation=Propagation.REQUIRES_NEW)
- public void manual(UUID userId,UUID id,boolean reconcile){exporter(userId);jobs.manual(id,reconcile);}
+ public void manual(UUID userId,UUID id,boolean reconcile){exporter(userId);sheet(id);jobs.manual(id,reconcile);}
 }

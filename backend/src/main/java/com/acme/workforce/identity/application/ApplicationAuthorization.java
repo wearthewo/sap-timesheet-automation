@@ -6,9 +6,10 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import com.acme.workforce.identity.domain.UserRole;
 @Component
 public class ApplicationAuthorization {
+ private final com.acme.workforce.organization.application.OrganizationAccess organization;
  private final IdentityService identity;
- public ApplicationAuthorization(IdentityService identity) { this.identity=identity; }
+ public ApplicationAuthorization(IdentityService identity, com.acme.workforce.organization.application.OrganizationAccess organization) { this.organization=organization; this.identity=identity; }
  public boolean isAdmin(Authentication authentication) {
-  return authentication instanceof JwtAuthenticationToken token && identity.current(token.getToken()).getRole()==UserRole.ADMIN;
+  return authentication instanceof JwtAuthenticationToken token && organization.role(identity.current(token.getToken()).getId())==UserRole.ADMIN;
  }
 }

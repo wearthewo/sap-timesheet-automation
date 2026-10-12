@@ -27,7 +27,7 @@ public class NotificationWorker {
   catch(EmailDeliveryException e){failure=e.failure();}
   catch(RuntimeException e){failure=EmailDeliveryException.Failure.UNKNOWN;}
   boolean committed=store.finish(c,accepted,failure);
-  log.info("Notification id={} type={} recipientUserId={} attempt={} durationMs={} outcome={} errorCode={}",
-   c.id(),c.type(),c.recipientId(),c.attempt(),(System.nanoTime()-start)/1000000,!committed?"STALE_RESULT":accepted?"SENT":"DELIVERY_FAILED",failure==null?null:failure.code);
+  log.info("Notification organizationId={} id={} type={} recipientUserId={} attempt={} durationMs={} outcome={} errorCode={}",
+   c.organizationId(),c.id(),c.type(),c.recipientId(),c.attempt(),(System.nanoTime()-start)/1000000,!committed?"STALE_RESULT":accepted?"SENT":"DELIVERY_FAILED",failure==null?null:failure.code);
  }
 }

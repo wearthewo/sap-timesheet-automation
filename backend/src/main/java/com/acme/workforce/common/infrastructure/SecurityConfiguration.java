@@ -21,12 +21,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @Configuration @EnableMethodSecurity
 public class SecurityConfiguration {
  @Bean
- SecurityFilterChain security(HttpSecurity http,ObjectMapper mapper,IdentityService identity,
+ SecurityFilterChain security(HttpSecurity http,ObjectMapper mapper,IdentityService identity,com.acme.workforce.organization.application.OrganizationAccess organization,
   @Value("${app.cors-allowed-origins}") String origins) throws Exception {
   var cors=new CorsConfiguration();
   cors.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::strip).filter(s->!s.isEmpty()).toList());
   cors.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
-  cors.setAllowedHeaders(List.of("Authorization","Content-Type","X-Timesheet-Version"));
+  cors.setAllowedHeaders(List.of("Authorization","Content-Type","X-Timesheet-Version","X-Organization-Id"));
   cors.setAllowCredentials(false);
   var source=new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/api/**",cors);
   http.csrf(csrf->csrf.disable()).cors(c->c.configurationSource(source))
@@ -39,7 +39,12 @@ public class SecurityConfiguration {
     .accessDeniedHandler((req,res,ex)->write(mapper,req,res,403,"FORBIDDEN","Access denied")))
    .addFilterAfter(new OncePerRequestFilter() {
     @Override protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,FilterChain chain) throws ServletException,IOException {
-     if(req.getRequestURI().startsWith("/api/") && SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token) identity.current(token.getToken());
+     if(req.getRequestURI().startsWith("/api/") && SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token) {
+      var user=identity.current(token.getToken());
+      boolean identityOnly=req.getRequestURI().equals("/api/v1/auth/organizations") || (req.getRequestURI().equals("/api/v1/auth/me") && req.getHeader("X-Organization-Id")==null);
+      if(!identityOnly) try { organization.role(user.getId()); }
+      catch(com.acme.workforce.common.application.DomainException ex) { write(mapper,req,res,ex.status(),ex.code(),ex.getMessage()); return; }
+     }
      chain.doFilter(req,res);
     }
    },BearerTokenAuthenticationFilter.class);

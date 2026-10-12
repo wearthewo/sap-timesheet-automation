@@ -11,8 +11,9 @@ import java.time.Instant;
 import java.util.*;
 @Repository
 public class ReportingQueries {
+ private final com.acme.workforce.organization.application.OrganizationAccess organization;
  private final NamedParameterJdbcTemplate jdbc;
- public ReportingQueries(NamedParameterJdbcTemplate jdbc){this.jdbc=jdbc;}
+ public ReportingQueries(NamedParameterJdbcTemplate jdbc, com.acme.workforce.organization.application.OrganizationAccess organization) { this.organization=organization;this.jdbc=jdbc;}
  // One row per active employee. Latest decision uses the existing (timesheet,decided_at,id) index.
  private static final String BASE="""
  WITH base AS (
@@ -28,7 +29,7 @@ public class ReportingQueries {
  LEFT JOIN LATERAL (SELECT decision,decided_at FROM timesheet_approvals
  WHERE timesheet_id=t.id ORDER BY decided_at DESC,id DESC LIMIT 1) a ON true
  LEFT JOIN sap_timesheet_exports x ON x.timesheet_id=t.id
- WHERE e.active
+ WHERE e.active AND e.organization_id=:organization
  ), filtered AS (SELECT * FROM base b WHERE
  (:employee='' OR b.employee_number ILIKE :employeePattern ESCAPE '!' OR b.employee_name ILIKE :employeePattern ESCAPE '!' OR b.email ILIKE :employeePattern ESCAPE '!')
  AND (:state='' OR b.timesheet_state=:state) AND (:sap='' OR b.sap_state=:sap)
@@ -44,7 +45,7 @@ public class ReportingQueries {
  """;
  private MapSqlParameterSource params(ReportFilter f){
   String employee=f.employee()==null?"":f.employee().strip(),project=f.project()==null?"":f.project().strip();
-  return new MapSqlParameterSource().addValue("year",f.year()).addValue("month",f.month())
+  return new MapSqlParameterSource().addValue("organization",organization.id()).addValue("year",f.year()).addValue("month",f.month())
    .addValue("employee",employee).addValue("employeePattern",pattern(employee))
    .addValue("project",project).addValue("projectPattern",pattern(project))
    .addValue("state",f.timesheetStatus()==null?"":f.timesheetStatus().name())

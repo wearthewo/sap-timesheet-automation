@@ -28,7 +28,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
-class PhaseTwoIntegrationTest {
+class PhaseTwoIntegrationTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void database(DynamicPropertyRegistry p) {
   p.add("spring.datasource.url",postgres::getJdbcUrl); p.add("spring.datasource.username",postgres::getUsername); p.add("spring.datasource.password",postgres::getPassword);
@@ -45,13 +45,13 @@ class PhaseTwoIntegrationTest {
   employee=employee("alice"); employee("bob");
   project=UUID.randomUUID(); second=UUID.randomUUID();
   for(UUID id:List.of(project,second)) {
-   sql.update("INSERT INTO projects(id,code,name,active) VALUES (?,?,?,true)",id,id.toString(),"Project");
+   sql.update("INSERT INTO projects(organization_id,id,code,name,active) VALUES ('00000000-0000-0000-0000-000000000001',?,?,?,true)",id,id.toString(),"Project");
    sql.update("INSERT INTO project_assignments(id,employee_id,project_id,valid_from,valid_to,active) VALUES (?,?,?,'2026-10-01','2026-10-31',true)",UUID.randomUUID(),employee,id);
   }
  }
  UUID employee(String subject) {
   var token=Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("email",subject+"@example.test").build();
-  return employees.saveAndFlush(new Employee(identity.current(token).getId(),subject,null)).getId();
+  return employees.saveAndFlush(new Employee(ORGANIZATION,member(sql,identity.current(token).getId(),"EMPLOYEE"),subject,null)).getId();
  }
  ResultActions request(MockHttpServletRequestBuilder r,String subject) throws Exception { return mvc.perform(r.with(jwt().jwt(j->j.subject(subject)))); }
  JsonNode json(ResultActions r) throws Exception { return mapper.readTree(r.andReturn().getResponse().getContentAsString()); }

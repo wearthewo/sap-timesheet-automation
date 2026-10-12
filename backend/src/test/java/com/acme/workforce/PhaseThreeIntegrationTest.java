@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
-class PhaseThreeIntegrationTest {
+class PhaseThreeIntegrationTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void database(DynamicPropertyRegistry p) {
   p.add("spring.datasource.url",postgres::getJdbcUrl); p.add("spring.datasource.username",postgres::getUsername); p.add("spring.datasource.password",postgres::getPassword);
@@ -39,14 +39,14 @@ class PhaseThreeIntegrationTest {
   sql.execute("TRUNCATE app_users,employees,projects,project_assignments,timesheets,timesheet_entries,timesheet_approvals CASCADE");
   manager=employee("manager","MANAGER",null); other=employee("other","MANAGER",null);
   employee=employee("alice","EMPLOYEE",manager); project=UUID.randomUUID();
-  sql.update("INSERT INTO projects(id,code,name,active) VALUES (?,'TEST','Test',true)",project);
+  sql.update("INSERT INTO projects(organization_id,id,code,name,active) VALUES ('00000000-0000-0000-0000-000000000001',?,'TEST','Test',true)",project);
   sql.update("INSERT INTO project_assignments(id,employee_id,project_id,valid_from,active) VALUES (?,?,?,'2026-01-01',true)",UUID.randomUUID(),employee,project);
  }
  UUID user(String subject,String role) {
   var token=Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("name",subject).build();
-  var id=identity.current(token).getId(); sql.update("UPDATE app_users SET role=? WHERE id=?",role,id); return id;
+  var id=identity.current(token).getId(); member(sql,id,role); return id;
  }
- UUID employee(String subject,String role,UUID managerId) { return employees.saveAndFlush(new Employee(user(subject,role),subject,managerId)).getId(); }
+ UUID employee(String subject,String role,UUID managerId) { return employees.saveAndFlush(new Employee(ORGANIZATION,user(subject,role),subject,managerId)).getId(); }
  ResultActions request(MockHttpServletRequestBuilder r,String subject) throws Exception {return mvc.perform(r.with(jwt().jwt(j->j.subject(subject))));}
  JsonNode json(ResultActions result) throws Exception {return mapper.readTree(result.andReturn().getResponse().getContentAsString());}
  JsonNode draft() throws Exception {return json(request(post("/api/v1/timesheets").contentType("application/json").content("{\"year\":2026,\"month\":10}"),"alice").andExpect(status().isCreated()));}
@@ -78,7 +78,7 @@ class PhaseThreeIntegrationTest {
  }
  @ParameterizedTest @ValueSource(strings={"EMPLOYEE","FINANCE","ADMIN"})
  void nonManagerRolesCannotReviewEvenWithRelationship(String role) throws Exception {
-  var s=pending(); sql.update("UPDATE app_users SET role=? WHERE id=(SELECT user_id FROM employees WHERE id=?)",role,manager);
+  var s=pending(); sql.update("UPDATE organization_memberships SET role=? WHERE user_id=(SELECT user_id FROM employees WHERE id=?)",role,manager);
   request(get("/api/v1/approvals/pending"),"manager").andExpect(status().isForbidden());
   request(get(reviewPath(s)),"manager").andExpect(status().isForbidden());
   decide(s,"manager","approve",null).andExpect(status().isForbidden());
@@ -91,7 +91,7 @@ class PhaseThreeIntegrationTest {
   request(get("/api/v1/approvals/pending"),"manager").andExpect(status().isForbidden());
  }
  @Test void selfReviewIsForbiddenAndDatabaseRejectsSelfManagerLink() throws Exception {
-  var s=pending(); sql.update("UPDATE app_users SET role='MANAGER' WHERE id=(SELECT user_id FROM employees WHERE id=?)",employee);
+  var s=pending(); sql.update("UPDATE organization_memberships SET role='MANAGER' WHERE user_id=(SELECT user_id FROM employees WHERE id=?)",employee);
   assertThatThrownBy(()->sql.update("UPDATE employees SET manager_id=id WHERE id=?",employee)).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
   decide(s,"alice","approve",null).andExpect(status().isForbidden());
   request(get("/api/v1/approvals/pending"),"alice").andExpect(jsonPath("$.totalElements").value(0));
@@ -169,7 +169,7 @@ class PhaseThreeIntegrationTest {
   sql.update("INSERT INTO legacy.app_users(id,external_subject,email,display_name,role) VALUES (?,'legacy','','Legacy','EMPLOYEE')",u);
   sql.update("INSERT INTO legacy.employees(id,user_id,employee_number,active) VALUES (?,?,'LEGACY',true)",e,u);
   sql.update("INSERT INTO legacy.timesheets(id,employee_id,year,month,status,submitted_at,version) VALUES (?,?,2026,9,'SUBMITTED','2026-09-30T12:00:00Z',3)",t,e);
-  org.flywaydb.core.Flyway.configure().dataSource(postgres.getJdbcUrl(),postgres.getUsername(),postgres.getPassword()).schemas("legacy").defaultSchema("legacy").load().migrate();
+  org.flywaydb.core.Flyway.configure().dataSource(postgres.getJdbcUrl(),postgres.getUsername(),postgres.getPassword()).schemas("legacy").defaultSchema("legacy").placeholders(Map.of("legacyTenantConfirmed","true")).load().migrate();
   assertThat(sql.queryForObject("SELECT status FROM legacy.timesheets",String.class)).isEqualTo("PENDING_APPROVAL");
   assertThat(sql.queryForObject("SELECT version FROM legacy.timesheets",Long.class)).isEqualTo(4);
   assertThat(sql.queryForObject("SELECT count(*) FROM legacy.timesheet_approvals",Integer.class)).isZero();

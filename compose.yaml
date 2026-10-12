@@ -69,6 +69,7 @@ services:
     environment:
       PORT: "8080"
       DATABASE_URL: jdbc:postgresql://postgres:5432/workforce
+      LEGACY_TENANT_CONFIRMED: ${LEGACY_TENANT_CONFIRMED:-false}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-workforce}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD}
       KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI:-http://localhost:8180/realms/workforce}

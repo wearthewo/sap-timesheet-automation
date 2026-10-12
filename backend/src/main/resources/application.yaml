@@ -28,6 +28,8 @@ spring:
     properties:
       hibernate.jdbc.time_zone: UTC
   flyway:
+    placeholders:
+      legacyTenantConfirmed: ${LEGACY_TENANT_CONFIRMED:false}
     enabled: true
   security:
     oauth2:

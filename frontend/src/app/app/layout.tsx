@@ -15,9 +15,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
      {["ADMIN", "FINANCE"].includes(user.role) && <Link href="/app/sap" className="rounded px-1 py-2 hover:text-blue-700">SAP exports</Link>}
      {["ADMIN", "FINANCE"].includes(user.role) && <Link href="/app/reports" className="rounded px-1 py-2 hover:text-blue-700">Reports</Link>}
      <Link href="/app/notifications" className="rounded px-1 py-2 hover:text-blue-700">Notifications</Link>
+     <Link href="/organizations" className="rounded px-1 py-2 hover:text-blue-700">Organization</Link>
     </nav>
     <div className="flex w-full min-w-0 items-center justify-between gap-4 sm:ml-auto sm:w-auto">
-     <div className="min-w-0 text-sm"><p className="break-words font-semibold">{user.displayName}</p><p className="text-xs text-slate-500">{user.role}</p></div>
+     <div className="min-w-0 text-sm"><p className="break-words font-semibold">{user.displayName}</p><p className="break-words text-xs text-slate-500">{user.role} · {user.organizationName}</p></div>
      <form action="/api/logout" method="post"><button className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-100">Log out</button></form>
     </div>
    </div>

@@ -39,8 +39,10 @@ async function seed() {
   const headers = { Authorization: `Bearer ${token.access_token}`, 'Content-Type': 'application/json' };
   state.users = {};
   const suffix = state.project.slice(-12);
-  let statements = 'BEGIN;\n';
-  for (const role of ['EMPLOYEE', 'MANAGER', 'FINANCE', 'ADMIN']) {
+  const organizationId=randomUUID(), secondOrganizationId=randomUUID();
+  state.organizationId=organizationId; state.secondOrganizationId=secondOrganizationId;
+  let statements = `BEGIN; INSERT INTO organizations(id,slug,name,status) VALUES (${q(organizationId)},'ci-alpha','CI Alpha','ACTIVE'),(${q(secondOrganizationId)},'ci-beta','CI Beta','ACTIVE');\n`;
+  for (const role of ['EMPLOYEE', 'MANAGER', 'FINANCE', 'ADMIN', 'TENANT']) {
     const username = `ci-${role.toLowerCase()}-${suffix}`, password = secret();
     const name = role === 'EMPLOYEE' ? 'Νίκος André & "Employee"' : role === 'MANAGER' ? 'Μαρία García & "Review"' : `CI ${role}`;
     state.users[role] = { username, password, name }; save();
@@ -52,17 +54,19 @@ async function seed() {
       credentials: [{ type: 'password', value: password, temporary: false }] }) });
     const [user] = await api(`/admin/realms/workforce/users?username=${username}&exact=true`, { headers });
     const id = randomUUID(); state.users[role].subject = user.id;
-    statements += `INSERT INTO app_users(id,external_subject,email,display_name,role) VALUES (${q(id)},${q(user.id)},${q(username + '@example.test')},${q(name)},${q(role)});\n`;
+    statements += `INSERT INTO app_users(id,external_subject,email,display_name,role) VALUES (${q(id)},${q(user.id)},${q(username + '@example.test')},${q(name)},${q("EMPLOYEE")});\n`;
+    statements += `INSERT INTO organization_memberships(id,organization_id,user_id,role,status) VALUES (gen_random_uuid(),${q(organizationId)},${q(id)},${q(role==='TENANT'?'EMPLOYEE':role)},'ACTIVE');\n`;
+    if(role==='TENANT') statements += `INSERT INTO organization_memberships(id,organization_id,user_id,role,status) VALUES (gen_random_uuid(),${q(secondOrganizationId)},${q(id)},'FINANCE','ACTIVE');\n`;
     if (role === 'EMPLOYEE' || role === 'MANAGER') {
       const employeeId = randomUUID(); state.users[role].employeeId = employeeId;
-      statements += `INSERT INTO employees(id,user_id,employee_number,active) VALUES (${q(employeeId)},${q(id)},${q('QA3-' + role[0] + '-' + suffix)},true);\n`;
+      statements += `INSERT INTO employees(organization_id,id,user_id,employee_number,active) VALUES (${q(organizationId)},${q(employeeId)},${q(id)},${q('QA3-' + role[0] + '-' + suffix)},true);\n`;
     }
   }
   const employee = q(state.users.EMPLOYEE.employeeId), manager = q(state.users.MANAGER.employeeId);
   statements += `UPDATE employees SET manager_id=${manager} WHERE id=${employee};\n`;
   for (const code of ['PHASE1-DEMO', 'PHASE2-DEMO', 'MOCK-INVALID', 'MOCK-TRANSIENT-503', 'MOCK-TIMEOUT', 'MOCK-RETRY']) {
     const id = q(randomUUID());
-    statements += `INSERT INTO projects(id,code,name,active) VALUES (${id},${q(code)},${q(code)},true);
+    statements += `INSERT INTO projects(organization_id,id,code,name,active) VALUES (${q(organizationId)},${id},${q(code)},${q(code)},true);
       INSERT INTO project_assignments(id,employee_id,project_id,valid_from,active) VALUES (gen_random_uuid(),${employee},${id},'2020-01-01',true);\n`;
   }
   sql(statements + 'COMMIT;');
@@ -73,7 +77,7 @@ async function seed() {
     WHERE u.external_subject=${q(state.users.EMPLOYEE.subject)} AND n.type='TIMESHEET_REMINDER' AND n.status='SENT';`).trim()) === 1, 60000);
   const reminderPeriod = sql(`SELECT business_year || '-' || lpad(business_month::text,2,'0') FROM notifications n JOIN app_users u ON u.id=n.recipient_user_id
     WHERE u.external_subject=${q(state.users.EMPLOYEE.subject)} AND n.type='TIMESHEET_REMINDER';`).trim();
-  state.fixtures = {};
+  state.fixtures = { TEST_ORGANIZATION_A: organizationId, TEST_ORGANIZATION_B: secondOrganizationId };
   for (const [key, code, year, month, hours] of [
     ['TEST_SAP_SUCCESS_ID','PHASE1-DEMO',2027,1,'6.25'], ['TEST_SAP_FAILURE_ID','MOCK-INVALID',2027,2,'4.50'],
     ['TEST_SAP_TRANSIENT_ID','MOCK-TRANSIENT-503',2027,3,'6.25'], ['TEST_SAP_UNKNOWN_ID','MOCK-TIMEOUT',2027,4,'6.25'],
@@ -91,10 +95,10 @@ async function seed() {
   state.fixtures.TEST_APPROVAL_MONTH = '2026-10'; state.fixtures.TEST_MONTH = '2026-11';
   sql(statements + 'COMMIT;');
   const reportPrefix = `REPORT6-${suffix}`;
-  compose(['exec', '-T', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-v', `report_prefix=${reportPrefix}`, '-U', 'workforce', '-d', 'workforce'],
+  compose(['exec', '-T', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-v', `report_prefix=${reportPrefix}`, '-v', `organization_id=${organizationId}`, '-U', 'workforce', '-d', 'workforce'],
     readFileSync(resolve(root, 'infra/dev/reporting-fixtures.sql'), 'utf8'), true);
   state.fixtures.TEST_REPORT_PREFIX = reportPrefix; state.seeded = true; save();
-  console.log('Four synthetic OIDC roles, assignments, SAP scenarios and report fixtures prepared.');
+  console.log('Synthetic OIDC roles, two organizations, memberships, assignments, SAP scenarios and report fixtures prepared.');
 }
 async function tests() {
   if (!state.seeded) throw new Error('Seed required');
