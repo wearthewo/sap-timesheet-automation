@@ -15,9 +15,9 @@ import java.util.*;
 public class SapJobStore {
  private final JdbcTemplate sql;private final ObjectMapper json;private final SapWorkerPolicy policy; private final com.acme.workforce.notification.application.NotificationIntents notifications;
  public SapJobStore(JdbcTemplate sql,ObjectMapper json,SapWorkerPolicy policy,com.acme.workforce.notification.application.NotificationIntents notifications){this.sql=sql;this.json=json;this.policy=policy;this.notifications=notifications;}
- public record Claim(UUID id,UUID exportId,UUID timesheetId,String operation,UUID token,int execution,int attempts,int cycleAttempts,int reconciliations,Instant started,ApprovedTimesheetPayload payload){}
+ public record Claim(UUID organizationId,UUID id,UUID exportId,UUID timesheetId,String operation,UUID token,int execution,int attempts,int cycleAttempts,int reconciliations,Instant started,ApprovedTimesheetPayload payload){}
  private Claim claimRow(ResultSet r,int row)throws SQLException {
-  try{return new Claim(r.getObject("id",UUID.class),r.getObject("export_id",UUID.class),r.getObject("timesheet_id",UUID.class),r.getString("operation"),r.getObject("claim_token",UUID.class),r.getInt("execution_count"),r.getInt("attempt_count"),r.getInt("cycle_attempts"),r.getInt("reconciliation_count"),r.getTimestamp("locked_at").toInstant(),json.readValue(r.getString("payload"),ApprovedTimesheetPayload.class));}
+  try{return new Claim(r.getObject("organization_id",UUID.class),r.getObject("id",UUID.class),r.getObject("export_id",UUID.class),r.getObject("timesheet_id",UUID.class),r.getString("operation"),r.getObject("claim_token",UUID.class),r.getInt("execution_count"),r.getInt("attempt_count"),r.getInt("cycle_attempts"),r.getInt("reconciliation_count"),r.getTimestamp("locked_at").toInstant(),json.readValue(r.getString("payload"),ApprovedTimesheetPayload.class));}
   catch(com.fasterxml.jackson.core.JsonProcessingException ex){throw new IllegalStateException("Invalid stored SAP payload");}
  }
  @Transactional(propagation=Propagation.MANDATORY)
@@ -28,13 +28,13 @@ public class SapJobStore {
  @Transactional(propagation=Propagation.REQUIRES_NEW)
  public List<Claim> claim(String worker){
   // Recover expired claims as reconciliation, never as an unconditional second POST.
-  var stale=sql.query("SELECT * FROM sap_export_jobs WHERE status='PROCESSING' AND locked_at < now() - (? * interval '1 millisecond') ORDER BY locked_at,id LIMIT ? FOR UPDATE SKIP LOCKED",this::claimRow,policy.lease().toMillis(),policy.batchSize());
+  var stale=sql.query("SELECT * FROM sap_export_jobs WHERE organization_id IN (SELECT id FROM organizations WHERE status='ACTIVE') AND status='PROCESSING' AND locked_at < now() - (? * interval '1 millisecond') ORDER BY locked_at,id LIMIT ? FOR UPDATE SKIP LOCKED",this::claimRow,policy.lease().toMillis(),policy.batchSize());
   for(var c:stale){
    history(c,"ABANDONED","SAP_LEASE_EXPIRED",null);
    setExport(c,"UNKNOWN",null,"SAP_LEASE_EXPIRED","The worker lease expired. SAP acceptance must be reconciled.");
    schedule(c,"PENDING","RECONCILE",Instant.now(),"SAP_LEASE_EXPIRED",false);
   }
-  var ids=sql.queryForList("SELECT id FROM sap_export_jobs WHERE status='PENDING' AND next_attempt_at<=clock_timestamp() ORDER BY next_attempt_at,id LIMIT ? FOR UPDATE SKIP LOCKED",UUID.class,policy.batchSize());
+  var ids=sql.queryForList("SELECT id FROM sap_export_jobs WHERE organization_id IN (SELECT id FROM organizations WHERE status='ACTIVE') AND status='PENDING' AND next_attempt_at<=clock_timestamp() ORDER BY next_attempt_at,id LIMIT ? FOR UPDATE SKIP LOCKED",UUID.class,policy.batchSize());
   var result=new ArrayList<Claim>();
   for(var id:ids){
    var c=sql.queryForObject("""
@@ -53,7 +53,7 @@ public class SapJobStore {
  @Transactional(propagation=Propagation.REQUIRES_NEW)
  public boolean finish(Claim c,SapExportResult result,SapGatewayException.Failure failure,boolean missing){
   // A stale worker has no authority once its claim token has been replaced.
-  var owns=sql.queryForList("SELECT id FROM sap_export_jobs WHERE id=? AND status='PROCESSING' AND claim_token=? FOR UPDATE",UUID.class,c.id(),c.token());
+  var owns=sql.queryForList("SELECT id FROM sap_export_jobs WHERE id=? AND organization_id=? AND status='PROCESSING' AND claim_token=? FOR UPDATE",UUID.class,c.id(),c.organizationId(),c.token());
   if(owns.isEmpty())return false;
   if(result!=null){
    history(c,"SUCCEEDED",null,result.externalReference());setExport(c,"SUCCEEDED",result.externalReference(),null,null);

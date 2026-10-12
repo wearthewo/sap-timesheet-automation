@@ -31,8 +31,8 @@ public class SapExportWorker {
   }catch(SapGatewayException ex){failure=ex.failure();}
   catch(RuntimeException ex){failure=SapGatewayException.Failure.UNKNOWN;}
   boolean committed=jobs.finish(c,result,failure,missing);
-  log.info("SAP job exportId={} jobId={} timesheetId={} attemptNumber={} identity={} operation={} durationMs={} outcome={} externalReference={}",
-   c.exportId(),c.id(),c.timesheetId(),c.execution(),c.payload().idempotencyKey(),c.operation(),(System.nanoTime()-start)/1_000_000,
+  log.info("SAP job organizationId={} exportId={} jobId={} timesheetId={} attemptNumber={} identity={} operation={} durationMs={} outcome={} externalReference={}",
+   c.organizationId(),c.exportId(),c.id(),c.timesheetId(),c.execution(),c.payload().idempotencyKey(),c.operation(),(System.nanoTime()-start)/1_000_000,
    !committed?"STALE_RESULT":result!=null?"SUCCEEDED":missing?"NOT_FOUND":failure.code,result==null?null:result.externalReference());
  }
 }

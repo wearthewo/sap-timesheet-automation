@@ -44,7 +44,7 @@ public class ExceptionHandlerAdvice {
   }
   return error(409,"DATA_CONFLICT","The request conflicts with existing data",request);
  }
- @ExceptionHandler(org.springframework.dao.OptimisticLockingFailureException.class)
+ @ExceptionHandler(org.springframework.dao.ConcurrencyFailureException.class)
  ResponseEntity<ApiError> concurrent(Exception ex,HttpServletRequest request) { return error(409,"CONCURRENT_MODIFICATION","This timesheet changed in another session. Reload it before editing.",request); }
  @ExceptionHandler(Exception.class)
  ResponseEntity<ApiError> unexpected(Exception ex,HttpServletRequest request) {

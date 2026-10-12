@@ -23,26 +23,26 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
 public class ApprovalService {
+ private final com.acme.workforce.organization.application.OrganizationAccess organization;
  private static final Logger log=LoggerFactory.getLogger(ApprovalService.class);
  private final UserRepository users;
  private final EmployeeRepository employees;
  private final TimesheetRepository sheets;
  private final ApprovalRepository approvals;
  private final TimesheetService timesheets; private final com.acme.workforce.notification.application.NotificationIntents notifications;
- public ApprovalService(UserRepository users,EmployeeRepository employees,TimesheetRepository sheets,ApprovalRepository approvals,TimesheetService timesheets,com.acme.workforce.notification.application.NotificationIntents notifications) {
+ public ApprovalService(UserRepository users,EmployeeRepository employees,TimesheetRepository sheets,ApprovalRepository approvals,TimesheetService timesheets,com.acme.workforce.notification.application.NotificationIntents notifications, com.acme.workforce.organization.application.OrganizationAccess organization) { this.organization=organization;
   this.users=users; this.employees=employees; this.sheets=sheets; this.approvals=approvals; this.timesheets=timesheets; this.notifications=notifications;
  }
  private Employee manager(UUID userId) {
-  var user=users.findById(userId).orElseThrow(this::unauthorized);
-  if(user.getRole()!=UserRole.MANAGER) throw unauthorized();
-  var manager=employees.findByUserId(userId).orElseThrow(()->new DomainException(403,"MANAGER_EMPLOYEE_PROFILE_NOT_FOUND","A manager employee profile is required"));
+  if(organization.role(userId)!=UserRole.MANAGER) throw unauthorized();
+  var manager=employees.findByUserIdAndOrganizationId(userId,organization.id()).orElseThrow(()->new DomainException(403,"MANAGER_EMPLOYEE_PROFILE_NOT_FOUND","A manager employee profile is required"));
   if(!manager.isActive()) throw unauthorized();
   return manager;
  }
  private DomainException unauthorized() { return new DomainException(403,"APPROVAL_NOT_AUTHORIZED","You may review only your direct reports' timesheets as their manager"); }
  private Timesheet authorized(UUID userId,UUID id) {
   var manager=manager(userId);
-  var sheet=sheets.findById(id).orElseThrow(()->new DomainException(404,"TIMESHEET_NOT_FOUND","Timesheet not found"));
+  var sheet=sheets.findByIdAndOrganizationId(id,organization.id()).orElseThrow(()->new DomainException(404,"TIMESHEET_NOT_FOUND","Timesheet not found"));
   var employee=employees.findById(sheet.getEmployeeId()).orElseThrow(this::unauthorized);
   if(employee.getId().equals(manager.getId()) || !manager.getId().equals(employee.getManagerId())) throw unauthorized();
   return sheet;

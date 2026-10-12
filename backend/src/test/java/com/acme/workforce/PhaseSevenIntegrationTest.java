@@ -36,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
-class PhaseSevenIntegrationTest {
+class PhaseSevenIntegrationTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void config(DynamicPropertyRegistry p){
   p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
@@ -51,9 +51,9 @@ class PhaseSevenIntegrationTest {
  AtomicReference<Instant> now=new AtomicReference<>(); UUID employeeUser,employee,managerUser,manager,finance,admin;TransactionTemplate tx;
  UUID user(String subject,String role){
   var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("email",subject+"@example.test").claim("name","Name "+subject).build()).getId();
-  sql.update("UPDATE app_users SET role=? WHERE id=?",role,id);return id;
+  member(sql,id,role);return id;
  }
- UUID profile(UUID u,String number,UUID boss){return employees.saveAndFlush(new Employee(u,number,boss)).getId();}
+ UUID profile(UUID u,String number,UUID boss){return employees.saveAndFlush(new Employee(ORGANIZATION,u,number,boss)).getId();}
  UUID sheet(UUID owner,String status,int year,int month){
   var id=UUID.randomUUID();
   sql.update("INSERT INTO timesheets(id,employee_id,year,month,status,total_hours,submitted_at,version) VALUES (?,?,?,?,?,0,CASE WHEN ?='DRAFT' THEN NULL ELSE now() END,0)",id,owner,year,month,status,status);return id;
@@ -69,7 +69,7 @@ class PhaseSevenIntegrationTest {
  long count(String type){return sql.queryForObject("SELECT count(*) FROM notifications WHERE type=?",Long.class,type);}
  String state(UUID id){return sql.queryForObject("SELECT status FROM notifications WHERE id=?",String.class,id);}
  UUID enqueue(String key){
-  tx.executeWithoutResult(s->store.enqueue(NotificationType.TIMESHEET_APPROVED,new Recipient(employeeUser,"employee@example.test","Name"),key,new NotificationTemplates.Content("Approved","Hello")));
+  tx.executeWithoutResult(s->store.enqueue(NotificationType.TIMESHEET_APPROVED,new Recipient(ORGANIZATION,employeeUser,"employee@example.test","Name"),key,new NotificationTemplates.Content("Approved","Hello")));
   return sql.queryForObject("SELECT id FROM notifications WHERE deduplication_key=?",UUID.class,key);
  }
  void advance(Duration d){now.updateAndGet(t->t.plus(d));}
@@ -117,7 +117,7 @@ class PhaseSevenIntegrationTest {
  void ineligibleManagerGetsNoDigest(String reason){
   if(!reason.equals("no-pending"))sheet(employee,"PENDING_APPROVAL",2026,10);
   if(reason.equals("inactive"))sql.update("UPDATE employees SET active=false WHERE id=?",manager);
-  if(reason.equals("wrong-role"))sql.update("UPDATE app_users SET role='EMPLOYEE' WHERE id=?",managerUser);
+  if(reason.equals("wrong-role"))sql.update("UPDATE organization_memberships SET role='EMPLOYEE' WHERE user_id=?",managerUser);
   evaluation.evaluate();assertThat(count("APPROVAL_REMINDER")).isZero();
  }
  @Test void financeMonthlyDigestDeduplicates(){
@@ -232,7 +232,7 @@ class PhaseSevenIntegrationTest {
  @Test void duplicateDatabaseKeyIsRejected(){
   enqueue("same");enqueue("same");
   assertThat(sql.queryForObject("SELECT count(*) FROM notifications",Long.class)).isEqualTo(1);
-  assertThatThrownBy(()->sql.update("INSERT INTO notifications SELECT gen_random_uuid(),type,recipient_user_id,recipient_email,subject,body,status,deduplication_key,attempt_count,next_attempt_at,sent_at,business_year,business_month,last_error_code,last_error_message,locked_at,locked_by,claim_token,created_at,updated_at FROM notifications")).isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+  assertThatThrownBy(()->sql.update("INSERT INTO notifications SELECT gen_random_uuid(),type,recipient_user_id,recipient_email,subject,body,status,deduplication_key,attempt_count,next_attempt_at,sent_at,business_year,business_month,last_error_code,last_error_message,locked_at,locked_by,claim_token,created_at,updated_at,organization_id FROM notifications")).isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
  }
  @ParameterizedTest @CsvSource({"2027-02-27T22:30:00Z,2","2028-02-28T22:30:00Z,2","2027-02-26T22:30:00Z,0"})
  void timezoneAndShortMonths(String instant,long expected){
@@ -255,7 +255,7 @@ class PhaseSevenIntegrationTest {
   var id=sheet(employee,"APPROVED",2026,10);var export=UUID.randomUUID();
   sql.update("INSERT INTO sap_timesheet_exports(id,timesheet_id,status,failure_code,failure_message,created_at,updated_at) VALUES (?,?,'FAILED','SAP_VALIDATION_ERROR','Safe failure',now(),now())",export,id);
   tx.executeWithoutResult(s->intents.sap(export,1,"FAILED"));
-  sql.update("UPDATE app_users SET role='EMPLOYEE' WHERE id=?",finance);
+  sql.update("UPDATE organization_memberships SET role='EMPLOYEE' WHERE user_id=?",finance);
   worker.runOnce();
   assertThat(sql.queryForObject("SELECT status FROM notifications WHERE recipient_user_id=?",String.class,finance)).isEqualTo("CANCELLED");
   verify(gateway,never()).send(argThat(m->m.recipient().equals("finance@example.test")));

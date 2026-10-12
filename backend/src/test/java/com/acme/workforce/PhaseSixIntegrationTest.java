@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
-class PhaseSixIntegrationTest {
+class PhaseSixIntegrationTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void config(DynamicPropertyRegistry p){
   p.add("app.reporting.max-download-rows",()->"16");p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
@@ -47,19 +47,19 @@ class PhaseSixIntegrationTest {
  UUID finance,manager,projectA,projectB;List<UUID> sheets;String description="Worked on \"billing, API\"\nΔοκιμή";
  UUID user(String subject,String role){
   var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("email",subject+"@example.test").claim("name","Name "+subject).build()).getId();
-  sql.update("UPDATE app_users SET role=? WHERE id=?",role,id);return id;
+  member(sql,id,role);return id;
  }
  UUID employee(String number,boolean active,UUID managerId){
-  var id=employees.saveAndFlush(new Employee(user(number,"EMPLOYEE"),number,managerId)).getId();
+  var id=employees.saveAndFlush(new Employee(ORGANIZATION,user(number,"EMPLOYEE"),number,managerId)).getId();
   sql.update("UPDATE employees SET active=? WHERE id=?",active,id);return id;
  }
  @BeforeEach void seed(){
   sql.execute("TRUNCATE app_users,employees,projects,project_assignments,timesheets,timesheet_entries,timesheet_approvals,sap_timesheet_exports CASCADE");
   finance=user("finance","FINANCE");user("admin","ADMIN");user("employee","EMPLOYEE");user("manager","MANAGER");
-  manager=employees.saveAndFlush(new Employee(users.findByExternalSubject("manager").orElseThrow().getId(),"MANAGER",null)).getId();
+  manager=employees.saveAndFlush(new Employee(ORGANIZATION,users.findByExternalSubject("manager").orElseThrow().getId(),"MANAGER",null)).getId();
   sql.update("UPDATE employees SET active=false WHERE id=?",manager);
   projectA=UUID.randomUUID();projectB=UUID.randomUUID();
-  sql.update("INSERT INTO projects(id,code,name,active) VALUES (?,'PRJ-A','Alpha allocation',true),(?,'PRJ-B','Historical project',false)",projectA,projectB);
+  sql.update("INSERT INTO projects(organization_id,id,code,name,active) VALUES ('00000000-0000-0000-0000-000000000001',?,'PRJ-A','Alpha allocation',true),('00000000-0000-0000-0000-000000000001',?,'PRJ-B','Historical project',false)",projectA,projectB);
   employee("EMP-00",true,null);sheets=new ArrayList<>();
   String[] states={"DRAFT","PENDING_APPROVAL","REJECTED","APPROVED","APPROVED","APPROVED","APPROVED","APPROVED","APPROVED"};
   String[] sap={null,null,null,null,"QUEUED","PROCESSING","SUCCEEDED","FAILED","UNKNOWN"};
@@ -196,7 +196,7 @@ class PhaseSixIntegrationTest {
   try(var workbook=new XSSFWorkbook(new ByteArrayInputStream(bytes))){assertThat(workbook.getSheet("Approved Hour Details").getLastRowNum()).isZero();}
  }
  @Test void rowLimitFailsBeforeFormatting(){
-  var limited=new ReportingService(queries,users,2);
+  var limited=new ReportingService(queries,users,2,organizationAccess);
   assertThatThrownBy(()->new TransactionTemplate(tm).execute(s->limited.snapshot(finance,new ReportFilter(2026,10,null,null,null,null,null))))
    .isInstanceOf(com.acme.workforce.common.application.DomainException.class).hasMessageContaining("row limit");
  }

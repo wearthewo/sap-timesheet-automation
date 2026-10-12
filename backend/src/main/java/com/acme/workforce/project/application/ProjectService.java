@@ -14,15 +14,16 @@ import java.time.*;
 @Service
 @Transactional(readOnly=true)
 public class ProjectService {
+ private final com.acme.workforce.organization.application.OrganizationAccess organization;
  private static final Logger log=LoggerFactory.getLogger(ProjectService.class);
  private final ProjectRepository projects; private final AssignmentRepository assignments; private final EmployeeRepository employees;
- public ProjectService(ProjectRepository projects,AssignmentRepository assignments,EmployeeRepository employees) { this.projects=projects; this.assignments=assignments; this.employees=employees; }
- public Page<ProjectView> list(Pageable page) { return projects.findAll(page).map(ProjectView::from); }
+ public ProjectService(ProjectRepository projects,AssignmentRepository assignments,EmployeeRepository employees, com.acme.workforce.organization.application.OrganizationAccess organization) { this.organization=organization; this.projects=projects; this.assignments=assignments; this.employees=employees; }
+ public Page<ProjectView> list(Pageable page) { return projects.findByOrganizationId(organization.id(),page).map(ProjectView::from); }
  public ProjectView get(UUID id) { return ProjectView.from(requireProject(id)); }
- private Project requireProject(UUID id) { return projects.findById(id).orElseThrow(()->DomainException.notFound("Project")); }
+ private Project requireProject(UUID id) { return projects.findByIdAndOrganizationId(id,organization.id()).orElseThrow(()->DomainException.notFound("Project")); }
  @Transactional
  public ProjectView create(WriteProject request) {
-  var p=projects.saveAndFlush(new Project(request.code(),request.name(),request.description(),request.active()));
+  var p=projects.saveAndFlush(new Project(organization.id(),request.code(),request.name(),request.description(),request.active()));
   log.info("Created project id={}",p.getId()); return ProjectView.from(p);
  }
  @Transactional
@@ -34,12 +35,12 @@ public class ProjectService {
  public AssignmentView assign(WriteAssignment request) {
   if(request.validTo()!=null && request.validTo().isBefore(request.validFrom())) throw new DomainException(400,"INVALID_ASSIGNMENT_DATES","validTo must not be before validFrom");
   requireProject(request.projectId());
-  if(!employees.existsById(request.employeeId())) throw DomainException.notFound("Employee");
+  if(!employees.existsByIdAndOrganizationId(request.employeeId(),organization.id())) throw DomainException.notFound("Employee");
   var a=assignments.saveAndFlush(new ProjectAssignment(request.employeeId(),request.projectId(),request.validFrom(),request.validTo(),request.active()));
   log.info("Created project assignment id={}",a.getId()); return AssignmentView.from(a);
  }
  public Page<ProjectView> assigned(UUID userId,Pageable page) {
-  return employees.findByUserId(userId).filter(e->e.isActive())
+  return employees.findByUserIdAndOrganizationId(userId,organization.id()).filter(e->e.isActive())
    .map(e->projects.assigned(e.getId(),LocalDate.now(ZoneOffset.UTC),page).map(ProjectView::from))
    .orElseGet(()->Page.empty(page));
  }

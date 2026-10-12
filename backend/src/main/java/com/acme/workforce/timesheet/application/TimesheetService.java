@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 @Service
 @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
 public class TimesheetService {
+ private final com.acme.workforce.organization.application.OrganizationAccess organization;
     private static final Logger log = LoggerFactory.getLogger(TimesheetService.class);
     private final TimesheetRepository sheets;
     private final TimesheetEntryRepository entries;
@@ -32,12 +33,12 @@ public class TimesheetService {
 
     public TimesheetService(TimesheetRepository sheets, TimesheetEntryRepository entries,
             EmployeeRepository employees, ProjectRepository projects,
-            AssignmentRepository assignments, TimesheetPolicy policy, com.acme.workforce.approval.infrastructure.ApprovalRepository approvals) {
+            AssignmentRepository assignments, TimesheetPolicy policy, com.acme.workforce.approval.infrastructure.ApprovalRepository approvals, com.acme.workforce.organization.application.OrganizationAccess organization) { this.organization=organization;
         this.sheets = sheets; this.entries = entries; this.employees = employees;
         this.projects = projects; this.assignments = assignments; this.policy = policy; this.approvals = approvals;
     }
     private Employee employee(UUID userId, boolean writing) {
-        var employee = employees.findByUserId(userId).orElseThrow(() ->
+        var employee = employees.findByUserIdAndOrganizationId(userId,organization.id()).orElseThrow(() ->
                 new DomainException(403, "EMPLOYEE_REQUIRED", "An employee profile is required. Contact your administrator."));
         if (writing && !employee.isActive()) throw new DomainException(403, "EMPLOYEE_INACTIVE", "Your employee profile is inactive");
         return employee;
@@ -145,7 +146,7 @@ public class TimesheetService {
     }
     private void validateEntry(Timesheet sheet, WriteEntry request) {
         policy.checkDate(sheet, request.workDate());
-        var project = projects.findById(request.projectId()).orElseThrow(() -> DomainException.notFound("Project"));
+        var project = projects.findByIdAndOrganizationId(request.projectId(),organization.id()).orElseThrow(() -> DomainException.notFound("Project"));
         policy.checkProject(project, assignments.findByEmployeeId(sheet.getEmployeeId()), request.workDate());
     }
     private void recalculate(Timesheet sheet, List<TimesheetEntry> current) {

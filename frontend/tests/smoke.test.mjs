@@ -67,6 +67,12 @@ test("anonymous notifications history redirects to login", async () => {
  assert.match(await response.text(), /Sign in with your work account/);
 });
 
+test("anonymous organization selection redirects to login", async () => {
+ const response = await fetch(base + "/organizations");
+ assert.equal(new URL(response.url).pathname, "/login");
+ assert.match(await response.text(), /Sign in with your work account/);
+});
+
 test("anonymous SAP workbook download redirects to login", async () => {
  const response = await fetch(base + "/api/sap/timesheets/00000000-0000-0000-0000-000000000001/export.xlsx", { redirect: "manual" });
  assert.equal(response.status, 307);

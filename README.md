@@ -66,7 +66,7 @@ The import creates realm workforce and confidential client workforce-web:
 
 Log into the admin console with the bootstrap credentials from .env, select workforce, create a test user with username/email/first/last name, and set a password in Credentials. Set Temporary off for a simple local test, or complete the required password update at first login. No test passwords or users are committed.
 
-Sign in through the frontend once; /api/v1/auth/me provisions an application User with EMPLOYEE role. No employee record is invented from JWT claims.
+Sign in through the frontend once to provision an application identity. New identities have no organization membership and see a safe no-membership screen. No employee record or organization role is invented from JWT claims.
 
 ### Operator onboarding and admin bootstrap
 
@@ -74,20 +74,30 @@ Use a trusted database session, e.g. docker compose exec postgres psql -U workfo
 
 ```sql
 -- Replace all example values. First confirm the expected subject and identity.
-SELECT id, external_subject, email, role FROM app_users;
-UPDATE app_users SET role = 'ADMIN', updated_at = now()
-WHERE external_subject = '<verified-keycloak-subject>';
+SELECT id, external_subject, email FROM app_users;
+-- Create an organization only after verifying its intended ownership.
+INSERT INTO organizations(id,slug,name,status)
+VALUES ('<organization-uuid>','your-organization','Your organization','ACTIVE');
+INSERT INTO organization_memberships(id,organization_id,user_id,role,status)
+SELECT gen_random_uuid(), '<organization-uuid>', id, 'ADMIN', 'ACTIVE'
+FROM app_users WHERE external_subject = '<verified-keycloak-subject>';
 
-INSERT INTO employees (id, user_id, employee_number, active)
-SELECT gen_random_uuid(), id, 'E001', true
+-- For an EXISTING membership, change its organization role explicitly instead:
+UPDATE organization_memberships m SET role = 'ADMIN', updated_at = now()
+FROM app_users u WHERE u.id = m.user_id
+AND m.organization_id = '<organization-uuid>'
+AND u.external_subject = '<verified-keycloak-subject>';
+
+INSERT INTO employees (id, organization_id, user_id, employee_number, active)
+SELECT gen_random_uuid(), '<organization-uuid>', id, 'E001', true
 FROM app_users WHERE external_subject = '<verified-keycloak-subject>';
 
 -- Optional manager, using verified employee UUIDs:
 UPDATE employees SET manager_id = '<manager-employee-uuid>', updated_at = now()
-WHERE id = '<employee-uuid>';
+WHERE id = '<employee-uuid>' AND organization_id = '<organization-uuid>';
 ```
 
-Roles are exclusively database-owned. No endpoint accepts role changes. MANAGER can review direct reports; FINANCE and ADMIN can operate SAP exports and access Finance reports. Only ADMIN can write projects and assignments. Employee number duplicates are rejected by the database and mapped by the shared error handler when surfaced through application code.
+Roles are exclusively owned by organization memberships in PostgreSQL. Changing the deprecated app_users.role grants no privileges. No endpoint accepts role changes. MANAGER can review direct reports within the selected organization; FINANCE and ADMIN can operate its SAP exports and Finance reports. Only ADMIN can write its projects and assignments. Employee numbers and project codes are unique within each organization. A person can have different roles and employee profiles in multiple organizations.
 
 Use Swagger UI with a valid Keycloak access token and an ADMIN application user to create projects and assignments. Tokens must include the workforce-api audience; never commit or log them.
 
@@ -232,3 +242,11 @@ FINANCE and ADMIN can use **Download SAP Excel** on a SUCCEEDED SAP export detai
 Endpoint: `GET /api/v1/sap/timesheets/{timesheetId}/export.xlsx`. The authenticated Next.js BFF forwards this through `/api/sap/timesheets/{timesheetId}/export.xlsx` without exposing access tokens. Missing/incomplete exports produce structured errors rather than an invalid workbook.
 
 See [Phase 8 verification](docs/phase8-verification.md) for measured results and limitations, and [SAP integration](docs/sap-integration.md) for workbook details. Optional isolated recovery verification: `powershell -File infra/dev/verify-phase8-recovery.ps1` after building Compose images. This creates disposable containers and never removes the development Compose volumes. No deployment is performed.
+
+## Phase 9: organizations
+
+Select **Organization** in the authenticated navigation to switch active memberships. A single membership is selected automatically; an identity with no active memberships sees a safe empty state. The same person can hold different roles in different organizations. Business API clients must send `X-Organization-Id`; obtain eligible IDs through `GET /api/v1/auth/organizations`. The BFF handles this server-side and keeps tokens out of browser JavaScript.
+
+Before starting an upgraded backend against populated Phase 8.5 data, review its ownership and explicitly set `LEGACY_TENANT_CONFIRMED=true` only if all records belong to one organization. V15 otherwise stops. Existing records are preserved under the legacy organization, including roles, approvals, snapshots and notification history. Do not use this acknowledgement for a database mixing unrelated organizations. New installations need explicit memberships using the trusted onboarding SQL above.
+
+See [Phase 9 isolation and verification](docs/phase9-multitenancy-verification.md) for migration decisions, API/BFF contracts, worker isolation, current test results and remaining risks. Organization onboarding and administration UI remain out of scope.

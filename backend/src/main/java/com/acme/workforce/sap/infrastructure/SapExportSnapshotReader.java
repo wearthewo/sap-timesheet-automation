@@ -12,19 +12,20 @@ import java.time.*;
 import java.util.*;
 @Repository
 public class SapExportSnapshotReader {
+ private final com.acme.workforce.organization.application.OrganizationAccess organization;
  private final JdbcTemplate sql;private final UserRepository users;private final ObjectMapper json;private final int maxRows;
- public SapExportSnapshotReader(JdbcTemplate sql,UserRepository users,ObjectMapper json,@Value("${app.reporting.max-download-rows}") int maxRows){this.sql=sql;this.users=users;this.json=json;this.maxRows=maxRows;}
+ public SapExportSnapshotReader(JdbcTemplate sql,UserRepository users,ObjectMapper json,@Value("${app.reporting.max-download-rows}") int maxRows, com.acme.workforce.organization.application.OrganizationAccess organization) { this.organization=organization;this.sql=sql;this.users=users;this.json=json;this.maxRows=maxRows;}
  @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
  public SapExportSnapshot read(UUID userId,UUID timesheetId){
-  var role=users.findById(userId).orElseThrow(()->new DomainException(403,"SAP_EXPORT_NOT_AUTHORIZED","Only ADMIN and FINANCE may download SAP exports.")).getRole();
+  var role=organization.role(userId);
   if(role!=UserRole.FINANCE&&role!=UserRole.ADMIN)throw new DomainException(403,"SAP_EXPORT_NOT_AUTHORIZED","Only ADMIN and FINANCE may download SAP exports.");
   var rows=sql.queryForList("""
    SELECT t.status timesheet_status,x.id export_id,x.status export_status,x.external_reference,x.exported_at,j.created_at snapshot_created_at,
     octet_length(j.payload::text) payload_bytes,
     CASE WHEN octet_length(j.payload::text)<=8388608 THEN j.payload::text END payload
    FROM timesheets t LEFT JOIN sap_timesheet_exports x ON x.timesheet_id=t.id
-   LEFT JOIN sap_export_jobs j ON j.export_id=x.id AND j.timesheet_id=t.id WHERE t.id=?
-   """,timesheetId);
+   LEFT JOIN sap_export_jobs j ON j.export_id=x.id AND j.timesheet_id=t.id WHERE t.id=? AND t.organization_id=?
+   """,timesheetId,organization.id());
   if(rows.isEmpty())throw new DomainException(404,"TIMESHEET_NOT_FOUND","Timesheet not found.");
   var row=rows.getFirst();
   if(!"APPROVED".equals(row.get("timesheet_status")))throw new DomainException(409,"SAP_EXPORT_NOT_ALLOWED","Only approved timesheets may have a successful-export workbook.");

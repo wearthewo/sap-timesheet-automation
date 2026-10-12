@@ -34,7 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
-class PhaseEightSapDownloadTest {
+class PhaseEightSapDownloadTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void config(DynamicPropertyRegistry p){
   p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
@@ -47,11 +47,11 @@ class PhaseEightSapDownloadTest {
  UUID sheet,export,owner,finance;ApprovedTimesheetPayload payload;
  UUID user(String sub,String role){
   var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(sub).claim("email",sub+"@example.test").claim("name",sub).build()).getId();
-  sql.update("UPDATE app_users SET role=? WHERE id=?",role,id);return id;
+  member(sql,id,role);return id;
  }
  @BeforeEach void seed(){
   sql.execute("TRUNCATE app_users CASCADE");finance=user("finance","FINANCE");user("admin","ADMIN");user("manager","MANAGER");
-  owner=employees.saveAndFlush(new Employee(user("employee","EMPLOYEE"),"CURRENT-EMPLOYEE",null)).getId();
+  owner=employees.saveAndFlush(new Employee(ORGANIZATION,user("employee","EMPLOYEE"),"CURRENT-EMPLOYEE",null)).getId();
   sheet=UUID.randomUUID();export=UUID.randomUUID();
   payload=new ApprovedTimesheetPayload(sheet,"E008",2026,10,List.of(
    new ApprovedTimesheetPayload.Entry("PRJ-HISTORICAL",LocalDate.of(2026,10,5),new BigDecimal("6.25"),"Δοκιμή & \"quoted\"\n<text>"),

@@ -14,14 +14,15 @@ import java.util.UUID;
 @Service
 @Transactional(readOnly=true,isolation=Isolation.REPEATABLE_READ)
 public class ReportingService {
+ private final com.acme.workforce.organization.application.OrganizationAccess organization;
  private static final Logger log=LoggerFactory.getLogger(ReportingService.class);
  private final ReportingQueries queries;private final UserRepository users;private final int maxRows;
- public ReportingService(ReportingQueries queries,UserRepository users,@Value("${app.reporting.max-download-rows:10000}") int maxRows){
+ public ReportingService(ReportingQueries queries,UserRepository users,@Value("${app.reporting.max-download-rows:10000}") int maxRows, com.acme.workforce.organization.application.OrganizationAccess organization) { this.organization=organization;
   if(maxRows<1 || maxRows>50000)throw new IllegalArgumentException("Reporting row limit must be between 1 and 50000");
   this.queries=queries;this.users=users;this.maxRows=maxRows;
  }
  private void authorize(UUID user){
-  var role=users.findById(user).orElseThrow(()->new DomainException(403,"REPORT_NOT_AUTHORIZED","Finance reporting requires FINANCE or ADMIN.")).getRole();
+  var role=organization.role(user);
   if(role!=UserRole.FINANCE && role!=UserRole.ADMIN)throw new DomainException(403,"REPORT_NOT_AUTHORIZED","Finance reporting requires FINANCE or ADMIN.");
  }
  private void log(UUID user,ReportFilter f,String type,long rows,long start){

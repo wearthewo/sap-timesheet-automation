@@ -5,6 +5,7 @@ Use Java 21, Node 24, pnpm and strict TypeScript. Never downgrade toolchains to 
 PostgreSQL only. Schema changes require Flyway; Hibernate validates only. Use Testcontainers for database integration tests.
 Preserve feature/domain-oriented packages. APIs use DTOs; never expose JPA entities.
 Authentication must not be bypassed. Authorization is enforced server-side using application database roles.
+Organization memberships own effective roles. Business API roots must be scoped to an authorized active organization; child reads require an authorized ownership chain enforced by composite foreign keys. Never authorize with deprecated app_users.role. Workers carry persisted organization IDs explicitly; do not use request tenant state in worker threads. Preserve immutable ownership and never automatically grant new users legacy membership.
 Use constructor injection, clear transactions, Bean Validation and database constraints. Avoid unnecessary abstractions.
 No microservices unless explicitly requested; no Kafka unless explicitly justified; no Kubernetes.
 No secrets committed or logged. Never log JWTs, passwords or access tokens.

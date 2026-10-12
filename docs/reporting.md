@@ -120,3 +120,6 @@ Browser tests require the existing Phase 5 role/workflow credentials and fresh S
 ## Phase 8 cross-checks
 
 The SAP export workbook is distinct from monthly reporting downloads: it shows the immutable payload of one successful export. Existing monthly APPROVED and SAP_EXPORTED modes retain their documented projection semantics and filters. Backend business-flow tests compare both monthly totals after successful export against the individual exported workbook, using decimal-safe application calculations. Reporting CSV/XLSX and authorization regressions remain in the full suite. See [Phase 8 verification](phase8-verification.md) for observed coverage and untested cases.
+# Organization isolation (Phase 9)
+
+Every report projection starts with employees in the selected authorized organization. FINANCE/ADMIN membership authorizes only that organization, including CSV, XLSX and SAP export workbook downloads. Child records follow composite-FK ownership chains. No global role grants cross-organization report access. See [security](security.md).

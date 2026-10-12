@@ -23,7 +23,7 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
-class PhaseEightNotificationTest {
+class PhaseEightNotificationTest extends TenantFixtures {
  @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
  @DynamicPropertySource static void config(DynamicPropertyRegistry p){
   p.add("app.notifications.timesheet-reminder-day",()->"31");p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
@@ -34,7 +34,7 @@ class PhaseEightNotificationTest {
  UUID employee,employeeUser,manager,managerUser,finance;TransactionTemplate tx;
  UUID user(String sub,String name,String role){
   var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(sub).claim("email",sub+"@example.test").claim("name",name).build()).getId();
-  sql.update("UPDATE app_users SET role=? WHERE id=?",role,id);return id;
+  member(sql,id,role);return id;
  }
  UUID sheet(UUID owner,String state,int year,int month){
   var id=UUID.randomUUID();sql.update("INSERT INTO timesheets(id,employee_id,year,month,status,submitted_at) VALUES (?,?,?,?,?,CASE WHEN ?='DRAFT' THEN NULL ELSE now() END)",id,owner,year,month,state,state);return id;
@@ -44,15 +44,15 @@ class PhaseEightNotificationTest {
   when(clock.instant()).thenReturn(Instant.parse("2026-10-28T12:00:00Z"));
   when(clock.withZone(any())).thenAnswer(i->Clock.fixed(clock.instant(),i.getArgument(0)));
   managerUser=user("manager","Μαρία García & \"Review\"","MANAGER");
-  manager=employees.saveAndFlush(new Employee(managerUser,"M008",null)).getId();
+  manager=employees.saveAndFlush(new Employee(ORGANIZATION,managerUser,"M008",null)).getId();
   employeeUser=user("employee","Νίκος André & \"Employee\"","EMPLOYEE");
-  employee=employees.saveAndFlush(new Employee(employeeUser,"E008",manager)).getId();
+  employee=employees.saveAndFlush(new Employee(ORGANIZATION,employeeUser,"E008",manager)).getId();
   finance=user("finance","Finance","FINANCE");
  }
  String body(String type,UUID recipient){return sql.queryForObject("SELECT body FROM notifications WHERE type=? AND recipient_user_id=?",String.class,type,recipient);}
  @Test void digestNamesManagerAndOnlyDirectReports(){
   sheet(employee,"PENDING_APPROVAL",2026,10);
-  var other=employees.saveAndFlush(new Employee(user("other","Unrelated Employee","EMPLOYEE"),"PRIVATE",null)).getId();
+  var other=employees.saveAndFlush(new Employee(ORGANIZATION,user("other","Unrelated Employee","EMPLOYEE"),"PRIVATE",null)).getId();
   sheet(other,"PENDING_APPROVAL",2026,10);evaluation.evaluate();
   assertThat(body("APPROVAL_REMINDER",managerUser)).contains("Hello Μαρία García & \"Review\"","E008","Νίκος André","2026-10","/app/approvals").doesNotContain("PRIVATE","Unrelated Employee");
  }
@@ -120,7 +120,7 @@ class PhaseEightNotificationTest {
  }
  @Test void digestPendingCountAndNamesAreExact(){
   sheet(employee,"PENDING_APPROVAL",2026,10);
-  var second=employees.saveAndFlush(new Employee(user("second","Élodie & \"Two\"","EMPLOYEE"),"E009",manager)).getId();sheet(second,"PENDING_APPROVAL",2026,10);
+  var second=employees.saveAndFlush(new Employee(ORGANIZATION,user("second","Élodie & \"Two\"","EMPLOYEE"),"E009",manager)).getId();sheet(second,"PENDING_APPROVAL",2026,10);
   evaluation.evaluate();evaluation.evaluate();
   assertThat(body("APPROVAL_REMINDER",managerUser)).contains("E008","E009","Élodie & \"Two\"");
   assertThat(sql.queryForObject("SELECT subject FROM notifications WHERE type='APPROVAL_REMINDER'",String.class)).isEqualTo("2 timesheets waiting for approval — 2026-10");
