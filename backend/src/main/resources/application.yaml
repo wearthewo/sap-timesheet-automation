@@ -54,6 +54,9 @@ management:
     health:
       show-details: never
 app:
+  invitations:
+    signing-key: ${INVITATION_SIGNING_KEY:}
+    validity: ${INVITATION_VALIDITY:PT168H}
   notifications:
     public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
     business-timezone: ${WORKFORCE_BUSINESS_TIMEZONE:Europe/Athens}

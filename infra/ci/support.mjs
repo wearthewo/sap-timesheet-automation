@@ -17,5 +17,6 @@ export function redact(text, secrets) {
     .replace(/((?:__Secure-|__Host-)?next-auth\.[\w.-]+=)[^;\s]+/gi, '$1[REDACTED]')
     .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[JWE REDACTED]')
     .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[JWT REDACTED]')
-    .replace(/([?&](?:code|state|session_state|key|execution|session_code|client_data|tab_id)=)[^&\s"'<>]+/g, '$1[REDACTED]');
+    .replace(/([?#&](?:token|code|state|session_state|key|execution|session_code|client_data|tab_id)=)[^&\s"'<>]+/g, '$1[REDACTED]')
+    .replace(/(workforce-invitation=)[^;\s]+/gi, '$1[REDACTED]');
 }

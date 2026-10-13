@@ -17,13 +17,13 @@ public class ReportingQueries {
  // One row per active employee. Latest decision uses the existing (timesheet,decided_at,id) index.
  private static final String BASE="""
  WITH base AS (
- SELECT e.id employee_id,e.employee_number,u.display_name employee_name,u.email,
- e.manager_id,mu.display_name manager_name,t.id timesheet_id,
+ SELECT e.id employee_id,e.employee_number,coalesce(e.display_name,u.display_name,'Unlinked employee') employee_name,coalesce(u.email,'') email,
+ e.manager_id,coalesce(m.display_name,mu.display_name) manager_name,t.id timesheet_id,
  COALESCE(t.status,'NO_TIMESHEET') timesheet_state,COALESCE(t.total_hours,0.00) total_hours,t.submitted_at,
  a.decision,a.decided_at,
  CASE WHEN t.status IS DISTINCT FROM 'APPROVED' THEN 'NOT_APPLICABLE'
  ELSE COALESCE(x.status,'NOT_EXPORTED') END sap_state,x.external_reference,x.exported_at
- FROM employees e JOIN app_users u ON u.id=e.user_id
+ FROM employees e LEFT JOIN app_users u ON u.id=e.user_id
  LEFT JOIN employees m ON m.id=e.manager_id LEFT JOIN app_users mu ON mu.id=m.user_id
  LEFT JOIN timesheets t ON t.employee_id=e.id AND t.year=:year AND t.month=:month
  LEFT JOIN LATERAL (SELECT decision,decided_at FROM timesheet_approvals

@@ -12,6 +12,8 @@ test('diagnostics redact generated credentials and bearer tokens', () => {
   assert.equal(redact('/login-actions/action-token?key=secret&execution=private', []), '/login-actions/action-token?key=[REDACTED]&execution=[REDACTED]');
   assert.equal(redact('cookie: next-auth.session-token=secret; __Secure-next-auth.session-token.0=chunk', []), 'cookie: next-auth.session-token=[REDACTED]; __Secure-next-auth.session-token.0=[REDACTED]');
   assert.equal(redact('eyJheader..iv.cipher.tag', []), '[JWE REDACTED]');
+  assert.equal(redact('/invitations/accept#token=secret', []), '/invitations/accept#token=[REDACTED]');
+  assert.equal(redact('workforce-invitation=secret;', []), 'workforce-invitation=[REDACTED];');
 });
 test('readiness retries errors and succeeds when condition holds', async () => {
   let count = 0;

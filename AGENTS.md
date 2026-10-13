@@ -9,6 +9,7 @@ Organization memberships own effective roles. Business API roots must be scoped 
 Use constructor injection, clear transactions, Bean Validation and database constraints. Avoid unnecessary abstractions.
 No microservices unless explicitly requested; no Kafka unless explicitly justified; no Kubernetes.
 No secrets committed or logged. Never log JWTs, passwords or access tokens.
+Administration must verify the current organization ADMIN, preserve an active administrator under concurrent changes, reject manager cycles, and append safe audit records. Employee-account links cannot be reassigned. Invitations persist only token hashes; never put plaintext acceptance links in the durable outbox or diagnostics. Acceptance requires the invited verified identity and an atomic membership/link/consumption transaction.
 Next.js is a Node-runtime BFF. Spring Boot owns business logic and persistence. No Vercel-specific functionality.
 Do not implement production SAP/email connectivity, additional notification channels or payroll in this phase. Do not deploy.
 

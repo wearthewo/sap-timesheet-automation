@@ -142,7 +142,7 @@ async function tests() {
 }
 function diagnostics() {
   const folder = resolve(directory, 'diagnostics'); mkdirSync(folder, { recursive: true });
-  const secrets = [...Object.entries(state.env).filter(([key]) => /PASSWORD|SECRET|TOKEN/.test(key)).map(([,value]) => value),
+  const secrets = [...Object.entries(state.env).filter(([key]) => /PASSWORD|SECRET|TOKEN|SIGNING_KEY/.test(key)).map(([,value]) => value),
     ...Object.values(state.users ?? {}).map(user => user.password)];
   function sanitize(folder) {
     if (!existsSync(folder)) return;
@@ -170,7 +170,7 @@ try {
     const frontend = `http://localhost:${ports.FRONTEND_PORT}`, keycloak = `http://localhost:${ports.KEYCLOAK_PORT}`;
     state = { project: `workforce-ci-${randomBytes(6).toString('hex')}`, env: { ...ports, DATABASE_USERNAME: 'workforce',
       DATABASE_PASSWORD: secret(), KEYCLOAK_ADMIN_USERNAME: 'admin', KEYCLOAK_ADMIN_PASSWORD: secret(), KEYCLOAK_CLIENT_SECRET: secret(),
-      NEXTAUTH_SECRET: secret(), SAP_API_TOKEN: secret(), FRONTEND_URL: frontend, KEYCLOAK_PUBLIC_URL: keycloak,
+      NEXTAUTH_SECRET: secret(), SAP_API_TOKEN: secret(), INVITATION_SIGNING_KEY: secret(), FRONTEND_URL: frontend, KEYCLOAK_PUBLIC_URL: keycloak,
       KEYCLOAK_ISSUER_URI: `${keycloak}/realms/workforce`, APP_PUBLIC_BASE_URL: frontend, CORS_ALLOWED_ORIGINS: frontend,
       SAP_BASE_URL: 'http://mock-sap:8090', SAP_EXPORT_WORKER_ENABLED: 'true',
       MAIL_HOST: 'mailpit', MAIL_PORT: '1025', MAIL_USERNAME: '', MAIL_PASSWORD: '', MAIL_SMTP_AUTH: 'false', MAIL_STARTTLS_ENABLED: 'false',
@@ -180,7 +180,7 @@ try {
       SAP_RECONCILIATION_INTERVAL: '15s', SAP_RESPONSE_TIMEOUT: '2s',
       NOTIFICATION_EVALUATION_INTERVAL: 'PT5S', NOTIFICATION_POLL_INTERVAL: 'PT2S', TIMESHEET_REMINDER_DAY_OF_MONTH: '1', FINANCE_REMINDER_DAY_OF_MONTH: '1' } };
     save(); writeFileSync(resolve(directory,'stack.env'), Object.entries(state.env).map(([k,v]) => `${k}=${v}`).join('\n'), { mode: 0o600 });
-    if (process.env.GITHUB_ACTIONS) for (const [key,value] of Object.entries(state.env)) if (/PASSWORD|SECRET|TOKEN/.test(key)) console.log(`::add-mask::${value}`);
+    if (process.env.GITHUB_ACTIONS) for (const [key,value] of Object.entries(state.env)) if (/PASSWORD|SECRET|TOKEN|SIGNING_KEY/.test(key)) console.log(`::add-mask::${value}`);
     console.log('Isolated CI configuration generated; credentials remain in ignored state files.');
   } else {
     if (!existsSync(stateFile) && ['stop','diagnostics'].includes(command)) process.exit(0);

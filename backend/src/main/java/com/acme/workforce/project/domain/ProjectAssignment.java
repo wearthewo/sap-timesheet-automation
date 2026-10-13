@@ -20,4 +20,5 @@ public class ProjectAssignment extends TimestampedEntity {
  public LocalDate getValidFrom() { return validFrom; }
  public LocalDate getValidTo() { return validTo; }
  public boolean isActive() { return active; }
+ public void update(LocalDate from,LocalDate to,boolean active){this.validFrom=from;this.validTo=to;this.active=active;}
 }

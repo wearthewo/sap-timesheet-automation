@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
  logout.searchParams.set("post_logout_redirect_uri", new URL("/login", appUrl).toString());
  const response = NextResponse.redirect(logout, 303);
  for (const cookie of request.cookies.getAll()) {
-  if (cookie.name === "workforce-organization" || cookie.name.startsWith("next-auth.") || cookie.name.startsWith("__Secure-next-auth.") || cookie.name.startsWith("__Host-next-auth.")) {
+  if (cookie.name === "workforce-organization" || cookie.name === "workforce-invitation" || cookie.name.startsWith("next-auth.") || cookie.name.startsWith("__Secure-next-auth.") || cookie.name.startsWith("__Host-next-auth.")) {
    response.cookies.set(cookie.name, "", { httpOnly: true, secure: cookie.name.startsWith("__"), sameSite: "lax", path: "/", maxAge: 0 });
   }
  }

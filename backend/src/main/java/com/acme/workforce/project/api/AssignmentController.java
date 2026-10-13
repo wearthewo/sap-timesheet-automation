@@ -12,4 +12,6 @@ public class AssignmentController {
  public AssignmentController(ProjectService projects) { this.projects=projects; }
  @PostMapping @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("@applicationAuthorization.isAdmin(authentication)")
  public AssignmentView create(@Valid @RequestBody WriteAssignment request) { return projects.assign(request); }
+ @PutMapping("/{id}") @PreAuthorize("@applicationAuthorization.isAdmin(authentication)")
+ public AssignmentView update(@PathVariable java.util.UUID id,@Valid @RequestBody WriteAssignment request){return projects.updateAssignment(id,request);}
 }

@@ -7,7 +7,9 @@ import java.util.UUID;
 public class Employee extends TimestampedEntity {
  @Column(nullable=false,updatable=false) private java.util.UUID organizationId;
  public java.util.UUID getOrganizationId() { return organizationId; }
- @Column(nullable=false) private UUID userId;
+ private UUID userId;
+ @Column(length=255) private String displayName;
+ @Version private long version;
  @Column(nullable=false,unique=true,length=100) private String employeeNumber;
  @Column(nullable=false) private boolean active;
  private UUID managerId;
