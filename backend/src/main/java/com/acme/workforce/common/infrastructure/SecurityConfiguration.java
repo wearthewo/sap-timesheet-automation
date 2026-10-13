@@ -26,7 +26,7 @@ public class SecurityConfiguration {
   var cors=new CorsConfiguration();
   cors.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::strip).filter(s->!s.isEmpty()).toList());
   cors.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
-  cors.setAllowedHeaders(List.of("Authorization","Content-Type","X-Timesheet-Version","X-Organization-Id"));
+  cors.setAllowedHeaders(List.of("Authorization","Content-Type","X-Timesheet-Version","X-Organization-Id","Idempotency-Key"));
   cors.setAllowCredentials(false);
   var source=new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/api/**",cors);
   http.csrf(csrf->csrf.disable()).cors(c->c.configurationSource(source))
@@ -42,7 +42,11 @@ public class SecurityConfiguration {
      if(req.getRequestURI().startsWith("/api/") && SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token) {
       var user=identity.current(token.getToken());
       boolean identityOnly=req.getRequestURI().equals("/api/v1/auth/organizations") || (req.getRequestURI().equals("/api/v1/auth/me") && req.getHeader("X-Organization-Id")==null);
-      if(!identityOnly) try { organization.role(user.getId()); }
+      if(!identityOnly) try {
+       com.acme.workforce.identity.application.VerifiedIdentity.requireVerifiedEmail(token.getToken());
+       boolean creatingOrganization=req.getMethod().equals("POST") && req.getRequestURI().equals("/api/v1/organizations");
+       if(!creatingOrganization) organization.role(user.getId());
+      }
       catch(com.acme.workforce.common.application.DomainException ex) { write(mapper,req,res,ex.status(),ex.code(),ex.getMessage()); return; }
      }
      chain.doFilter(req,res);

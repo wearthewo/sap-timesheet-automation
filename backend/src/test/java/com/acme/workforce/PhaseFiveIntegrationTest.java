@@ -59,9 +59,9 @@ class PhaseFiveIntegrationTest extends TenantFixtures {
   handler=e->{try{calls.incrementAndGet();captured.set(json.readTree(e.getRequestBody()));key.set(e.getRequestHeaders().getFirst("Idempotency-Key"));respond(e,201,"{\"success\":true,\"externalReference\":\"SAP-TS-TEST\"}");}catch(Exception ex){throw new RuntimeException(ex);}};
  }
  @AfterAll static void stop(){server.stop(0);}
- UUID user(String subject,String role){var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("name",subject).build()).getId();member(sql,id,role);return id;}
+ UUID user(String subject,String role){var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(subject).claim("name",subject).build()).getId();member(sql,id,role);return id;}
  String path(){return "/api/v1/sap/timesheets/"+sheet+"/export";}
- ResultActions req(MockHttpServletRequestBuilder r,String actor)throws Exception{return mvc.perform(r.with(jwt().jwt(j->j.subject(actor))));}
+ ResultActions req(MockHttpServletRequestBuilder r,String actor)throws Exception{return mvc.perform(r.with(jwt().jwt(j->j.claim("email_verified",true).subject(actor))));}
  ResultActions export(String actor)throws Exception{var queued=req(post(path()).header("X-Timesheet-Version",3),actor);if(queued.andReturn().getResponse().getStatus()!=202)return queued;worker.runOnce();return req(get(path()),actor);}
  static void respond(HttpExchange e,int status,String body){try{byte[] bytes=body.getBytes(StandardCharsets.UTF_8);e.getResponseHeaders().set("Content-Type","application/json");e.sendResponseHeaders(status,bytes.length);e.getResponseBody().write(bytes);e.close();}catch(java.io.IOException ignored){e.close();}}
 

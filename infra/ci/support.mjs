@@ -14,6 +14,8 @@ export function sqlLiteral(value) { return "'" + String(value).replaceAll("'", "
 export function redact(text, secrets) {
   for (const secret of secrets.filter(Boolean).sort((a, b) => b.length - a.length)) text = text.split(secret).join('[REDACTED]');
   return text.replace(/Bearer\s+\S+/gi, 'Bearer [REDACTED]')
+    .replace(/((?:__Secure-|__Host-)?next-auth\.[\w.-]+=)[^;\s]+/gi, '$1[REDACTED]')
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[JWE REDACTED]')
     .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '[JWT REDACTED]')
-    .replace(/([?&](?:code|state|session_state)=)[^&\s"'<>]+/g, '$1[REDACTED]');
+    .replace(/([?&](?:code|state|session_state|key|execution|session_code|client_data|tab_id)=)[^&\s"'<>]+/g, '$1[REDACTED]');
 }

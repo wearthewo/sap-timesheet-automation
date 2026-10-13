@@ -50,10 +50,10 @@ class PhaseTwoIntegrationTest extends TenantFixtures {
   }
  }
  UUID employee(String subject) {
-  var token=Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("email",subject+"@example.test").build();
+  var token=Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(subject).claim("email",subject+"@example.test").build();
   return employees.saveAndFlush(new Employee(ORGANIZATION,member(sql,identity.current(token).getId(),"EMPLOYEE"),subject,null)).getId();
  }
- ResultActions request(MockHttpServletRequestBuilder r,String subject) throws Exception { return mvc.perform(r.with(jwt().jwt(j->j.subject(subject)))); }
+ ResultActions request(MockHttpServletRequestBuilder r,String subject) throws Exception { return mvc.perform(r.with(jwt().jwt(j->j.claim("email_verified",true).subject(subject)))); }
  JsonNode json(ResultActions r) throws Exception { return mapper.readTree(r.andReturn().getResponse().getContentAsString()); }
  JsonNode create(String subject) throws Exception {
   return json(request(post("/api/v1/timesheets").contentType("application/json").content("{\"year\":2026,\"month\":10}"),subject).andExpect(status().isCreated()));

@@ -33,7 +33,7 @@ class PhaseEightNotificationTest extends TenantFixtures {
  @MockitoBean JwtDecoder decoder;@MockitoBean(name="notificationClock") Clock clock;
  UUID employee,employeeUser,manager,managerUser,finance;TransactionTemplate tx;
  UUID user(String sub,String name,String role){
-  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(sub).claim("email",sub+"@example.test").claim("name",name).build()).getId();
+  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(sub).claim("email",sub+"@example.test").claim("name",name).build()).getId();
   member(sql,id,role);return id;
  }
  UUID sheet(UUID owner,String state,int year,int month){

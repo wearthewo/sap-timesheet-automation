@@ -50,7 +50,7 @@ class PhaseSevenIntegrationTest extends TenantFixtures {
  @MockitoBean JwtDecoder decoder;@MockitoBean EmailGateway gateway;@MockitoBean(name="notificationClock") Clock clock;
  AtomicReference<Instant> now=new AtomicReference<>(); UUID employeeUser,employee,managerUser,manager,finance,admin;TransactionTemplate tx;
  UUID user(String subject,String role){
-  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("email",subject+"@example.test").claim("name","Name "+subject).build()).getId();
+  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(subject).claim("email",subject+"@example.test").claim("name","Name "+subject).build()).getId();
   member(sql,id,role);return id;
  }
  UUID profile(UUID u,String number,UUID boss){return employees.saveAndFlush(new Employee(ORGANIZATION,u,number,boss)).getId();}
@@ -263,11 +263,11 @@ class PhaseSevenIntegrationTest extends TenantFixtures {
  @Test void backoffIsCapped(){assertThat(policy.backoff(20)).isEqualTo(Duration.ofMinutes(10));}
  @Test void ownHistoryOnlyAndNoInternalFields()throws Exception{
   var id=enqueue("mine");
-  mvc.perform(get("/api/v1/notifications").with(jwt().jwt(j->j.subject("employee")))).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].recipientEmail").doesNotExist()).andExpect(jsonPath("$.content[0].deduplicationKey").doesNotExist());
-  mvc.perform(get("/api/v1/notifications/"+id).with(jwt().jwt(j->j.subject("employee")))).andExpect(status().isOk());
-  mvc.perform(get("/api/v1/notifications/"+id).with(jwt().jwt(j->j.subject("admin")))).andExpect(status().isNotFound());
-  mvc.perform(get("/api/v1/notifications").with(jwt().jwt(j->j.subject("manager")))).andExpect(jsonPath("$.totalElements").value(0));
+  mvc.perform(get("/api/v1/notifications").with(jwt().jwt(j->j.claim("email_verified",true).subject("employee")))).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].recipientEmail").doesNotExist()).andExpect(jsonPath("$.content[0].deduplicationKey").doesNotExist());
+  mvc.perform(get("/api/v1/notifications/"+id).with(jwt().jwt(j->j.claim("email_verified",true).subject("employee")))).andExpect(status().isOk());
+  mvc.perform(get("/api/v1/notifications/"+id).with(jwt().jwt(j->j.claim("email_verified",true).subject("admin")))).andExpect(status().isNotFound());
+  mvc.perform(get("/api/v1/notifications").with(jwt().jwt(j->j.claim("email_verified",true).subject("manager")))).andExpect(jsonPath("$.totalElements").value(0));
  }
  @Test void unauthenticatedRejected()throws Exception{mvc.perform(get("/api/v1/notifications")).andExpect(status().isUnauthorized());}
- @Test void cannotSendArbitraryEmail()throws Exception{mvc.perform(post("/api/v1/notifications/send").with(jwt().jwt(j->j.subject("employee")))).andExpect(status().isMethodNotAllowed());}
+ @Test void cannotSendArbitraryEmail()throws Exception{mvc.perform(post("/api/v1/notifications/send").with(jwt().jwt(j->j.claim("email_verified",true).subject("employee")))).andExpect(status().isMethodNotAllowed());}
 }

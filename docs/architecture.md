@@ -1,4 +1,14 @@
-# Platform architecture (Phase 9)
+# Platform architecture (Phase 10)
+
+## Self-service identity and organization bootstrap
+
+Keycloak owns registration, password policy, email verification and account recovery. Workforce does not store passwords or call Keycloak's admin API during organization creation. The Next.js BFF keeps tokens server-side; registration is a second PKCE/state-protected authorization entry point using the same confidential client and issuer.
+
+Identity-only APIs allow provisioning and verification guidance without organization context. Tenant-owned business access and organization creation require a strictly boolean `email_verified=true` from the validated JWT. Membership roles still come only from PostgreSQL.
+
+`organization/application/OrganizationCreation` performs a short transaction: lock the authenticated user row, resolve its idempotency request, create organization, create active ADMIN membership, persist the creation receipt, commit. V16 adds a normalized unique slug index and durable creation receipts. Database uniqueness handles collisions across different users. Replays cannot reactivate suspended memberships or create access to an existing organization. The Server Action sets the HttpOnly organization cookie only after success.
+
+New workspaces have no seeded business data. Tenant query scoping, worker ownership and approval policies remain unchanged. See [onboarding verification](phase10-registration-onboarding-verification.md).
 
 The business needs a consistent employee/project foundation before collecting time and exporting approved work to finance systems. The implemented modules cover identity, employee records, projects, assignments, employee monthly timesheets, manager approval history, durable asynchronous SAP exports and Finance reporting.
 

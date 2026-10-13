@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertProject, sqlLiteral as q, redact, waitFor } from './support.mjs';
+import { verifyRegistrationRealm } from './registration-realm.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const directory = resolve(root, '.verification/ci');
 const stateFile = resolve(directory, 'state.json');
@@ -29,6 +30,7 @@ async function api(path, options = {}) {
 }
 async function seed() {
   if (state.seeded) throw new Error('Fixtures already seeded; start a fresh isolated run');
+  await waitFor(async () => (await fetch(`http://localhost:${state.env.BACKEND_PORT}/actuator/health`, {signal:AbortSignal.timeout(3000)})).ok,120000);
   let token;
   // Discovery/health can be ready before the first cold token request completes.
   await waitFor(async () => {
@@ -37,6 +39,7 @@ async function seed() {
     return Boolean(token.access_token);
   }, 120000, 2000);
   const headers = { Authorization: `Bearer ${token.access_token}`, 'Content-Type': 'application/json' };
+  await verifyRegistrationRealm(state.project,state.env);
   state.users = {};
   const suffix = state.project.slice(-12);
   const organizationId=randomUUID(), secondOrganizationId=randomUUID();

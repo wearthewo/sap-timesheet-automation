@@ -52,7 +52,7 @@ class PhaseOneIntegrationTest extends TenantFixtures {
   sql.execute("TRUNCATE project_assignments, employees, projects, app_users CASCADE");
  }
  Jwt token(String subject) {
-  return Jwt.withTokenValue("test-only").header("alg","RS256").subject(subject).claim("email",subject+"@example.test").claim("name","Test "+subject).build();
+  return Jwt.withTokenValue("test-only").header("alg","RS256").claim("email_verified",true).subject(subject).claim("email",subject+"@example.test").claim("name","Test "+subject).build();
  }
  UUID user(String subject,String role) {
   var user=identity.current(token(subject));
@@ -63,7 +63,7 @@ class PhaseOneIntegrationTest extends TenantFixtures {
   return mapper.writeValueAsString(Map.of("code",code,"name","Project "+code,"active",true));
  }
  UUID project(String code) throws Exception {
-  var result=mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(projectBody(code)))
+  var result=mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(projectBody(code)))
    .andExpect(status().isCreated()).andExpect(header().exists("Location")).andReturn();
   return UUID.fromString(mapper.readTree(result.getResponse().getContentAsString()).get("id").asText());
  }
@@ -73,13 +73,13 @@ class PhaseOneIntegrationTest extends TenantFixtures {
   body.put("validFrom",from); body.put("validTo",to); body.put("active",active); return mapper.writeValueAsString(body);
  }
  @Test void firstLoginProvisionsEmployeeRoleIgnoringClaims() throws Exception {
-  mvc.perform(get("/api/v1/auth/me").with(r->{r.removeHeader("X-Organization-Id");return r;}).with(jwt().jwt(j->j.subject("alice").claim("email","alice@example.test").claim("name","Alice").claim("role","ADMIN"))))
+  mvc.perform(get("/api/v1/auth/me").with(r->{r.removeHeader("X-Organization-Id");return r;}).with(jwt().jwt(j->j.claim("email_verified",true).subject("alice").claim("email","alice@example.test").claim("name","Alice").claim("role","ADMIN"))))
    .andExpect(status().isOk()).andExpect(jsonPath("$.role").doesNotExist()).andExpect(jsonPath("$.displayName").value("Alice"));
   assertThat(users.count()).isEqualTo(1);
  }
  @Test void existingUserRetainsIdAndDatabaseRole() throws Exception {
   UUID id=user("alice","FINANCE");
-  mvc.perform(get("/api/v1/auth/me").with(jwt().jwt(j->j.subject("alice"))))
+  mvc.perform(get("/api/v1/auth/me").with(jwt().jwt(j->j.claim("email_verified",true).subject("alice"))))
    .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id.toString())).andExpect(jsonPath("$.role").value("FINANCE"));
   assertThat(users.count()).isEqualTo(1);
  }
@@ -93,7 +93,7 @@ class PhaseOneIntegrationTest extends TenantFixtures {
   }
  }
  @Test void firstAuthenticatedProjectReadAlsoProvisions() throws Exception {
-  mvc.perform(get("/api/v1/projects").with(jwt().jwt(j->j.subject("reader")))).andExpect(status().isForbidden());
+  mvc.perform(get("/api/v1/projects").with(jwt().jwt(j->j.claim("email_verified",true).subject("reader")))).andExpect(status().isForbidden());
   assertThat(users.findByExternalSubject("reader")).isPresent();
  }
  @Test void anonymousIsRejectedWithConsistentError() throws Exception {
@@ -107,54 +107,54 @@ class PhaseOneIntegrationTest extends TenantFixtures {
  @ParameterizedTest @ValueSource(strings={"EMPLOYEE","MANAGER","FINANCE"})
  void nonAdminsCannotWrite(String role) throws Exception {
   user("reader",role);
-  mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.subject("reader").claim("role","ADMIN")))
+  mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.claim("email_verified",true).subject("reader").claim("role","ADMIN")))
    .contentType("application/json").content(projectBody("DENIED"))).andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("FORBIDDEN"));
-  mvc.perform(put("/api/v1/projects/"+UUID.randomUUID()).with(jwt().jwt(j->j.subject("reader")))
+  mvc.perform(put("/api/v1/projects/"+UUID.randomUUID()).with(jwt().jwt(j->j.claim("email_verified",true).subject("reader")))
    .contentType("application/json").content(projectBody("DENIED"))).andExpect(status().isForbidden());
-  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.subject("reader")))
+  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("reader")))
    .contentType("application/json").content(assignment(UUID.randomUUID(),UUID.randomUUID(),LocalDate.now(),null,true))).andExpect(status().isForbidden());
  }
  @Test void adminCreatesUpdatesAndReadsProject() throws Exception {
   user("user","EMPLOYEE");
   user("admin","ADMIN"); UUID id=project("P-01");
-  mvc.perform(put("/api/v1/projects/"+id).with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(projectBody("P-02")))
+  mvc.perform(put("/api/v1/projects/"+id).with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(projectBody("P-02")))
    .andExpect(status().isOk()).andExpect(jsonPath("$.code").value("P-02"));
-  mvc.perform(get("/api/v1/projects/"+id).with(jwt())).andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Project P-02"));
+  mvc.perform(get("/api/v1/projects/"+id).with(jwt().jwt(j->j.claim("email_verified",true)))).andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Project P-02"));
  }
  @Test void duplicateProjectCodeAndUpdateConflict() throws Exception {
   user("admin","ADMIN"); project("SAME"); UUID other=project("OTHER");
-  mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(projectBody("SAME")))
+  mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(projectBody("SAME")))
    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DUPLICATE_PROJECT_CODE"));
-  mvc.perform(put("/api/v1/projects/"+other).with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(projectBody("SAME"))).andExpect(status().isConflict());
+  mvc.perform(put("/api/v1/projects/"+other).with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(projectBody("SAME"))).andExpect(status().isConflict());
  }
  @Test void invalidProjectAndPaginationAreRejected() throws Exception {
   user("user","EMPLOYEE");
   user("admin","ADMIN");
-  mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(projectBody(" ")))
+  mvc.perform(post("/api/v1/projects").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(projectBody(" ")))
    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
-  mvc.perform(get("/api/v1/projects?size=1000").with(jwt())).andExpect(status().isBadRequest());
-  mvc.perform(get("/api/v1/projects?page=-1").with(jwt())).andExpect(status().isBadRequest());
-  mvc.perform(get("/api/v1/projects/not-a-uuid").with(jwt())).andExpect(status().isBadRequest());
+  mvc.perform(get("/api/v1/projects?size=1000").with(jwt().jwt(j->j.claim("email_verified",true)))).andExpect(status().isBadRequest());
+  mvc.perform(get("/api/v1/projects?page=-1").with(jwt().jwt(j->j.claim("email_verified",true)))).andExpect(status().isBadRequest());
+  mvc.perform(get("/api/v1/projects/not-a-uuid").with(jwt().jwt(j->j.claim("email_verified",true)))).andExpect(status().isBadRequest());
  }
  @Test void missingResourceIs404() throws Exception {
   user("user","EMPLOYEE");
-  mvc.perform(get("/api/v1/projects/"+UUID.randomUUID()).with(jwt())).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
+  mvc.perform(get("/api/v1/projects/"+UUID.randomUUID()).with(jwt().jwt(j->j.claim("email_verified",true)))).andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("NOT_FOUND"));
  }
  @Test void createsAssignmentAndPreventsDuplicateActiveAssignment() throws Exception {
   user("admin","ADMIN"); UUID p=project("ASSIGN"); UUID e=employee("alice","E001");
   String body=assignment(e,p,LocalDate.now(),null,true);
-  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(body))
+  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(body))
    .andExpect(status().isCreated()).andExpect(jsonPath("$.employeeId").value(e.toString()));
-  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(body))
+  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(body))
    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("DUPLICATE_ASSIGNMENT"));
-  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(assignment(e,p,LocalDate.now(),null,false)))
+  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(assignment(e,p,LocalDate.now(),null,false)))
    .andExpect(status().isCreated());
  }
  @Test void invalidDatesAndMissingEmployeeAreRejected() throws Exception {
   user("admin","ADMIN"); UUID p=project("DATES"); UUID e=employee("alice","E001");
-  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(assignment(e,p,LocalDate.now(),LocalDate.now().minusDays(1),true)))
+  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(assignment(e,p,LocalDate.now(),LocalDate.now().minusDays(1),true)))
    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_ASSIGNMENT_DATES"));
-  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json").content(assignment(UUID.randomUUID(),p,LocalDate.now(),null,true)))
+  mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(assignment(UUID.randomUUID(),p,LocalDate.now(),null,true)))
    .andExpect(status().isNotFound());
  }
  @Test void assignedProjectsRespectOwnerDatesAndActiveFlags() throws Exception {
@@ -162,18 +162,18 @@ class PhaseOneIntegrationTest extends TenantFixtures {
   LocalDate today=LocalDate.now(ZoneOffset.UTC);
   for(int i=0;i<6;i++) {
    UUID p=project("P"+i);
-   mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.subject("admin"))).contentType("application/json")
+   mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json")
     .content(assignment(i==1?bob:alice,p,i==2?today.plusDays(1):today.minusDays(5),i==3?today.minusDays(1):null,i!=4))).andExpect(status().isCreated());
    if(i==5) sql.update("UPDATE projects SET active=false WHERE id=?",p);
   }
-  mvc.perform(get("/api/v1/employees/me/projects").with(jwt().jwt(j->j.subject("alice"))))
+  mvc.perform(get("/api/v1/employees/me/projects").with(jwt().jwt(j->j.claim("email_verified",true).subject("alice"))))
    .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].code").value("P0"));
   sql.update("UPDATE employees SET active=false WHERE id=?",alice);
-  mvc.perform(get("/api/v1/employees/me/projects").with(jwt().jwt(j->j.subject("alice")))).andExpect(jsonPath("$.totalElements").value(0));
+  mvc.perform(get("/api/v1/employees/me/projects").with(jwt().jwt(j->j.claim("email_verified",true).subject("alice")))).andExpect(jsonPath("$.totalElements").value(0));
  }
  @Test void noEmployeeReturnsEmptyPage() throws Exception {
   user("user","EMPLOYEE");
-  mvc.perform(get("/api/v1/employees/me/projects").with(jwt())).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
+  mvc.perform(get("/api/v1/employees/me/projects").with(jwt().jwt(j->j.claim("email_verified",true)))).andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
  }
  @Test void databaseEnforcesEmployeeUniquenessAndForeignKeys() {
   employee("alice","E001");
@@ -190,7 +190,7 @@ class PhaseOneIntegrationTest extends TenantFixtures {
  @Test void validatesIssuerAudienceExpiryAndSubject() {
   Instant now=Instant.now();
   var valid=Jwt.withTokenValue("test").header("alg","RS256").issuer("http://localhost:8180/realms/workforce")
-   .subject("valid-subject").audience(List.of("workforce-api")).issuedAt(now).expiresAt(now.plusSeconds(300)).build();
+   .claim("email_verified",true).subject("valid-subject").audience(List.of("workforce-api")).issuedAt(now).expiresAt(now.plusSeconds(300)).build();
   assertThat(tokenValidator.validate(valid).hasErrors()).isFalse();
   assertThat(tokenValidator.validate(Jwt.withTokenValue("test").header("alg","RS256").claims(c->{c.putAll(valid.getClaims()); c.remove("sub");}).build()).hasErrors()).isTrue();
   assertThat(tokenValidator.validate(Jwt.withTokenValue("test").header("alg","RS256").claims(c->{c.putAll(valid.getClaims()); c.put("aud",List.of("other"));}).build()).hasErrors()).isTrue();

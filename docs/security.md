@@ -1,5 +1,7 @@
 # Application authorization and tenant isolation
 
+Phase 10 adds Keycloak self-registration and organization creation. The validated JWT's `email_verified` claim must be boolean true for tenant business endpoints and organization creation. Identity-only profile/membership discovery remains available for guidance; unverified membership discovery returns an empty list. Keycloak verification/recovery emails are separate from the Workforce notification outbox. Creation rejects unknown payload fields and derives ownership from authentication, then atomically creates only a new organization's ADMIN membership. Per-user idempotency receipts cannot reactivate suspended access. See [Phase 10 security and verification](phase10-registration-onboarding-verification.md).
+
 Keycloak authenticates identity; PostgreSQL authorizes business access. JWT signatures, issuer, audience and expiry are validated by Spring Security. The organization selector is not an authority: X-Organization-Id must identify an active organization with an active membership for the authenticated subject. Membership role changes take effect on subsequent requests without minting a new JWT.
 
 | Capability within selected organization | EMPLOYEE | MANAGER | FINANCE | ADMIN |
