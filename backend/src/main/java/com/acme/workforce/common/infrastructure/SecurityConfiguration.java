@@ -44,7 +44,7 @@ public class SecurityConfiguration {
       boolean identityOnly=req.getRequestURI().equals("/api/v1/auth/organizations") || (req.getRequestURI().equals("/api/v1/auth/me") && req.getHeader("X-Organization-Id")==null);
       if(!identityOnly) try {
        com.acme.workforce.identity.application.VerifiedIdentity.requireVerifiedEmail(token.getToken());
-       boolean creatingOrganization=req.getMethod().equals("POST") && req.getRequestURI().equals("/api/v1/organizations");
+       boolean creatingOrganization=req.getMethod().equals("POST") && java.util.Set.of("/api/v1/organizations","/api/v1/invitations/preview","/api/v1/invitations/accept").contains(req.getRequestURI());
        if(!creatingOrganization) organization.role(user.getId());
       }
       catch(com.acme.workforce.common.application.DomainException ex) { write(mapper,req,res,ex.status(),ex.code(),ex.getMessage()); return; }

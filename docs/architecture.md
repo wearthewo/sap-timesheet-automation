@@ -1,4 +1,12 @@
-# Platform architecture (Phase 10)
+# Platform architecture (Phase 11)
+
+## Organization administration and invitations
+
+Administration extends the existing organization, employee and project features rather than adding another service. `AdministrationAccess` verifies the active tenant ADMIN and serializes sensitive writes on the organization row, then rechecks permission after locking. Employee/membership versions reject stale edits. V17 preserves legacy history, adds optional employee-account linkage and profile names, membership revocation, hashed invitations and immutable audit records. Recursive database guards reject manager cycles; last-admin checks run in both application and database layers.
+
+Invitation acceptance is an authenticated identity-only boundary: a verified JWT email must match the hash-protected invitation, then membership, optional employee linkage and token consumption commit atomically. The ordinary BFF organization selector remains unchanged. A separate server-only HMAC key allows the existing notification worker to construct invitation links transiently without storing plaintext tokens in durable email bodies. SMTP remains outside database transactions. No Keycloak admin API is used in ordinary invitation or acceptance flows.
+
+The responsive `/app/admin` pages use existing authenticated Server Actions and BFF requests. Full roles, employee linkage, manager relations and assignment eligibility remain backend-authoritative. Read [administration](administration.md) for API contracts, lifecycle, expiry, key rotation and delivery limitations.
 
 ## Self-service identity and organization bootstrap
 

@@ -85,3 +85,15 @@ test("anonymous SAP workbook download redirects to login", async () => {
  assert.equal(new URL(response.headers.get("location"), base).pathname, "/login");
  assert.notEqual(response.headers.get("content-type"), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 });
+
+for (const path of ["/app/admin/employees", "/app/admin/members", "/app/admin/invitations", "/app/admin/projects"]) {
+ test(`anonymous ${path} cannot access administration`, async () => {
+  const response = await fetch(base + path);
+  assert.equal(new URL(response.url).pathname, "/login");
+ });
+}
+test("invitation context rejects cross-origin requests", async () => {
+ const response = await fetch(base + "/api/invitations/context", { method: "POST", headers: { Origin: "https://untrusted.example", "Content-Type": "application/json" }, body: JSON.stringify({ token: "invalid" }) });
+ assert.equal(response.status, 403);
+ assert.equal(response.headers.get("set-cookie"), null);
+});

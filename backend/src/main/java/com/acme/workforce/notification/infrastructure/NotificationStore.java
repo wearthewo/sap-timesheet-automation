@@ -79,7 +79,8 @@ public class NotificationStore {
  }
  private boolean relevant(UUID id){
   return Boolean.TRUE.equals(sql.queryForObject("""
-   SELECT EXISTS(SELECT 1 FROM organization_memberships membership JOIN organizations org ON org.id=membership.organization_id WHERE membership.organization_id=n.organization_id AND membership.user_id=n.recipient_user_id AND membership.status='ACTIVE' AND org.status='ACTIVE') AND CASE
+   SELECT CASE WHEN n.type='ORGANIZATION_INVITATION' THEN EXISTS(SELECT 1 FROM organization_invitations i JOIN organizations o ON o.id=i.organization_id WHERE i.id=n.invitation_id AND i.organization_id=n.organization_id AND i.status='PENDING' AND i.expires_at>now() AND o.status='ACTIVE') ELSE
+   EXISTS(SELECT 1 FROM organization_memberships membership JOIN organizations org ON org.id=membership.organization_id WHERE membership.organization_id=n.organization_id AND membership.user_id=n.recipient_user_id AND membership.status='ACTIVE' AND org.status='ACTIVE') AND CASE
     WHEN n.type='TIMESHEET_REMINDER' THEN EXISTS(
      SELECT 1 FROM employees e LEFT JOIN timesheets t ON t.employee_id=e.id AND t.year=n.business_year AND t.month=n.business_month
      WHERE e.organization_id=n.organization_id AND e.user_id=n.recipient_user_id AND e.active AND (t.id IS NULL OR t.status IN ('DRAFT','REJECTED')))
@@ -91,7 +92,7 @@ public class NotificationStore {
     WHEN n.type IN ('SAP_EXPORT_FAILED','SAP_EXPORT_UNKNOWN','FINANCE_MONTHLY_REMINDER') THEN EXISTS(
      SELECT 1 FROM app_users u JOIN organization_memberships m ON m.user_id=u.id LEFT JOIN employees e ON e.user_id=u.id AND e.organization_id=m.organization_id WHERE u.id=n.recipient_user_id
      AND m.organization_id=n.organization_id AND m.status='ACTIVE' AND m.role IN ('FINANCE','ADMIN') AND (e.id IS NULL OR e.active))
-    ELSE true END FROM notifications n WHERE n.id=?
+    ELSE true END END FROM notifications n WHERE n.id=?
    """,Boolean.class,id));
  }
  private void failure(Claim c,String code,String message,boolean retryable,Instant now){

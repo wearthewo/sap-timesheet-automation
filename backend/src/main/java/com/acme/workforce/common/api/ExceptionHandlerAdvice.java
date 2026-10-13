@@ -36,6 +36,10 @@ public class ExceptionHandlerAdvice {
  ResponseEntity<ApiError> integrity(DataIntegrityViolationException ex,HttpServletRequest request) {
   String detail=ex.getMostSpecificCause().getMessage();
   if(detail!=null) {
+   if(detail.contains("LAST_ACTIVE_ADMIN")) return error(409,"LAST_ACTIVE_ADMIN","Keep at least one active administrator in this organization.",request);
+   if(detail.contains("MANAGER_CYCLE")) return error(409,"MANAGER_CYCLE","This manager change would create a reporting cycle.",request);
+   if(detail.contains("uq_pending_invitation")) return error(409,"INVITATION_ALREADY_PENDING","A pending invitation already exists for this email or employee. Revoke it before sending another.",request);
+   if(detail.contains("uk_employee_user")) return error(409,"EMPLOYEE_ALREADY_LINKED","This member already has an employee profile in this organization.",request);
    if(detail.contains("uk_timesheet_employee_month")) return error(409,"TIMESHEET_ALREADY_EXISTS","This month already has a timesheet",request);
    if(detail.contains("uk_project_code")) return error(409,"DUPLICATE_PROJECT_CODE","Project code already exists",request);
    if(detail.contains("uk_employee_number")) return error(409,"DUPLICATE_EMPLOYEE_NUMBER","Employee number already exists",request);

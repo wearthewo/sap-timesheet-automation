@@ -104,9 +104,12 @@ class PhaseTenOnboardingTest {
  }
  @Test void suspendedMembershipAndOrganizationAreNotReactivatedByReplay()throws Exception {
   UUID key=UUID.randomUUID(),id=created("owner",key,"suspended");
-  sql.update("UPDATE organization_memberships SET status='SUSPENDED' WHERE organization_id=?",id);
+  // Phase 11 retains an active administrator while testing suspension/replay of the creator.
+  UUID owner=identity.current(token("owner")).getId(),backup=identity.current(token("backup-admin")).getId();
+  sql.update("INSERT INTO organization_memberships(id,organization_id,user_id,role,status) VALUES (?,?,?,'ADMIN','ACTIVE')",UUID.randomUUID(),id,backup);
+  sql.update("UPDATE organization_memberships SET status='SUSPENDED' WHERE organization_id=? AND user_id=?",id,owner);
   create("owner",key,"suspended").andExpect(status().isForbidden());
-  assertThat(sql.queryForObject("SELECT status FROM organization_memberships",String.class)).isEqualTo("SUSPENDED");
+  assertThat(sql.queryForObject("SELECT status FROM organization_memberships WHERE organization_id=? AND user_id=?",String.class,id,owner)).isEqualTo("SUSPENDED");
   sql.update("UPDATE organization_memberships SET status='ACTIVE';UPDATE organizations SET status='SUSPENDED'");
   create("owner",key,"suspended").andExpect(status().isForbidden());
  }

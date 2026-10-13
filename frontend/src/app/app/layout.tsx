@@ -11,6 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
      <Link href="/app" className="rounded px-1 py-2 hover:text-blue-700">Overview</Link>
      <Link href="/app/timesheets" className="rounded px-1 py-2 hover:text-blue-700">Timesheets</Link>
      <Link href="/app/projects" className="rounded px-1 py-2 hover:text-blue-700">My projects</Link>
+     {user.role === "ADMIN" && <Link href="/app/admin/employees" className="rounded px-1 py-2 hover:text-blue-700">Administration</Link>}
      {user.role === "MANAGER" && <Link href="/app/approvals" className="rounded px-1 py-2 hover:text-blue-700">Approvals</Link>}
      {["ADMIN", "FINANCE"].includes(user.role) && <Link href="/app/sap" className="rounded px-1 py-2 hover:text-blue-700">SAP exports</Link>}
      {["ADMIN", "FINANCE"].includes(user.role) && <Link href="/app/reports" className="rounded px-1 py-2 hover:text-blue-700">Reports</Link>}

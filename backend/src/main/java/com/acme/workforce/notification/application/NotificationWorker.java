@@ -9,8 +9,8 @@ import java.util.concurrent.*;
 @Service
 public class NotificationWorker {
  private static final Logger log=LoggerFactory.getLogger(NotificationWorker.class);
- private final NotificationStore store;private final EmailGateway gateway;private final String workerId=UUID.randomUUID().toString();
- public NotificationWorker(NotificationStore store,EmailGateway gateway){this.store=store;this.gateway=gateway;}
+ private final NotificationStore store;private final EmailGateway gateway;private final com.acme.workforce.organization.application.Invitations invitations;private final String workerId=UUID.randomUUID().toString();
+ public NotificationWorker(NotificationStore store,EmailGateway gateway,com.acme.workforce.organization.application.Invitations invitations){this.store=store;this.gateway=gateway;this.invitations=invitations;}
  @Transactional(propagation=Propagation.NOT_SUPPORTED)
  public void runOnce(){
   var claims=store.claim(workerId);
@@ -23,7 +23,7 @@ public class NotificationWorker {
  @Transactional(propagation=Propagation.NOT_SUPPORTED)
  public void deliver(NotificationStore.Claim c){
   long start=System.nanoTime();boolean accepted=false;EmailDeliveryException.Failure failure=null;
-  try{accepted=gateway.send(c.message()).accepted();if(!accepted)failure=EmailDeliveryException.Failure.UNKNOWN;}
+  try{var message=c.type()==NotificationType.ORGANIZATION_INVITATION?invitations.delivery(c.id(),c.organizationId()):c.message();accepted=gateway.send(message).accepted();if(!accepted)failure=EmailDeliveryException.Failure.UNKNOWN;}
   catch(EmailDeliveryException e){failure=e.failure();}
   catch(RuntimeException e){failure=EmailDeliveryException.Failure.UNKNOWN;}
   boolean committed=store.finish(c,accepted,failure);

@@ -40,7 +40,7 @@ AGENTS.md      Coding and scope rules
 Install Docker Desktop/Engine with Compose. Java and Node are not required on the host for Compose.
 
 1. Copy .env.example to .env.
-2. Fill DATABASE_PASSWORD, KEYCLOAK_ADMIN_PASSWORD, KEYCLOAK_CLIENT_SECRET, NEXTAUTH_SECRET and SAP_API_TOKEN with independent random values (e.g. openssl rand -hex 32).
+2. Fill DATABASE_PASSWORD, KEYCLOAK_ADMIN_PASSWORD, KEYCLOAK_CLIENT_SECRET, NEXTAUTH_SECRET, SAP_API_TOKEN and INVITATION_SIGNING_KEY with independent random values (e.g. openssl rand -hex 32).
 3. Run:
    ```sh
    docker compose config --quiet
@@ -70,11 +70,17 @@ Fresh realm imports enable registration, email verification, password recovery, 
 
 Registration and sign-in use authorization code flow, PKCE and state. Spring requires a trusted boolean `email_verified` claim for organization creation and business access. Internal identity remains keyed exclusively by Keycloak subject; matching emails never merge users.
 
-### Operator-only employee setup and existing membership administration
+### Organization administration (Phase 11)
+
+ADMIN members can now create employee profiles before account registration, invite verified users, manage membership roles and status, assign managers, create/archive projects and manage dated project assignments from **Administration**. Invitations work with existing accounts or new Keycloak registrations and reuse the durable notification worker. No SQL or Keycloak admin-console provisioning is needed for ordinary new-organization setup. See [the administration guide](docs/administration.md) and [Phase 11 verification](docs/phase11-administration-verification.md).
+
+V17 preserves historical records and allows an employee to exist without an account. Membership and employment remain separate; the final active ADMIN cannot be suspended, revoked or demoted. New organizations remain empty until administrators populate them through the UI. `INVITATION_SIGNING_KEY` is server-only and required to send invitations; `INVITATION_VALIDITY=PT168H` is the default expiry.
+
+### Controlled operator maintenance
 
 Use a trusted database session, e.g. docker compose exec postgres psql -U workforce -d workforce (adjust username). Look up the exact Keycloak subject from the Keycloak user record. Do not select a user by unverified frontend input or promote based on email alone.
 
-This SQL is for controlled operator maintenance and special fixtures, not the standard registration flow. Invitations and employee/project administration UI remain Phase 11 scope.
+This SQL is for controlled operator maintenance and special fixtures. Prefer the audited administration UI for ordinary employee, membership, invitation, project and assignment changes.
 
 ```sql
 -- Replace all example values. First confirm the expected subject and identity.
