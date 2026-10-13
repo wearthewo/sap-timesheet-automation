@@ -2,8 +2,8 @@
   "realm": "workforce",
   "enabled": true,
   "displayName": "Workforce",
-  "registrationAllowed": false,
-  "resetPasswordAllowed": false,
+  "registrationAllowed": true,
+  "resetPasswordAllowed": true,
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "sslRequired": "external",
@@ -21,7 +21,8 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "${FRONTEND_URL}/api/auth/callback/keycloak"
+        "${FRONTEND_URL}/api/auth/callback/keycloak",
+        "${FRONTEND_URL}/api/auth/callback/keycloak-register"
       ],
       "webOrigins": [
         "${FRONTEND_URL}"
@@ -50,5 +51,21 @@
         }
       ]
     }
-  ]
+  ],
+  "verifyEmail": true,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 5,
+  "passwordPolicy": "length(12) and notUsername(undefined) and notEmail(undefined)",
+  "smtpServer": {
+    "host": "${KEYCLOAK_SMTP_HOST}",
+    "port": "${KEYCLOAK_SMTP_PORT}",
+    "from": "${KEYCLOAK_SMTP_FROM}",
+    "fromDisplayName": "Workforce accounts",
+    "auth": "${KEYCLOAK_SMTP_AUTH}",
+    "starttls": "${KEYCLOAK_SMTP_STARTTLS}",
+    "ssl": "${KEYCLOAK_SMTP_SSL}",
+    "user": "${KEYCLOAK_SMTP_USERNAME}",
+    "password": "${KEYCLOAK_SMTP_PASSWORD}"
+  }
 }

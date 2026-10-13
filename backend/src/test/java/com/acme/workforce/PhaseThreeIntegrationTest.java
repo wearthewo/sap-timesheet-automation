@@ -43,11 +43,11 @@ class PhaseThreeIntegrationTest extends TenantFixtures {
   sql.update("INSERT INTO project_assignments(id,employee_id,project_id,valid_from,active) VALUES (?,?,?,'2026-01-01',true)",UUID.randomUUID(),employee,project);
  }
  UUID user(String subject,String role) {
-  var token=Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("name",subject).build();
+  var token=Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(subject).claim("name",subject).build();
   var id=identity.current(token).getId(); member(sql,id,role); return id;
  }
  UUID employee(String subject,String role,UUID managerId) { return employees.saveAndFlush(new Employee(ORGANIZATION,user(subject,role),subject,managerId)).getId(); }
- ResultActions request(MockHttpServletRequestBuilder r,String subject) throws Exception {return mvc.perform(r.with(jwt().jwt(j->j.subject(subject))));}
+ ResultActions request(MockHttpServletRequestBuilder r,String subject) throws Exception {return mvc.perform(r.with(jwt().jwt(j->j.claim("email_verified",true).subject(subject))));}
  JsonNode json(ResultActions result) throws Exception {return mapper.readTree(result.andReturn().getResponse().getContentAsString());}
  JsonNode draft() throws Exception {return json(request(post("/api/v1/timesheets").contentType("application/json").content("{\"year\":2026,\"month\":10}"),"alice").andExpect(status().isCreated()));}
  String path(JsonNode s) {return "/api/v1/timesheets/"+s.get("id").asText();}

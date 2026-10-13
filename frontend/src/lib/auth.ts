@@ -4,23 +4,24 @@ import KeycloakProvider from "next-auth/providers/keycloak";
 
 const issuer = process.env.KEYCLOAK_ISSUER_URI ?? "http://localhost:8180/realms/workforce";
 const internal = process.env.KEYCLOAK_INTERNAL_URL ?? issuer;
+function keycloak(registration = false) {
+ return KeycloakProvider({
+  id: registration ? "keycloak-register" : "keycloak",
+  clientId: process.env.KEYCLOAK_CLIENT_ID ?? "workforce-web",
+  clientSecret: process.env.KEYCLOAK_CLIENT_SECRET ?? "",
+  issuer, wellKnown: "", httpOptions: { timeout: 10000 },
+  authorization: { url: issuer + "/protocol/openid-connect/" + (registration ? "registrations" : "auth"), params: { scope: "openid email profile" } },
+  token: internal + "/protocol/openid-connect/token",
+  userinfo: internal + "/protocol/openid-connect/userinfo",
+  jwks_endpoint: internal + "/protocol/openid-connect/certs", checks: ["pkce", "state"],
+ });
+}
 export const authOptions: NextAuthOptions = {
  secret: process.env.NEXTAUTH_SECRET,
  session: { strategy: "jwt", maxAge: 30 * 60 },
  pages: { signIn: "/login", error: "/login" },
- providers: [KeycloakProvider({
-  clientId: process.env.KEYCLOAK_CLIENT_ID ?? "workforce-web",
-  clientSecret: process.env.KEYCLOAK_CLIENT_SECRET ?? "",
-  issuer,
-  // Discovery advertises browser URLs; explicit endpoints keep container backchannels reachable.
-  wellKnown: "",
-  httpOptions: { timeout: 10000 },
-  authorization: { url: issuer + "/protocol/openid-connect/auth", params: { scope: "openid email profile" } },
-  token: internal + "/protocol/openid-connect/token",
-  userinfo: internal + "/protocol/openid-connect/userinfo",
-  jwks_endpoint: internal + "/protocol/openid-connect/certs",
-  checks: ["pkce", "state"],
- })],
+ // Both flows retain PKCE/state and server-only token exchange; only the authorization page differs.
+ providers: [keycloak(), keycloak(true)],
  callbacks: {
   async jwt({ token, account }) {
    if (account) {

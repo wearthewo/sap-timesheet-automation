@@ -9,6 +9,8 @@ export default async function Login({ searchParams }: { searchParams: Promise<{ 
    {params.error && <p role="alert" className="mb-4 text-sm text-red-700">Sign-in was not completed. Please try again.</p>}
    {params.expired && <p className="mb-4 text-sm text-slate-600">Your session has expired. Sign in to continue.</p>}
    <SignIn />
+   <div className="mt-4"><SignIn registration /></div>
+   <p className="mt-4 text-sm text-slate-600">New here? Create an account, verify your email and set up your organization. Password recovery is available on the sign-in page.</p>
    <p className="mt-6 text-xs leading-5 text-slate-500">Secure access through your organization’s identity provider.</p>
   </section>
  </main>;

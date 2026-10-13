@@ -49,7 +49,7 @@ class PhaseNineIsolationTest {
  UUID organization(String slug) {
   var id=UUID.randomUUID();sql.update("INSERT INTO organizations(id,slug,name,status) VALUES (?,?,?,'ACTIVE')",id,slug,slug);return id;
  }
- UUID user(String sub) { return identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(sub).claim("name",sub).claim("email",sub+"@example.test").build()).getId(); }
+ UUID user(String sub) { return identity.current(Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(sub).claim("name",sub).claim("email",sub+"@example.test").build()).getId(); }
  void membership(UUID org,UUID user,String role) { sql.update("INSERT INTO organization_memberships(id,organization_id,user_id,role,status) VALUES (?,?,?,?,'ACTIVE')",UUID.randomUUID(),org,user,role); }
  UUID project(UUID org) {var id=UUID.randomUUID();sql.update("INSERT INTO projects(id,organization_id,code,name) VALUES (?,?,'SAME-CODE','Same business code')",id,org);return id;}
  UUID sheet(UUID employee,UUID project) {
@@ -66,7 +66,7 @@ class PhaseNineIsolationTest {
   projectA=project(a);projectB=project(b);sheetA=sheet(employeeA,projectA);sheetB=sheet(employeeB,projectB);
   when(gateway.export(any())).thenAnswer(i->new SapExportResult("SAP-"+((ApprovedTimesheetPayload)i.getArgument(0)).timesheetId()));
  }
- ResultActions request(MockHttpServletRequestBuilder r,UUID org,String user) throws Exception {return mvc.perform(r.header("X-Organization-Id",org).with(jwt().jwt(j->j.subject(user).claim("role","ADMIN"))));}
+ ResultActions request(MockHttpServletRequestBuilder r,UUID org,String user) throws Exception {return mvc.perform(r.header("X-Organization-Id",org).with(jwt().jwt(j->j.claim("email_verified",true).subject(user).claim("role","ADMIN"))));}
  ResultActions enqueue(UUID org,UUID sheet,String user) throws Exception {return request(post("/api/v1/sap/timesheets/"+sheet+"/export").header("X-Timesheet-Version",0),org,user);}
  @Test void rolesAreOrganizationSpecificAndIdentityClaimsCannotElevate() throws Exception {
   request(get("/api/v1/auth/me"),a,"shared").andExpect(jsonPath("$.role").value("ADMIN"));
@@ -75,14 +75,14 @@ class PhaseNineIsolationTest {
   assertThat(sql.queryForObject("SELECT role FROM app_users WHERE id=?",String.class,shared)).isEqualTo("EMPLOYEE");
  }
  @Test void membershipListingDoesNotExposeOtherOrganizations() throws Exception {
-  mvc.perform(get("/api/v1/auth/organizations").with(jwt().jwt(j->j.subject("finance-a")))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].id").value(a.toString()));
+  mvc.perform(get("/api/v1/auth/organizations").with(jwt().jwt(j->j.claim("email_verified",true).subject("finance-a")))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].id").value(a.toString()));
  }
  @Test void unknownUserIsProvisionedWithoutAnyMembership() throws Exception {
-  mvc.perform(get("/api/v1/auth/organizations").with(jwt().jwt(j->j.subject("new-user")))).andExpect(status().isOk()).andExpect(content().json("[]"));
+  mvc.perform(get("/api/v1/auth/organizations").with(jwt().jwt(j->j.claim("email_verified",true).subject("new-user")))).andExpect(status().isOk()).andExpect(content().json("[]"));
   request(get("/api/v1/projects"),a,"new-user").andExpect(status().isForbidden());
  }
  @Test void missingOrganizationAndAnonymousRequestsAreRejected() throws Exception {
-  mvc.perform(get("/api/v1/projects").with(jwt().jwt(j->j.subject("shared")))).andExpect(status().isBadRequest());
+  mvc.perform(get("/api/v1/projects").with(jwt().jwt(j->j.claim("email_verified",true).subject("shared")))).andExpect(status().isBadRequest());
   mvc.perform(get("/api/v1/projects").header("X-Organization-Id",a)).andExpect(status().isUnauthorized());
  }
  @Test void membershipSuspensionAndRoleChangeTakeEffectOnNextRequest() throws Exception {

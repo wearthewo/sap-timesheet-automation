@@ -29,7 +29,7 @@ frontend/      Next.js UI, OIDC session handling, server-side backend calls
 mock-sap/      Node 24 HTTP mock, persistent idempotency, contract tests
 infra/         Local Keycloak realm import and PostgreSQL initialization
 docs/          Architecture and verification notes
-compose.yaml   Five-service local stack
+compose.yaml   Six-service local stack
 .env.example   Configuration template (no secrets)
 AGENTS.md      Coding and scope rules
 .nvmrc         Node 24
@@ -64,13 +64,17 @@ The import creates realm workforce and confidential client workforce-web:
 - Issuer: http://localhost:8180/realms/workforce.
 - Client secret comes from KEYCLOAK_CLIENT_SECRET through realm environment substitution.
 
-Log into the admin console with the bootstrap credentials from .env, select workforce, create a test user with username/email/first/last name, and set a password in Credentials. Set Temporary off for a simple local test, or complete the required password update at first login. No test passwords or users are committed.
+Choose **Create an account** on the Workforce login page. Register in Keycloak, follow the verification email in local Mailpit (http://localhost:8025), then create your organization in Workforce. The backend creates only the organization and your ADMIN membership, atomically. No employee, project or demo data is seeded. No SQL or admin-console operation is needed for this standard new-user flow.
 
-Sign in through the frontend once to provision an application identity. New identities have no organization membership and see a safe no-membership screen. No employee record or organization role is invented from JWT claims.
+Fresh realm imports enable registration, email verification, password recovery, a 12-character minimum password and brute-force protection. Existing realms are not updated by editing the import JSON. Review `node infra/keycloak/update-registration.mjs --env-file .env`, then explicitly apply the reviewed local settings with `--apply`. This preserves users, passwords and memberships. Back up configuration first and review [the onboarding guide](docs/phase10-registration-onboarding-verification.md). The original development realm/database are not automatically upgraded by this task.
 
-### Operator onboarding and admin bootstrap
+Registration and sign-in use authorization code flow, PKCE and state. Spring requires a trusted boolean `email_verified` claim for organization creation and business access. Internal identity remains keyed exclusively by Keycloak subject; matching emails never merge users.
+
+### Operator-only employee setup and existing membership administration
 
 Use a trusted database session, e.g. docker compose exec postgres psql -U workforce -d workforce (adjust username). Look up the exact Keycloak subject from the Keycloak user record. Do not select a user by unverified frontend input or promote based on email alone.
+
+This SQL is for controlled operator maintenance and special fixtures, not the standard registration flow. Invitations and employee/project administration UI remain Phase 11 scope.
 
 ```sql
 -- Replace all example values. First confirm the expected subject and identity.
@@ -138,6 +142,8 @@ Root .env is read by Compose. For host development, export backend variables int
 | Method | Path | Access |
 |---|---|---|
 | GET | /api/v1/auth/me | Authenticated; provisions first user |
+| GET | /api/v1/auth/organizations | Authenticated; active memberships, empty for unverified identity |
+| POST | /api/v1/organizations | Verified email; name/slug only, UUID Idempotency-Key header; own new ADMIN membership |
 | GET | /api/v1/projects | Authenticated, paginated catalog |
 | GET | /api/v1/projects/{id} | Authenticated |
 | GET | /api/v1/employees/me/projects | Authenticated, current assignments |

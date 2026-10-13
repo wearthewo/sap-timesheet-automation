@@ -9,6 +9,9 @@ test('SQL fixture strings preserve apostrophes without executable SQL', () => as
 test('diagnostics redact generated credentials and bearer tokens', () => {
   assert.equal(redact('secret-token Bearer other-token', ['secret-token']), '[REDACTED] Bearer [REDACTED]');
   assert.equal(redact('/callback?code=abc&state=xyz', []), '/callback?code=[REDACTED]&state=[REDACTED]');
+  assert.equal(redact('/login-actions/action-token?key=secret&execution=private', []), '/login-actions/action-token?key=[REDACTED]&execution=[REDACTED]');
+  assert.equal(redact('cookie: next-auth.session-token=secret; __Secure-next-auth.session-token.0=chunk', []), 'cookie: next-auth.session-token=[REDACTED]; __Secure-next-auth.session-token.0=[REDACTED]');
+  assert.equal(redact('eyJheader..iv.cipher.tag', []), '[JWE REDACTED]');
 });
 test('readiness retries errors and succeeds when condition holds', async () => {
   let count = 0;

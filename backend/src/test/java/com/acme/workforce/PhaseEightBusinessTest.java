@@ -38,7 +38,7 @@ class PhaseEightBusinessTest extends TenantFixtures {
  @MockitoBean JwtDecoder decoder;@MockitoBean SapTimesheetGateway gateway;
  UUID owner,manager,a,b,unassigned;
  UUID user(String sub,String role){
-  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(sub).claim("email",sub+"@example.test").claim("name",sub).build()).getId();
+  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(sub).claim("email",sub+"@example.test").claim("name",sub).build()).getId();
   member(sql,id,role);return id;
  }
  @BeforeEach void seed(){
@@ -52,7 +52,7 @@ class PhaseEightBusinessTest extends TenantFixtures {
   for(var id:List.of(a,b))sql.update("INSERT INTO project_assignments(id,employee_id,project_id,valid_from,active) VALUES (?,?,?,'2026-01-01',true)",UUID.randomUUID(),owner,id);
   when(gateway.export(any())).thenReturn(new SapExportResult("SAP-TS-BUSINESS"));
  }
- ResultActions req(MockHttpServletRequestBuilder r,String who)throws Exception{return mvc.perform(r.with(jwt().jwt(j->j.subject(who))));}
+ ResultActions req(MockHttpServletRequestBuilder r,String who)throws Exception{return mvc.perform(r.with(jwt().jwt(j->j.claim("email_verified",true).subject(who))));}
  JsonNode data(ResultActions r)throws Exception{return json.readTree(r.andReturn().getResponse().getContentAsByteArray());}
  MockHttpServletRequestBuilder createRequest(){return post("/api/v1/timesheets").contentType("application/json").content("{\"year\":2026,\"month\":10}");}
  JsonNode create()throws Exception{return data(req(createRequest(),"employee").andExpect(status().isCreated()));}

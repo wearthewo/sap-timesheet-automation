@@ -46,7 +46,7 @@ class PhaseEightSapDownloadTest extends TenantFixtures {
  @MockitoBean JwtDecoder decoder;@MockitoBean SapTimesheetGateway gateway;
  UUID sheet,export,owner,finance;ApprovedTimesheetPayload payload;
  UUID user(String sub,String role){
-  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(sub).claim("email",sub+"@example.test").claim("name",sub).build()).getId();
+  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(sub).claim("email",sub+"@example.test").claim("name",sub).build()).getId();
   member(sql,id,role);return id;
  }
  @BeforeEach void seed(){
@@ -68,7 +68,7 @@ class PhaseEightSapDownloadTest extends TenantFixtures {
   if(snapshot!=null)sql.update("INSERT INTO sap_export_jobs(id,export_id,timesheet_id,status,operation,payload,next_attempt_at,created_at) VALUES (?,?,?,'COMPLETED','EXPORT',?::jsonb,now(),'2026-10-01T00:00:00Z')",UUID.randomUUID(),export,sheet,snapshot);
  }
  String path(){return "/api/v1/sap/timesheets/"+sheet+"/export.xlsx";}
- ResultActions download(String actor)throws Exception{return mvc.perform(get(path()).accept("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").with(jwt().jwt(j->j.subject(actor))));}
+ ResultActions download(String actor)throws Exception{return mvc.perform(get(path()).accept("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet").with(jwt().jwt(j->j.claim("email_verified",true).subject(actor))));}
  byte[] success(String actor)throws Exception{return download(actor).andExpect(status().isOk()).andExpect(content().contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")).andExpect(header().string("Cache-Control","no-store")).andExpect(header().string("Content-Disposition","attachment; filename=\"sap-export-E008-2026-10.xlsx\"")).andReturn().getResponse().getContentAsByteArray();}
  @ParameterizedTest @ValueSource(strings={"finance","admin"})
  void authorizedSnapshotWorkbook(String actor)throws Exception{

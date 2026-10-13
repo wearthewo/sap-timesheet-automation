@@ -12,6 +12,12 @@ test("login renders a work-account sign-in control", async () => {
  assert.equal(response.status, 200);
  assert.match(await response.text(), /Sign in with your work account/);
 });
+test("login exposes self-registration", async () => {
+ const response = await fetch(base + "/login"); assert.match(await response.text(), /Create an account/);
+});
+test("anonymous onboarding requires sign-in", async () => {
+ const response = await fetch(base + "/onboarding"); assert.equal(new URL(response.url).pathname, "/login");
+});
 test("anonymous session contains no user or tokens", async () => {
  const response = await fetch(base + "/api/auth/session");
  assert.equal(response.status, 200);

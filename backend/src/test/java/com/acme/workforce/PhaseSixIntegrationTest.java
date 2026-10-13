@@ -46,7 +46,7 @@ class PhaseSixIntegrationTest extends TenantFixtures {
  @MockitoBean JwtDecoder decoder;
  UUID finance,manager,projectA,projectB;List<UUID> sheets;String description="Worked on \"billing, API\"\nΔοκιμή";
  UUID user(String subject,String role){
-  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").subject(subject).claim("email",subject+"@example.test").claim("name","Name "+subject).build()).getId();
+  var id=identity.current(Jwt.withTokenValue("test").header("alg","RS256").claim("email_verified",true).subject(subject).claim("email",subject+"@example.test").claim("name","Name "+subject).build()).getId();
   member(sql,id,role);return id;
  }
  UUID employee(String number,boolean active,UUID managerId){
@@ -86,7 +86,7 @@ class PhaseSixIntegrationTest extends TenantFixtures {
   sql.update("INSERT INTO timesheet_approvals(id,timesheet_id,manager_employee_id,decision,comment,decided_at) VALUES (?,?,?,?,?,?::timestamptz)",UUID.randomUUID(),sheet,manager,value,comment,time);
  }
  ResultActions getReport(String endpoint,String actor,String query)throws Exception{
-  return mvc.perform(get(java.net.URI.create("/api/v1/reports/monthly/"+endpoint+"?year=2026&month=10"+query)).with(jwt().jwt(j->j.subject(actor))));
+  return mvc.perform(get(java.net.URI.create("/api/v1/reports/monthly/"+endpoint+"?year=2026&month=10"+query)).with(jwt().jwt(j->j.claim("email_verified",true).subject(actor))));
  }
  JsonNode result(String endpoint,String query)throws Exception{return json.readTree(getReport(endpoint,"finance",query).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray());}
  @ParameterizedTest @ValueSource(strings={"finance","admin"})
@@ -131,7 +131,7 @@ class PhaseSixIntegrationTest extends TenantFixtures {
   String url="/api/v1/reports/monthly/employees?year=2026&month=10"+query;
   if(query.startsWith("&month"))url="/api/v1/reports/monthly/employees?year=2026"+query;
   if(query.startsWith("&year"))url="/api/v1/reports/monthly/employees?month=10"+query;
-  mvc.perform(get(url).with(jwt().jwt(j->j.subject("finance")))).andExpect(status().isBadRequest());
+  mvc.perform(get(url).with(jwt().jwt(j->j.claim("email_verified",true).subject("finance")))).andExpect(status().isBadRequest());
  }
  @ParameterizedTest @CsvSource({"employee=EMP-04,1","employee=Name%20EMP-04,1","employee=EMP-04%40example.test,1","project=PRJ-B,1","project=Historical,1","timesheetStatus=APPROVED,6","sapStatus=FAILED,1","sapStatus=NOT_APPLICABLE,4","employee=%25,0"})
  void filtering(String query,int expected)throws Exception{assertThat(result("employees","&"+query).path("totalElements").asInt()).isEqualTo(expected);}
@@ -208,16 +208,16 @@ class PhaseSixIntegrationTest extends TenantFixtures {
   assertThat(download.download(finance,new ReportFilter(2026,10,null,null,null,null,null),false)).isNotEmpty();
  }
  @Test void oldMonthDoesNotCreateTimesheets()throws Exception{
-  mvc.perform(get("/api/v1/reports/monthly/summary?year=2025&month=1").with(jwt().jwt(j->j.subject("finance"))))
+  mvc.perform(get("/api/v1/reports/monthly/summary?year=2025&month=1").with(jwt().jwt(j->j.claim("email_verified",true).subject("finance"))))
    .andExpect(status().isOk()).andExpect(jsonPath("$.noTimesheetCount").value(10)).andExpect(jsonPath("$.totalApprovedHours").value("0.00"));
  }
 
  @ParameterizedTest @ValueSource(strings={"csv","xlsx"})
  void fileAcceptHeadersPreserveJsonErrors(String format)throws Exception{
   String accept=format.equals("csv")?"text/csv":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  mvc.perform(get("/api/v1/reports/monthly/approved-hours."+format+"?year=2026&month=10").accept(accept).with(jwt().jwt(j->j.subject("employee"))))
+  mvc.perform(get("/api/v1/reports/monthly/approved-hours."+format+"?year=2026&month=10").accept(accept).with(jwt().jwt(j->j.claim("email_verified",true).subject("employee"))))
    .andExpect(status().isForbidden()).andExpect(content().contentTypeCompatibleWith("application/json")).andExpect(jsonPath("$.code").value("REPORT_NOT_AUTHORIZED"));
-  mvc.perform(get("/api/v1/reports/monthly/approved-hours."+format+"?year=2026&month=13").accept(accept).with(jwt().jwt(j->j.subject("finance"))))
+  mvc.perform(get("/api/v1/reports/monthly/approved-hours."+format+"?year=2026&month=13").accept(accept).with(jwt().jwt(j->j.claim("email_verified",true).subject("finance"))))
    .andExpect(status().isBadRequest()).andExpect(content().contentTypeCompatibleWith("application/json")).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
  }
  @Test void downloadLimitReturns413WithSafeJson()throws Exception{
@@ -225,7 +225,7 @@ class PhaseSixIntegrationTest extends TenantFixtures {
   sql.update("UPDATE timesheets SET total_hours=total_hours+17 WHERE id=?",sheets.get(3));
   for(String format:List.of("csv","xlsx")){
    String accept=format.equals("csv")?"text/csv":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-   mvc.perform(get("/api/v1/reports/monthly/approved-hours."+format+"?year=2026&month=10").accept(accept).with(jwt().jwt(j->j.subject("finance"))))
+   mvc.perform(get("/api/v1/reports/monthly/approved-hours."+format+"?year=2026&month=10").accept(accept).with(jwt().jwt(j->j.claim("email_verified",true).subject("finance"))))
     .andExpect(status().isPayloadTooLarge()).andExpect(content().contentTypeCompatibleWith("application/json")).andExpect(jsonPath("$.code").value("REPORT_TOO_LARGE"));
   }
  }
