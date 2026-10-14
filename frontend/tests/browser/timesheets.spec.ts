@@ -1,10 +1,11 @@
+import { fixture } from "./fixtures";
 import { test, expect, type Page } from "@playwright/test";
-test.describe.configure({ mode: "serial" });
-const username = process.env.TEST_USERNAME;
-const password = process.env.TEST_PASSWORD;
-const period = process.env.TEST_MONTH;
-const firstProject = process.env.TEST_PROJECT_ONE;
-const secondProject = process.env.TEST_PROJECT_TWO;
+const env = fixture("timesheets");
+const username = env.TEST_USERNAME;
+const password = env.TEST_PASSWORD;
+const period = env.TEST_MONTH;
+const firstProject = env.TEST_PROJECT_ONE;
+const secondProject = env.TEST_PROJECT_TWO;
 test.beforeAll(() => {
  if (!username || !password || !period || !firstProject || !secondProject) throw new Error("Set TEST_USERNAME, TEST_PASSWORD, TEST_MONTH (YYYY-MM), TEST_PROJECT_ONE and TEST_PROJECT_TWO. Use a dedicated local employee and an unstarted month.");
 });
@@ -33,7 +34,7 @@ test("employee creates, edits, deletes, totals, submits and reviews a month", as
  await page.getByRole("button",{name:"Open month"}).click();
  await page.getByRole("button",{name:"Create draft"}).click();
  await expect(page.getByRole("region",{name:"Entry editor"})).toBeVisible();
- const workDate = process.env.TEST_WORK_DATE ?? period+"-05";
+ const workDate = env.TEST_WORK_DATE ?? period+"-05";
  const project = page.getByRole("combobox",{name:"Project",exact:true});
  async function add(code: string,hours: string,description: string) {
   await page.getByLabel("Work date").fill(workDate);
@@ -69,7 +70,7 @@ test("employee creates, edits, deletes, totals, submits and reviews a month", as
  await noOverflow(page);
  await expect(page.getByRole("link",{name:"Timesheets",exact:true})).toBeVisible();
  await expect(page.getByRole("button",{name:"Log out",exact:true})).toBeVisible();
- await page.screenshot({path:"test-results/draft-mobile.png",fullPage:true});
+ await page.screenshot({path:test.info().outputPath("draft-mobile.png"),fullPage:true});
  await page.setViewportSize({width:1280,height:900});
  await page.getByRole("button",{name:"Submit month",exact:true}).click();
  await page.getByRole("button",{name:"Confirm submission"}).click();
@@ -78,13 +79,14 @@ test("employee creates, edits, deletes, totals, submits and reviews a month", as
  await expect(page.getByRole("button",{name:/^Edit /})).toHaveCount(0);
  await expect(page.getByRole("button",{name:/^Delete /})).toHaveCount(0);
  await expect(page.getByTestId("monthly-total")).toContainText("6.75");
- await page.screenshot({path:"test-results/submitted-desktop.png",fullPage:true});
+ await page.screenshot({path:test.info().outputPath("submitted-desktop.png"),fullPage:true});
  await page.getByRole("link",{name:"All timesheets",exact:false}).click();
  await expect(page.getByRole("region",{name:"Your monthly timesheets"})).toContainText("PENDING_APPROVAL");
  await expect(page.getByRole("region",{name:"Your monthly timesheets"})).toContainText("6.75 h");
  await logout(page);
 });
 test("mobile employee can review submitted month and log out", async ({page}) => {
+ const period = env.TEST_MOBILE_MONTH;
  await page.setViewportSize({width:375,height:812});
  await login(page);
  await page.getByRole("link",{name:"Timesheets",exact:true}).click();
@@ -93,6 +95,6 @@ test("mobile employee can review submitted month and log out", async ({page}) =>
  await expect(page.getByText(/^Read-only · Submitted/)).toBeVisible();
  await expect(page.getByRole("region",{name:"Entry editor"})).toHaveCount(0);
  await noOverflow(page);
- await page.screenshot({path:"test-results/submitted-mobile.png",fullPage:true});
+ await page.screenshot({path:test.info().outputPath("submitted-mobile.png"),fullPage:true});
  await logout(page);
 });

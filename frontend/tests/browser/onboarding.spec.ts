@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 
 const mailpit = process.env.MAILPIT_API_URL ?? "http://localhost:8025";
@@ -20,10 +20,8 @@ async function logout(page: Page) {
  await page.getByRole("button", { name: /logout/i }).click();
  await expect(page).toHaveURL(/\/login$/);
 }
-test("self-registration verifies email, creates isolated workspace, handles slug conflicts and recovers account", async ({ page, context }) => {
- test.setTimeout(240000);
- const suffix = randomBytes(8).toString("hex"), username = "onboard-" + suffix, email = username + "@example.test";
- const password = randomBytes(24).toString("hex"), slug = "workspace-" + suffix;
+async function register(page: Page, context: BrowserContext, username: string, password: string) {
+ const email = username + "@example.test";
  await page.goto("/login");
  await page.getByRole("button", { name: "Create an account", exact: true }).click();
  await page.locator("#firstName").fill("Zoë"); await page.locator("#lastName").fill("Onboarding");
@@ -38,8 +36,26 @@ test("self-registration verifies email, creates isolated workspace, handles slug
  await page.locator("#password-new").fill(password); await page.locator("#password-confirm").fill(password);
  await page.getByRole("button", { name: /submit/i }).click();
  await expect(page.getByRole("heading", { name: "Create your organization" })).toBeVisible();
+}
+test("self-registration verifies email, creates isolated workspace, handles slug conflicts and recovers account", async ({ page, context, browser }) => {
+ test.setTimeout(240000);
+ const suffix = randomBytes(8).toString("hex"), username = "onboard-" + suffix, email = username + "@example.test";
+ const password = randomBytes(24).toString("hex"), slug = "workspace-" + suffix, takenSlug = "taken-" + suffix;
+ // This test creates its own collision target through the real UI. It runs
+ // independently on an empty realm and never depends on CI seed names/order.
+ const ownerContext = await browser.newContext();
+ try {
+  const owner = await ownerContext.newPage();
+  await register(owner, ownerContext, "slug-owner-" + suffix, randomBytes(24).toString("hex"));
+  await owner.getByLabel("Organization name", { exact: true }).fill("Collision fixture");
+  await owner.getByLabel("Organization address", { exact: true }).fill(takenSlug);
+  await owner.getByRole("button", { name: "Create organization", exact: true }).click();
+  await expect(owner.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
+  await logout(owner);
+ } finally { await ownerContext.close(); }
+ await register(page, context, username, password);
  await page.getByLabel("Organization name", { exact: true }).fill("Zoë & Team");
- await page.getByLabel("Organization address", { exact: true }).fill("ci-alpha");
+ await page.getByLabel("Organization address", { exact: true }).fill(takenSlug);
  await page.getByRole("button", { name: "Create organization", exact: true }).click();
  await expect(page.getByRole("alert").filter({ hasText: "already in use" })).toBeVisible();
  await expect(page.getByLabel("Organization name", { exact: true })).toHaveValue("Zoë & Team");

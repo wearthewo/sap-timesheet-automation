@@ -4,10 +4,11 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertProject, sqlLiteral as q, redact, waitFor } from './support.mjs';
+import { createInterface } from 'node:readline';
+import { assertProject, sqlLiteral as q, redact, waitFor, fixtureNames, fixtureEnvironment, verificationDirectory, reserveFile } from './support.mjs';
 import { verifyRegistrationRealm } from './registration-realm.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
-const directory = resolve(root, '.verification/ci');
+const directory = verificationDirectory(root, process.env.CI_RUN_ID);
 const stateFile = resolve(directory, 'state.json');
 const command = process.argv[2];
 const secret = () => randomBytes(32).toString('hex');
@@ -40,15 +41,22 @@ async function seed() {
   }, 120000, 2000);
   const headers = { Authorization: `Bearer ${token.access_token}`, 'Content-Type': 'application/json' };
   await verifyRegistrationRealm(state.project,state.env);
-  state.users = {};
-  const suffix = state.project.slice(-12);
+  state.bundles = {};
+  for (const name of fixtureNames) {
+  // Keycloak admin tokens are short lived; each bounded namespace gets a fresh
+  // token rather than assuming the complete multi-spec seed fits one lifetime.
+  const refreshed = await api('/realms/master/protocol/openid-connect/token', { method:'POST',
+    body:new URLSearchParams({ grant_type:'password',client_id:'admin-cli',username:'admin',password:state.env.KEYCLOAK_ADMIN_PASSWORD }) });
+  headers.Authorization = `Bearer ${refreshed.access_token}`;
+  const bundle = { users: {} }; state.bundles[name] = bundle;
+  const suffix = state.project.slice(-12) + "-" + name;
   const organizationId=randomUUID(), secondOrganizationId=randomUUID();
-  state.organizationId=organizationId; state.secondOrganizationId=secondOrganizationId;
-  let statements = `BEGIN; INSERT INTO organizations(id,slug,name,status) VALUES (${q(organizationId)},'ci-alpha','CI Alpha','ACTIVE'),(${q(secondOrganizationId)},'ci-beta','CI Beta','ACTIVE');\n`;
+  bundle.organizationId=organizationId; bundle.secondOrganizationId=secondOrganizationId;
+  let statements = `BEGIN; INSERT INTO organizations(id,slug,name,status) VALUES (${q(organizationId)},${q('ci-alpha-' + suffix)},'CI Alpha','ACTIVE'),(${q(secondOrganizationId)},${q('ci-beta-' + suffix)},'CI Beta','ACTIVE');\n`;
   for (const role of ['EMPLOYEE', 'MANAGER', 'FINANCE', 'ADMIN', 'TENANT']) {
     const username = `ci-${role.toLowerCase()}-${suffix}`, password = secret();
     const name = role === 'EMPLOYEE' ? 'Νίκος André & "Employee"' : role === 'MANAGER' ? 'Μαρία García & "Review"' : `CI ${role}`;
-    state.users[role] = { username, password, name }; save();
+    bundle.users[role] = { username, password, name }; save();
     if (process.env.GITHUB_ACTIONS) console.log(`::add-mask::${password}`);
     await api('/admin/realms/workforce/users', { method: 'POST', headers, body: JSON.stringify({ username,
       // Keycloak's person-name validator disallows quotes/ampersands. Special-character
@@ -56,16 +64,16 @@ async function seed() {
       email: `${username}@example.test`, firstName: 'CI', lastName: role, enabled: true, emailVerified: true,
       credentials: [{ type: 'password', value: password, temporary: false }] }) });
     const [user] = await api(`/admin/realms/workforce/users?username=${username}&exact=true`, { headers });
-    const id = randomUUID(); state.users[role].subject = user.id;
+    const id = randomUUID(); bundle.users[role].subject = user.id;
     statements += `INSERT INTO app_users(id,external_subject,email,display_name,role) VALUES (${q(id)},${q(user.id)},${q(username + '@example.test')},${q(name)},${q("EMPLOYEE")});\n`;
     statements += `INSERT INTO organization_memberships(id,organization_id,user_id,role,status) VALUES (gen_random_uuid(),${q(organizationId)},${q(id)},${q(role==='TENANT'?'EMPLOYEE':role)},'ACTIVE');\n`;
     if(role==='TENANT') statements += `INSERT INTO organization_memberships(id,organization_id,user_id,role,status) VALUES (gen_random_uuid(),${q(secondOrganizationId)},${q(id)},'FINANCE','ACTIVE');\n`;
     if (role === 'EMPLOYEE' || role === 'MANAGER') {
-      const employeeId = randomUUID(); state.users[role].employeeId = employeeId;
+      const employeeId = randomUUID(); bundle.users[role].employeeId = employeeId;
       statements += `INSERT INTO employees(organization_id,id,user_id,employee_number,active) VALUES (${q(organizationId)},${q(employeeId)},${q(id)},${q('QA3-' + role[0] + '-' + suffix)},true);\n`;
     }
   }
-  const employee = q(state.users.EMPLOYEE.employeeId), manager = q(state.users.MANAGER.employeeId);
+  const employee = q(bundle.users.EMPLOYEE.employeeId), manager = q(bundle.users.MANAGER.employeeId);
   statements += `UPDATE employees SET manager_id=${manager} WHERE id=${employee};\n`;
   for (const code of ['PHASE1-DEMO', 'PHASE2-DEMO', 'MOCK-INVALID', 'MOCK-TRANSIENT-503', 'MOCK-TIMEOUT', 'MOCK-RETRY']) {
     const id = q(randomUUID());
@@ -76,41 +84,55 @@ async function seed() {
   statements = 'BEGIN;\n';
   // Observe a real scheduled reminder while the employee has no timesheet. Later historical
   // scenarios may use this calendar month, but must not change the immutable reminder body.
+  let reminderPeriod;
+  if (name === 'notifications') {
   await waitFor(() => Number(sql(`SELECT count(*) FROM notifications n JOIN app_users u ON u.id=n.recipient_user_id
-    WHERE u.external_subject=${q(state.users.EMPLOYEE.subject)} AND n.type='TIMESHEET_REMINDER' AND n.status='SENT';`).trim()) === 1, 60000);
-  const reminderPeriod = sql(`SELECT business_year || '-' || lpad(business_month::text,2,'0') FROM notifications n JOIN app_users u ON u.id=n.recipient_user_id
-    WHERE u.external_subject=${q(state.users.EMPLOYEE.subject)} AND n.type='TIMESHEET_REMINDER';`).trim();
-  state.fixtures = { TEST_ORGANIZATION_A: organizationId, TEST_ORGANIZATION_B: secondOrganizationId };
+    WHERE u.external_subject=${q(bundle.users.EMPLOYEE.subject)} AND n.type='TIMESHEET_REMINDER' AND n.status='SENT';`).trim()) === 1, 60000);
+  reminderPeriod = sql(`SELECT business_year || '-' || lpad(business_month::text,2,'0') FROM notifications n JOIN app_users u ON u.id=n.recipient_user_id
+    WHERE u.external_subject=${q(bundle.users.EMPLOYEE.subject)} AND n.type='TIMESHEET_REMINDER';`).trim();
+  }
+  bundle.fixtures = { TEST_ORGANIZATION_A: organizationId, TEST_ORGANIZATION_B: secondOrganizationId };
   for (const [key, code, year, month, hours] of [
     ['TEST_SAP_SUCCESS_ID','PHASE1-DEMO',2027,1,'6.25'], ['TEST_SAP_FAILURE_ID','MOCK-INVALID',2027,2,'4.50'],
     ['TEST_SAP_TRANSIENT_ID','MOCK-TRANSIENT-503',2027,3,'6.25'], ['TEST_SAP_UNKNOWN_ID','MOCK-TIMEOUT',2027,4,'6.25'],
     ['TEST_SAP_RETRY_ID','MOCK-RETRY',2027,5,'6.25'], ['TEST_NOTIFICATION_FAILURE_ID','MOCK-INVALID',2030,1,'6.25'],
     ['TEST_NOTIFICATION_UNKNOWN_ID','MOCK-TIMEOUT',2030,2,'6.25']]) {
-    const id = randomUUID(); state.fixtures[key] = id;
+    const id = randomUUID(); bundle.fixtures[key] = id;
     statements += `INSERT INTO timesheets(id,employee_id,year,month,status,total_hours,submitted_at,version)
       VALUES (${q(id)},${employee},${year},${month},'APPROVED',${hours},now(),3);
       INSERT INTO timesheet_entries(id,timesheet_id,project_id,work_date,hours,description)
-      SELECT gen_random_uuid(),${q(id)},id,${q(`${year}-${String(month).padStart(2,'0')}-05`)},${hours},'CI synthetic export' FROM projects WHERE code=${q(code)};
+      SELECT gen_random_uuid(),${q(id)},id,${q(`${year}-${String(month).padStart(2,'0')}-05`)},${hours},'CI synthetic export' FROM projects WHERE organization_id=${q(organizationId)} AND code=${q(code)};
       INSERT INTO timesheet_approvals(id,timesheet_id,manager_employee_id,decision,comment,decided_at,created_at,updated_at)
       VALUES (gen_random_uuid(),${q(id)},${manager},'APPROVED','CI synthetic approval',now(),now(),now());\n`;
   }
-  state.fixtures.TEST_REMINDER_MONTH = reminderPeriod;
-  state.fixtures.TEST_APPROVAL_MONTH = '2026-10'; state.fixtures.TEST_MONTH = '2026-11';
+  if (reminderPeriod) bundle.fixtures.TEST_REMINDER_MONTH = reminderPeriod;
+  bundle.fixtures.TEST_APPROVAL_MONTH = '2026-10'; bundle.fixtures.TEST_MONTH = '2026-11';
+  if (name === 'timesheets') {
+    const mobileId = randomUUID(); bundle.fixtures.TEST_MOBILE_MONTH = '2026-09';
+    statements += `INSERT INTO timesheets(id,employee_id,year,month,status,total_hours,submitted_at,version) VALUES (${q(mobileId)},${employee},2026,9,'PENDING_APPROVAL',6.75,now(),1);
+      INSERT INTO timesheet_entries(id,timesheet_id,project_id,work_date,hours,description)
+      SELECT gen_random_uuid(),${q(mobileId)},id,'2026-09-05',6.75,'Independent mobile review fixture' FROM projects WHERE organization_id=${q(organizationId)} AND code='PHASE1-DEMO';`;
+  }
   sql(statements + 'COMMIT;');
   const reportPrefix = `REPORT6-${suffix}`;
-  compose(['exec', '-T', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-v', `report_prefix=${reportPrefix}`, '-v', `organization_id=${organizationId}`, '-U', 'workforce', '-d', 'workforce'],
+  if (name === 'reports') compose(['exec', '-T', 'postgres', 'psql', '-X', '-v', 'ON_ERROR_STOP=1', '-v', `report_prefix=${reportPrefix}`, '-v', `organization_id=${organizationId}`, '-U', 'workforce', '-d', 'workforce'],
     readFileSync(resolve(root, 'infra/dev/reporting-fixtures.sql'), 'utf8'), true);
-  state.fixtures.TEST_REPORT_PREFIX = reportPrefix; state.seeded = true; save();
-  console.log('Synthetic OIDC roles, two organizations, memberships, assignments, SAP scenarios and report fixtures prepared.');
+  bundle.fixtures.TEST_REPORT_PREFIX = reportPrefix; save();
+  }
+  state.seeded = true; save();
+  writeFileSync(resolve(directory,'browser-fixtures.json'), JSON.stringify(Object.fromEntries(Object.entries(state.bundles).map(([name,bundle]) => [name,fixtureEnvironment(bundle)]))), { mode: 0o600 });
+  console.log('Seven isolated browser fixture namespaces prepared; each owns its identities, organizations and business records.');
 }
 async function tests() {
-  if (!state.seeded) throw new Error('Seed required');
-  const env = { ...process.env, ...state.fixtures, BROWSER_BASE_URL: state.env.FRONTEND_URL, SMOKE_BASE_URL: state.env.FRONTEND_URL,
-    MAILPIT_API_URL: `http://localhost:${state.env.MAILPIT_WEB_PORT}`, TEST_PROJECT_ONE: 'PHASE1-DEMO', TEST_PROJECT_TWO: 'PHASE2-DEMO' };
-  for (const [role, user] of Object.entries(state.users)) {
-    const prefix = role === 'EMPLOYEE' ? 'TEST' : `TEST_${role}`;
-    env[`${prefix}_USERNAME`] = user.username; env[`${prefix}_PASSWORD`] = user.password; env[`TEST_${role}_NAME`] = user.name;
-  }
+  if (!state.seeded || !state.bundles) throw new Error('Fresh isolated per-spec seed required');
+  // Export/timesheet fixtures are intentionally single-use. Atomic reservation
+  // also prevents two commands from consuming the same manifest concurrently.
+  reserveFile(resolve(directory,'suite-started'), new Date().toISOString());
+  const manifest = resolve(directory, 'browser-fixtures.json');
+  const results = resolve(directory, 'browser-results'); mkdirSync(results, { recursive: true });
+  const env = { ...process.env, BROWSER_BASE_URL: state.env.FRONTEND_URL, SMOKE_BASE_URL: state.env.FRONTEND_URL,
+    BROWSER_FIXTURES_PATH: manifest, PLAYWRIGHT_OUTPUT_DIR: results,
+    MAILPIT_API_URL: `http://localhost:${state.env.MAILPIT_WEB_PORT}` };
   for (const script of ['test:smoke', 'test:browser']) {
     let executable = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', args = [script];
     if (process.env.CI_BROWSER_CONTAINER && !process.env.GITHUB_ACTIONS && script === 'test:smoke') {
@@ -120,19 +142,22 @@ async function tests() {
       env.BROWSER_HOST_MAP = '1';
       env.MAILPIT_API_URL = `http://host.docker.internal:${state.env.MAILPIT_WEB_PORT}`;
       env.SMOKE_BASE_URL = state.env.FRONTEND_URL.replace('localhost', 'host.docker.internal');
-      mkdirSync(resolve(root,'frontend/test-results'), { recursive: true });
+      env.BROWSER_FIXTURES_PATH = '/work/fixtures.json'; env.PLAYWRIGHT_OUTPUT_DIR = '/work/test-results';
       executable = 'docker';
       args = ['run','--rm','--init','--ipc=host','--mount',`type=bind,source=${resolve(root,'frontend/tests')},target=/work/tests,readonly`,
         '--mount',`type=bind,source=${resolve(root,'frontend/playwright.config.ts')},target=/work/playwright.config.ts,readonly`,
-        '--mount',`type=bind,source=${resolve(root,'frontend/test-results')},target=/work/test-results`];
-      for (const key of Object.keys(env).filter(key => /^(TEST_|BROWSER_|SMOKE_|MAILPIT_API_URL$|CI$)/.test(key))) args.push('-e',key);
+        '--mount',`type=bind,source=${results},target=/work/test-results`, '--mount',`type=bind,source=${manifest},target=/work/fixtures.json,readonly`];
+      for (const key of Object.keys(env).filter(key => /^(BROWSER_|SMOKE_|PLAYWRIGHT_|MAILPIT_API_URL$|CI$)/.test(key))) args.push('-e',key);
       args.push(process.env.CI_BROWSER_CONTAINER,'pnpm',script);
     }
-    const child = spawn(executable, args, { cwd: resolve(root, 'frontend'), env, stdio: 'inherit', shell: executable === 'pnpm.cmd' });
+    const secrets = Object.values(state.bundles).flatMap(bundle => Object.values(bundle.users)).map(user => user.password);
+    const child = spawn(executable, args, { cwd: resolve(root, 'frontend'), env, stdio: ['ignore','pipe','pipe'], shell: executable === 'pnpm.cmd' });
+    // Redact before CI console output, not only before artifact upload.
+    for (const stream of [child.stdout, child.stderr]) createInterface({input:stream}).on('line',line=>console.log(redact(line,secrets)));
     const code = await new Promise(resolve => { child.on('error', () => resolve(1)); child.on('exit', resolve); });
     if (code !== 0) throw new Error(`${script} failed`);
   }
-  const subjects = Object.values(state.users).map(user => q(user.subject)).join(',');
+  const subjects = Object.values(state.bundles).flatMap(bundle => Object.values(bundle.users)).map(user => q(user.subject)).join(',');
   const scope = `FROM notifications n JOIN app_users u ON u.id=n.recipient_user_id WHERE u.external_subject IN (${subjects})`;
   await waitFor(() => Number(sql(`SELECT count(*) ${scope} AND n.status<>'SENT';`).trim()) === 0, 60000);
   const intentsPath = resolve(directory,'intents.json');
@@ -143,7 +168,7 @@ async function tests() {
 function diagnostics() {
   const folder = resolve(directory, 'diagnostics'); mkdirSync(folder, { recursive: true });
   const secrets = [...Object.entries(state.env).filter(([key]) => /PASSWORD|SECRET|TOKEN|SIGNING_KEY/.test(key)).map(([,value]) => value),
-    ...Object.values(state.users ?? {}).map(user => user.password)];
+    ...Object.values(state.bundles ?? {}).flatMap(bundle => Object.values(bundle.users)).map(user => user.password)];
   function sanitize(folder) {
     if (!existsSync(folder)) return;
     for (const item of readdirSync(folder, { withFileTypes: true })) {
@@ -152,6 +177,7 @@ function diagnostics() {
       else if (/\.(xml|json|md|txt|log)$/.test(item.name)) writeFileSync(path,redact(readFileSync(path,'utf8'),secrets));
     }
   }
+  sanitize(resolve(directory,'browser-results'));
   sanitize(resolve(root,'frontend/test-results'));
   for (const [file, args] of [['services.txt',['ps','-a']], ['services.log',['logs','--no-color','--tail','500']]]) {
     try { writeFileSync(resolve(folder,file), redact(compose(args, undefined, true), secrets)); } catch { console.log(`Could not collect ${file}`); }
@@ -179,7 +205,7 @@ try {
       SAP_EXPORT_POLL_INTERVAL: '5s', SAP_EXPORT_INITIAL_BACKOFF: '2s', SAP_EXPORT_MAX_BACKOFF: '5s', SAP_EXPORT_MAX_ATTEMPTS: '4',
       SAP_RECONCILIATION_INTERVAL: '15s', SAP_RESPONSE_TIMEOUT: '2s',
       NOTIFICATION_EVALUATION_INTERVAL: 'PT5S', NOTIFICATION_POLL_INTERVAL: 'PT2S', TIMESHEET_REMINDER_DAY_OF_MONTH: '1', FINANCE_REMINDER_DAY_OF_MONTH: '1' } };
-    save(); writeFileSync(resolve(directory,'stack.env'), Object.entries(state.env).map(([k,v]) => `${k}=${v}`).join('\n'), { mode: 0o600 });
+    reserveFile(stateFile, JSON.stringify(state)); writeFileSync(resolve(directory,'stack.env'), Object.entries(state.env).map(([k,v]) => `${k}=${v}`).join('\n'), { mode: 0o600 });
     if (process.env.GITHUB_ACTIONS) for (const [key,value] of Object.entries(state.env)) if (/PASSWORD|SECRET|TOKEN|SIGNING_KEY/.test(key)) console.log(`::add-mask::${value}`);
     console.log('Isolated CI configuration generated; credentials remain in ignored state files.');
   } else {

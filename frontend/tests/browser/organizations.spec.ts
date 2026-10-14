@@ -1,8 +1,10 @@
+import { fixture } from "./fixtures";
 import { test, expect } from "@playwright/test";
+const env = fixture("organizations");
 
 test("one identity selects organization-specific roles and logs out on mobile", async ({ page, context }) => {
- const username = process.env.TEST_TENANT_USERNAME, password = process.env.TEST_TENANT_PASSWORD;
- const alpha = process.env.TEST_ORGANIZATION_A, beta = process.env.TEST_ORGANIZATION_B;
+ const username = env.TEST_TENANT_USERNAME, password = env.TEST_TENANT_PASSWORD;
+ const alpha = env.TEST_ORGANIZATION_A, beta = env.TEST_ORGANIZATION_B;
  if (!username || !password || !alpha || !beta) throw new Error("Set the two-organization CI fixture variables");
  await page.goto("/login");
  await page.getByRole("button", { name: "Sign in with your work account" }).click();
