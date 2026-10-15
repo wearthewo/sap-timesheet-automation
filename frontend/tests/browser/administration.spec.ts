@@ -53,6 +53,8 @@ test("new organization administers profiles, invitations, roles and assignments 
  await page.goto("/login"); await register(page, admin); await expect(page.getByRole("heading", { name: "Create your organization" })).toBeVisible();
  await page.getByLabel("Organization name", { exact: true }).fill("Phase Eleven & Team"); await page.getByLabel("Organization address", { exact: true }).fill(admin.username);
  await page.getByRole("button", { name: "Create organization", exact: true }).click(); await expect(page.getByRole("link", { name: "Administration", exact: true })).toBeVisible();
+ await expect(page.getByRole("region", { name: "Organization overview" }).getByText("Active employees", { exact: true }).locator("..")).toContainText("0");
+ await expect(page.getByRole("region", { name: "Organization setup" })).toContainText("Invite your team");
  const managerUrl = await createEmployee(page, "M-001", "Zoë Manager"); const managerLink = await invite(page, manager, "MANAGER", true);
  const employeeUrl = await createEmployee(page, "E-001", "Νίκος Employee", "M-001"); const employeeLink = await invite(page, employee, "EMPLOYEE", true);
  const financeLink = await invite(page, finance, "FINANCE");

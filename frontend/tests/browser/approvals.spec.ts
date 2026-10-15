@@ -39,13 +39,13 @@ test("employee submits, manager rejects, employee reopens and resubmits, manager
  await page.getByLabel("Hours",{exact:true}).fill("6.50");await page.getByLabel("Description").fill("Approval workflow verification");
  await page.getByRole("button",{name:"Save entry",exact:true}).click();
  await expect(page.getByTestId("monthly-total")).toContainText("6.50");
- await expect(page.getByRole("heading",{name:period+"-05",exact:true})).toBeVisible();
+ await expect(page.getByRole("heading", { level: 3 }).locator(`time[datetime="${period}-05"]`)).toBeVisible();
  await page.getByRole("button",{name:"Submit month",exact:true}).click();await page.getByRole("button",{name:"Confirm submission"}).click();
  await expect(page.getByText("PENDING_APPROVAL",{exact:true})).toBeVisible();await expect(page.getByRole("region",{name:"Entry editor"})).toHaveCount(0);
  await logout(page);
  await page.setViewportSize({width:375,height:812});
  await login(page,manager!,managerPassword!);
- await expect(page.getByRole("heading",{name:"Pending approvals",exact:true})).toBeVisible();
+ await expect(page.getByRole("region", { name: "Manager overview" })).toContainText("Pending approvals from your direct reports.");
  await page.getByRole("link",{name:"Approvals",exact:true}).click();
  const queue=page.getByRole("region",{name:"Pending timesheets"});
  await expect(queue).toContainText("6.50 hours");

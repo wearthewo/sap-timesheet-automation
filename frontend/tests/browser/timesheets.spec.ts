@@ -61,8 +61,14 @@ test("employee creates, edits, deletes, totals, submits and reviews a month", as
  await expect(stale.getByTestId("monthly-total")).toContainText("8.00");
  await page.getByRole("button",{name:"Delete "+secondProject+" "+workDate,exact:true}).click();
  await expect(page.getByTestId("monthly-total")).toContainText("5.50");
+ await stale.getByLabel("Hours",{exact:true}).fill("3.75");
  await stale.getByRole("button",{name:"Delete "+firstProject+" "+workDate,exact:true}).click();
  await expect(stale.getByRole("alert").filter({hasText:"another session"})).toContainText("another session");
+ await expect(stale.getByLabel("Hours",{exact:true})).toHaveValue("3.75");
+ await expect(stale.getByRole("alert").filter({hasText:"another session"})).toContainText("Copy it before reloading");
+ stale.once("dialog", dialog => dialog.dismiss());
+ await stale.getByRole("button",{name:"Reload latest timesheet"}).click();
+ await expect(stale.getByLabel("Hours",{exact:true})).toHaveValue("3.75");
  await stale.close();
  await add(secondProject!,"1.25","Browser verification restored");
  await expect(page.getByTestId("monthly-total")).toContainText("6.75");

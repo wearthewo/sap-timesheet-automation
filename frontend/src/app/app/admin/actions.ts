@@ -27,7 +27,7 @@ export async function administer(operation: string, id: string | null, _state: A
  }
  let createdId: string | undefined;
  try { const r = await backendResponse("/api/v1" + path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }); if (destination) createdId = (await r.json()).id; }
- catch (e) { if (e instanceof BackendError) return { error: e.message }; throw e; }
+ catch (e) { if (e instanceof BackendError) return { error: e.status === 409 ? e.message + " Review the latest saved record before retrying. Your form values have been kept." : e.message }; throw e; }
  revalidatePath("/app", "layout");
  if (destination && createdId) redirect(destination + createdId);
  return { success: operation === "invite-create" ? "Invitation queued for delivery." : "Changes saved." };

@@ -50,6 +50,11 @@ test("Finance monthly projections, URL filters, approved and SAP downloads, and 
  const sapDownload = page.waitForEvent("download"); await page.getByRole("link", { name: "Download CSV", exact: true }).click();
  const sap = await sapDownload; expect(sap.suggestedFilename()).toBe("workforce-sap-exported-hours-2028-10.csv");
  const sapCsv = await readFile((await sap.path())!, "utf8"); expect(sapCsv).toContain(prefix + "-A"); expect(sapCsv).not.toContain(prefix + "-B"); expect(sapCsv).not.toContain(prefix + "-G");
+ await page.route("**/api/reports/csv?**", route => route.fulfill({ status: 413, contentType: "application/json", body: JSON.stringify({ message: "Narrow the report filters before downloading." }) }));
+ await page.getByRole("link", { name: "Download CSV", exact: true }).click();
+ await expect(page.getByRole("region", { name: "Report downloads" }).getByRole("alert")).toHaveText("Narrow the report filters before downloading.");
+ await expect(page.getByRole("heading", { name: "Monthly Finance reports" })).toBeVisible();
+ await page.unroute("**/api/reports/csv?**");
  await page.getByLabel("Hours report mode").selectOption("APPROVED");
  await page.getByLabel("Employee", { exact: true }).fill(prefix + "-B"); await page.getByRole("button", { name: "Apply filters" }).click();
  await expect(employees.getByRole("row")).toHaveCount(2); await expect(employees).toContainText(prefix + "-B");

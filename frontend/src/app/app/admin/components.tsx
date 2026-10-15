@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { AdminPage } from "@/lib/admin";
-export function Panel({ title, children }: { title: string; children: React.ReactNode }) { return <section className="my-6 min-w-0 rounded-xl border bg-white p-5 sm:p-7"><h2 className="mb-5 text-xl font-semibold">{title}</h2>{children}</section>; }
+export function Panel({ title, children }: { title: string; children: React.ReactNode }) { return <section id={title.toLowerCase().replaceAll(" ", "-")} className="my-6 scroll-mt-5 min-w-0 rounded-xl border bg-white p-5 sm:p-7"><h2 className="mb-5 text-xl font-semibold">{title}</h2>{children}</section>; }
 export function Pager({ result, query }: { result: AdminPage<unknown>; query: URLSearchParams }) {
  const link = (page: number) => { const q = new URLSearchParams(query); q.set("page", String(page)); return "?" + q; };
  return <nav aria-label="Pagination" className="mt-4 flex flex-wrap gap-4 text-sm"><span>{result.totalElements} records · Page {result.page + 1} of {Math.max(1, result.totalPages)}</span>{result.page > 0 && <Link href={link(result.page - 1)}>Previous</Link>}{result.page + 1 < result.totalPages && <Link href={link(result.page + 1)}>Next</Link>}</nav>;

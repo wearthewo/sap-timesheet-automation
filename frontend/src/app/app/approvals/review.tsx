@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useState,useTransition } from "react";
 import type { ApprovalReview } from "@/lib/approval-view";
 import { monthLabel } from "@/lib/timesheet-view";
+import { calendarDate, eventTime, label } from "@/lib/display";
 import ApprovalHistory from "../timesheets/approval-history";
 import { decideTimesheet } from "./actions";
 export default function Review({initial}: {initial:ApprovalReview}) {
@@ -16,14 +17,14 @@ export default function Review({initial}: {initial:ApprovalReview}) {
   <Link href="/app/approvals" className="font-semibold text-blue-700">← Pending approvals</Link>
   <div><h1 className="text-3xl font-bold">{monthLabel(sheet.year,sheet.month)}</h1><p className="mt-2 break-words text-lg">{review.employee.displayName} · {review.employee.employeeNumber}</p></div>
   <section className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-6">
-   <div><span className="status">{sheet.status}</span>{sheet.submittedAt && <p className="mt-2 text-sm text-slate-500">Submitted {new Date(sheet.submittedAt).toLocaleString("en-GB",{timeZone:"UTC"})} UTC</p>}</div>
+   <div><span className="status" data-state={sheet.status}>{sheet.status}</span><p className="mt-2 font-semibold">{label(sheet.status)}</p>{sheet.submittedAt && <p className="mt-2 text-sm text-slate-500">Submitted {eventTime(sheet.submittedAt)}</p>}</div>
    <p className="text-2xl font-bold">{sheet.totalHours} hours</p>
   </section>
   {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-900">{error}<button className="ml-3 rounded border px-3 py-2 font-semibold" onClick={()=>window.location.reload()}>Reload review</button></div>}
   <section aria-label="Review entries" className="space-y-4">
    <h2 className="text-lg font-semibold">Time entries</h2>
    {sheet.dailyTotals.map(day=><section key={day.workDate} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-    <div className="flex flex-wrap justify-between gap-3 bg-slate-100 p-4 font-semibold"><h3>{day.workDate}</h3><p>{day.hours} hours total</p></div>
+    <div className="flex flex-wrap justify-between gap-3 bg-slate-100 p-4 font-semibold"><h3><time dateTime={day.workDate}>{calendarDate(day.workDate)}</time></h3><p>{day.hours} hours total</p></div>
     <ul className="divide-y divide-slate-100">{sheet.entries.filter(e=>e.workDate===day.workDate).map(entry=><li key={entry.id} className="flex flex-wrap justify-between gap-4 p-5">
      <div className="min-w-0 flex-1 basis-48"><p className="break-words font-semibold">{entry.project.code} · {entry.project.name}</p><p className="mt-1 break-words text-sm text-slate-600">{entry.description || "No description"}</p></div><p>{entry.hours} h</p>
     </li>)}</ul>
@@ -36,7 +37,7 @@ export default function Review({initial}: {initial:ApprovalReview}) {
      event.preventDefault();setError("");
      startTransition(async()=>{
       const result=await decideTimesheet(sheet.id,sheet.version,decision,comment);
-      if(result.error!==undefined) {setError(result.error);return;}
+      if(result.error!==undefined) {setError(result.code === "CONCURRENT_MODIFICATION" ? result.error + " Copy your comment before reloading. No decision was overwritten." : result.error);return;}
       setReview(result.data);setDecision(undefined);setComment("");
      });
     }}>

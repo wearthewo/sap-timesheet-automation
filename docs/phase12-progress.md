@@ -1,11 +1,11 @@
 # Phase 12 production-readiness checkpoints
 
-Branch: `feature/phase12-production-readiness`. Checkpoint 12A only; changes remain uncommitted. No deployment, push, merge, legacy database migration or original Keycloak realm change is authorized here.
+Branch: `feature/phase12-production-readiness`. Current checkpoint: 12B. 12A was committed as `06ce4f5` before this session; its verification below is preserved. 12B changes remain uncommitted. No deployment, push, merge, legacy database migration or original Keycloak realm change is authorized here.
 
 | Checkpoint | Status |
 | --- | --- |
 | 12A — repository audit and test reliability | Complete: isolated fixtures, full single-run browser pass and security regression verified |
-| 12B — professional UX and dashboard | Not started |
+| 12B — professional UX and dashboard | Complete: role dashboards, workflow UX, security tests and full single-run browser verification passed |
 | 12C — security and performance | Not started |
 | 12D — production infrastructure | Not started |
 | 12E — final verification | Not started |
@@ -94,4 +94,127 @@ No remaining 12A blocker. The full backend suite was not rerun: this checkpoint 
 
 ## Next checkpoint
 
-12A is complete; stop here. A later explicitly requested 12B should start from this audit and improve existing screens without changing authorization, tenancy, lifecycle, SAP boundaries or implementing 12C/12D. Preserve the isolated fixture manifest, single-use suite guard and zero-retry full-suite gate. Review the uncommitted 12A changes before starting that checkpoint.
+12B is now explicitly requested. Complete its verification below and stop; 12C–12E remain out of scope. Preserve the isolated fixture manifest, single-use suite guard and zero-retry full-suite gate.
+
+## Checkpoint 12B — professional UX and role-aware dashboard
+
+### Implementation and decisions
+
+- Read the attached request, AGENTS, README, architecture, Phase 11 verification, 12A progress and actual routes, BFF, styles and tests before edits. The branch was clean at entry, with 12A committed.
+- Retained Tailwind/CSS, Node BFF, Keycloak and backend role enforcement. No new dependency, schema migration, cloud service or worker behavior.
+- Added desktop sidebar, active-route indicators, organization context, direct sign-out, visible focus and wrapping mobile navigation. No hidden-only mobile account action.
+- Dashboard separates organization setup (ADMIN), direct-report review/activity (MANAGER), personal time/rejected months (active employee profiles), and SAP operations/report shortcuts (FINANCE/ADMIN).
+- New read-only `GET /api/v1/dashboard`: authorizes the active membership again, uses explicit organization predicates and a repeatable-read snapshot. Counts use SQL; rejected months and manager activity are each limited to five. No entire business dataset is fetched to compute a counter. ADMIN does not gain manager review access. Inactive/unlinked managers receive no team metrics.
+- Finance counts include approved timesheets across all periods, consistent with the SAP worklist. Pending invitation counts exclude expired pending rows. Empty organizations have zero counts and setup actions, not demo content.
+- Timesheets gain status explanations, date-specific project guidance, save/delete/reopen messages and conflict guidance. Input stays on conflict; explicit reload warns about losing unsaved input. Existing versions and submit/reopen policy remain unchanged.
+- Approval pages explain direct reports and missing-manager setup; history remains append-only. Manager comments are preserved after a failed decision.
+- SAP views explicitly say **Simulated · Mock SAP**. All operational states have explanations. Attempts and reconciliation are distinguished; safe identifiers/codes remain expandable. Retry/worker semantics remain unchanged.
+- Reporting retains modes, calculations and BFF routes. Filters show friendly labels with unchanged enum values; CSV/XLSX errors display in place. Expected file type and safe filename are checked before browser download.
+- Notifications separate historical intent from current business state and SMTP acceptance from delivery/reading. Types are human-readable, raw delivery codes remain available, and messages expand accessibly.
+- Administration uses visible linked names, assignment/status jump actions and explicit archive-versus-save guidance. Account linkage, manager role, accepted invitation and dated assignments are separate prerequisites. Lifecycle confirmations and authorization remain intact.
+- UI instants use en-GB / Europe/Athens with an explicit Athens label. Calendar work dates do not shift; inputs retain ISO values. Current-month defaults use Athens; dashboard month comes from the configured backend clock. Downloads retain UTC event timestamps. Hours are displayed from backend decimal values; no frontend hours arithmetic added.
+
+### Changed files / APIs
+
+- Backend: new `dashboard/api/DashboardController.java`, `dashboard/application/DashboardService.java`; dashboard security/isolation cases in `PhaseNineIsolationTest`.
+- Frontend: workspace layout/navigation/styles/dashboard, display helpers, timesheet/current-month/history/editor, approvals, SAP views, reporting/download UI, notification history, administration lists/details/forms/assignments.
+- Tests: new dashboard role/mobile/date coverage; administration, reporting and stale-tab conflict workflows extended; approval/onboarding assertions updated for intentional presentation changes without removing business assertions. Local Docker browser runner mounts source read-only for display-helper tests.
+- Removed superseded `approvals/pending-count.tsx`; dashboard projection replaces it.
+- README, architecture and this progress file. No migrations or dependencies changed.
+
+### Verification
+
+Evidence uses ignored `.verification/phase12b/` and `.verification/phase12b-final/`, isolated ports 23000/28080/28180/25432/28025/21025 and fresh CI Compose projects. Original V14 PostgreSQL/Keycloak and the interactive Phase 11 environment are excluded. No persistent volumes were reset. The first 12B stack was stopped with its volumes retained; the final run uses a different project and fresh volumes.
+
+| Check | Observed result |
+| --- | --- |
+| Relevant backend security, onboarding, administration and tenant tests | 112 distinct tests passed across the initial run and corrected isolation-class rerun; details below |
+| New dashboard projections | 10 added cases within the 33-test isolation class; all 33 passed on corrected rerun |
+| Frozen frontend install, lint, typecheck | PASS on final source; phase12b-final/frontend-static.log |
+| Frontend production build | Passed in both isolated Compose builds |
+| CI helper guards | 8 passed |
+| First complete browser execution | 8 passed, 7 failed; not an acceptance pass |
+| Final smoke suite | PASS: 26/26, zero failures/skips |
+| Final complete browser suite | PASS: 15/15 in one 6.6-minute execution, two workers, zero retries/skips |
+| Exact Mailpit verification | PASS: 51 messages across seven types; recipients, subjects, UTF-8 bodies, links, comments and ordinary deduplication |
+| Final isolated Docker stack | PASS: six healthy services; health/OIDC/OpenAPI/Swagger passed; redacted diagnostics captured |
+| Responsive/keyboard checks | PASS: all four dashboard roles, skip-link/main focus, mobile overflow/logout, workflow screens; representative screenshots visually reviewed |
+| Git whitespace check | PASS: git diff --check |
+| GitHub-hosted run | Not run; no push authorized |
+
+Backend command (Java 21 Docker, PostgreSQL Testcontainers):
+
+```sh
+./mvnw -B -ntp test -Dtest=PhaseOneIntegrationTest,PhaseNineIsolationTest,PhaseTenOnboardingTest,PhaseElevenAdministrationTest,ExceptionHandlerAdviceTest '-DargLine=-Xmx1536m -XX:ActiveProcessorCount=2 -Dspring.test.context.cache.maxSize=1'
+./mvnw -B -ntp test -Dtest=PhaseNineIsolationTest '-DargLine=-Xmx1536m -XX:ActiveProcessorCount=2 -Dspring.test.context.cache.maxSize=1'
+```
+
+The initial 112-test run passed 110 and exposed two new test fixtures missing the schema-required `submitted_at` value. The fixtures were corrected; all 33 isolation tests then passed (zero failures/errors/skips). The other 79 tests passed in the initial run. This is not a claim of a single 112-test successful execution or a rerun of every backend test. The production backend package was built through the Dockerfile using `./mvnw -B clean package -DskipTests`.
+
+Frontend commands: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test:browser`. The local helper runs `node --test frontend/tests/smoke.test.mjs`, the exact script behind `pnpm test:smoke`. CI helper command: `node --test infra/ci/ci.test.mjs`.
+
+Isolated stack commands: `node infra/ci/stack.mjs prepare`, `config`, `start`, `seed`, `test`, `diagnostics`, with `CI_RUN_ID=phase12b-final`, the six ports above, `CI_BROWSER_CONTAINER=workforce-browser-tests` and `PLAYWRIGHT_WORKERS=2`. `config` invokes `docker compose config --quiet`; `start` invokes `docker compose up --build -d --wait --wait-timeout 600` and bounded health/OIDC/OpenAPI/Swagger checks. Java/container, Compose and browser commands required outside-sandbox Docker access. Node 24 was repository-scoped; no global installation changed.
+
+The first browser execution crossed an overnight interruption: Keycloak reported expired logout sessions, service deadlines were exceeded, and scheduled reminders existed on both October 14 and 15 (one successful attempt per daily intent). It also exposed obsolete assertions for the old ISO-only work-date heading and old dashboard heading. Assertions now check the calendar `time[datetime]`, manager-specific review section and new-organization setup/zero-employee state. No lifecycle, isolation, duplicate-slug, password-recovery or notification assertions were removed. Its fixtures were not reused for the final suite.
+
+### Remaining scope / next checkpoint
+
+Stop after 12B. Security hardening, load testing, infrastructure and final release verification remain 12C–12E. The existing assigned-project endpoint still evaluates today in UTC; it remains an explicit 12C audit item. Date-specific time entry is backend-authoritative. UI targets the requested Athens timezone; changing deployment business timezone later must include UI configuration review. Production SAP/email and exactly-once SMTP guarantees remain outside scope.
+
+### Completion evidence and handoff
+
+Checkpoint 12B is complete as of 2026-10-15. Final evidence: `.verification/phase12b-final/full-browser.log`, `frontend-static.log`, `start.log`, `seed.log`, `helper-tests.log`, `browser-results/` and `diagnostics/`. Backend evidence remains under `.verification/phase12b/backend/` and `backend-corrected/`. These ignored files contain synthetic verification data and are not intended for commits.
+
+The final browser execution covered administration/invitation/assignment workflows, employee edits and stale-tab input preservation, manager rejection/resubmission/approval, four role dashboards, Athens date boundaries, tenant switching, registration/duplicate slug/password recovery, notification privacy and content, report authorization/downloads and in-page download errors, SAP success/permanent failure/retry/UNKNOWN reconciliation, mobile navigation and logout.
+
+Mailpit comparison counts: 14 employee reminders, 5 manager reminders, 2 rejection notices, 2 approval notices, 6 SAP failure notices, 8 SAP UNKNOWN notices and 14 finance reminders. No ordinary duplicate delivery was observed. Ambiguous SMTP acceptance can still cause physical duplicates; this checkpoint makes no exactly-once SMTP claim.
+
+Visual inspection covered employee/manager desktop and employee mobile dashboards, Admin desktop, Finance mobile, the responsive report and expanded mobile notification screens. Automated overflow and logout assertions also ran across administration, approvals, reports, notifications, SAP and timesheets. No new unresolved 12B defect remains. Production load, real SAP/SMTP and wider security hardening are not verified here.
+
+The final stack `workforce-ci-d95aabd11f0b` is left running on the isolated ports for review. The earlier `workforce-ci-b43c0d680b69` containers are stopped, with volumes retained. Original `workforce` and interactive `workforce-ci-98b4339864f0` services/data were not changed. No migration, dependency, Keycloak realm configuration or worker implementation changed in tracked source.
+
+Working branch remains `feature/phase12-production-readiness`; 12B changes are uncommitted and unstaged. Nothing was pushed, merged or deployed. Next checkpoint requires an explicit 12C instruction; begin with the security/performance audit items above, preserve the successful zero-retry browser gate, and continue to exclude original V14 data/realm changes without a separately reviewed migration decision.
+
+### 12B review file inventory
+- `backend/src/main/java/com/acme/workforce/dashboard/api/DashboardController.java`
+- `backend/src/main/java/com/acme/workforce/dashboard/application/DashboardService.java`
+- `backend/src/test/java/com/acme/workforce/PhaseNineIsolationTest.java`
+- `docs/architecture.md`
+- `docs/phase12-progress.md`
+- `frontend/src/app/app/admin/actions.ts`
+- `frontend/src/app/app/admin/admin-form.tsx`
+- `frontend/src/app/app/admin/assignments.tsx`
+- `frontend/src/app/app/admin/components.tsx`
+- `frontend/src/app/app/admin/employees/[id]/page.tsx`
+- `frontend/src/app/app/admin/employees/page.tsx`
+- `frontend/src/app/app/admin/invitations/page.tsx`
+- `frontend/src/app/app/admin/members/page.tsx`
+- `frontend/src/app/app/admin/projects/[id]/page.tsx`
+- `frontend/src/app/app/admin/projects/page.tsx`
+- `frontend/src/app/app/approvals/page.tsx`
+- `frontend/src/app/app/approvals/pending-count.tsx`
+- `frontend/src/app/app/approvals/review.tsx`
+- `frontend/src/app/app/layout.tsx`
+- `frontend/src/app/app/navigation.tsx`
+- `frontend/src/app/app/notifications/page.tsx`
+- `frontend/src/app/app/page.tsx`
+- `frontend/src/app/app/reports/monthly/downloads.tsx`
+- `frontend/src/app/app/reports/monthly/page.tsx`
+- `frontend/src/app/app/sap/[id]/page.tsx`
+- `frontend/src/app/app/sap/export-panel.tsx`
+- `frontend/src/app/app/sap/page.tsx`
+- `frontend/src/app/app/timesheets/approval-history.tsx`
+- `frontend/src/app/app/timesheets/current-month.tsx`
+- `frontend/src/app/app/timesheets/page.tsx`
+- `frontend/src/app/app/timesheets/timesheet-editor.tsx`
+- `frontend/src/app/globals.css`
+- `frontend/src/lib/display.ts`
+- `frontend/src/lib/sap-view.ts`
+- `frontend/tests/browser/administration.spec.ts`
+- `frontend/tests/browser/approvals.spec.ts`
+- `frontend/tests/browser/dashboard.spec.ts`
+- `frontend/tests/browser/onboarding.spec.ts`
+- `frontend/tests/browser/reports.spec.ts`
+- `frontend/tests/browser/timesheets.spec.ts`
+- `infra/ci/stack.mjs`
+- `README.md`

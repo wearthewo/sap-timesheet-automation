@@ -145,6 +145,7 @@ async function tests() {
       env.BROWSER_FIXTURES_PATH = '/work/fixtures.json'; env.PLAYWRIGHT_OUTPUT_DIR = '/work/test-results';
       executable = 'docker';
       args = ['run','--rm','--init','--ipc=host','--mount',`type=bind,source=${resolve(root,'frontend/tests')},target=/work/tests,readonly`,
+        '--mount',`type=bind,source=${resolve(root,'frontend/src')},target=/work/src,readonly`,
         '--mount',`type=bind,source=${resolve(root,'frontend/playwright.config.ts')},target=/work/playwright.config.ts,readonly`,
         '--mount',`type=bind,source=${results},target=/work/test-results`, '--mount',`type=bind,source=${manifest},target=/work/fixtures.json,readonly`];
       for (const key of Object.keys(env).filter(key => /^(BROWSER_|SMOKE_|PLAYWRIGHT_|MAILPIT_API_URL$|CI$)/.test(key))) args.push('-e',key);

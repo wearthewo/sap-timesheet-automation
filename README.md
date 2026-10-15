@@ -17,6 +17,10 @@ Phase 7 adds durable email notifications, scheduled reminders and owner-only not
 
 ## Architecture and stack
 
+Checkpoint 12B adds a role-aware Overview: ADMIN gets organization setup counts/actions; MANAGER gets direct-report approvals and recent decisions; FINANCE gets SAP operational counts and reporting shortcuts. Linked active employees see their current month and recent rejected months. Empty organizations show real zero counts and setup guidance.
+
+Use the desktop sidebar or wrapping mobile navigation; Log out stays available. Open a project/employee name under Administration, then use the assignment shortcuts. Save project changes details; Archive project stops new time entry and preserves history. SAP is explicitly labelled Simulated · Mock SAP. UNKNOWN requires reconciliation, not blind resending. UI event times are labelled Athens; work dates and download contracts remain unchanged. See [checkpoint progress](docs/phase12-progress.md) for verification and remaining work.
+
 Browser → Render Next.js service / BFF → Render Spring Boot service → Render PostgreSQL
 
 Local mock now, real SAP adapter later: Spring Boot → SapTimesheetGateway → SAP S/4HANA

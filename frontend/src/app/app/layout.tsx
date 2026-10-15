@@ -1,29 +1,18 @@
 import Link from "next/link";
 import { currentUser } from "@/lib/backend";
+import Navigation from "./navigation";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
  const user = await currentUser();
- return <div className="min-h-screen">
-  <a href="#main" className="sr-only focus:not-sr-only">Skip to content</a>
-  <header className="border-b border-slate-200 bg-white">
-   <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-8 gap-y-4 px-5 py-5">
-    <Link href="/app" className="text-lg font-bold tracking-widest text-blue-900">WORKFORCE</Link>
-    <nav aria-label="Main navigation" className="flex flex-wrap gap-5 text-sm font-semibold">
-     <Link href="/app" className="rounded px-1 py-2 hover:text-blue-700">Overview</Link>
-     <Link href="/app/timesheets" className="rounded px-1 py-2 hover:text-blue-700">Timesheets</Link>
-     <Link href="/app/projects" className="rounded px-1 py-2 hover:text-blue-700">My projects</Link>
-     {user.role === "ADMIN" && <Link href="/app/admin/employees" className="rounded px-1 py-2 hover:text-blue-700">Administration</Link>}
-     {user.role === "MANAGER" && <Link href="/app/approvals" className="rounded px-1 py-2 hover:text-blue-700">Approvals</Link>}
-     {["ADMIN", "FINANCE"].includes(user.role) && <Link href="/app/sap" className="rounded px-1 py-2 hover:text-blue-700">SAP exports</Link>}
-     {["ADMIN", "FINANCE"].includes(user.role) && <Link href="/app/reports" className="rounded px-1 py-2 hover:text-blue-700">Reports</Link>}
-     <Link href="/app/notifications" className="rounded px-1 py-2 hover:text-blue-700">Notifications</Link>
-     <Link href="/organizations" className="rounded px-1 py-2 hover:text-blue-700">Organization</Link>
-    </nav>
-    <div className="flex w-full min-w-0 items-center justify-between gap-4 sm:ml-auto sm:w-auto">
-     <div className="min-w-0 text-sm"><p className="break-words font-semibold">{user.displayName}</p><p className="break-words text-xs text-slate-500">{user.role} · {user.organizationName}</p></div>
-     <form action="/api/logout" method="post"><button className="shrink-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-100">Log out</button></form>
-    </div>
+ return <div className="workspace">
+  <a href="#main" className="skip-link">Skip to content</a>
+  <header className="workspace-header">
+   <Link href="/app" className="wordmark">WORKFORCE</Link>
+   <div className="workspace-identity"><span className="text-xs text-slate-500">Active organization</span><p className="font-semibold break-words">{user.organizationName}</p></div>
+   <div className="workspace-account"><div className="min-w-0"><p className="break-words text-sm font-semibold">{user.displayName}</p><p className="text-xs text-slate-500">{user.role} · {user.organizationName}</p></div>
+    <form action="/api/logout" method="post"><button className="button-secondary whitespace-nowrap">Log out</button></form>
    </div>
   </header>
-  <main id="main" className="mx-auto max-w-6xl px-5 py-10 sm:py-14">{children}</main>
+  <aside className="workspace-sidebar"><p className="nav-caption">Workspace</p><Navigation role={user.role} /><p className="sidebar-note">Work dates stay as entered.<br />Event times shown in Athens.</p></aside>
+  <main id="main" className="workspace-main" tabIndex={-1}>{children}</main>
  </div>;
 }

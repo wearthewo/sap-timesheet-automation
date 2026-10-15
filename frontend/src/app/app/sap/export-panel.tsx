@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
+import { eventTime, label } from "@/lib/display";
 import DownloadExport from "./download-export";
-import { utc, type SapExport } from "@/lib/sap-view";
+import { type SapExport } from "@/lib/sap-view";
 import { exportTimesheet, refreshExport, retryExport, reconcileExport } from "./actions";
 export default function ExportPanel({ id, version, initial, canExport = false }: { id: string; version: number; initial: SapExport | null; canExport?: boolean }) {
  const [state, setState] = useState(initial);
@@ -38,19 +39,21 @@ export default function ExportPanel({ id, version, initial, canExport = false }:
   });
  }
  return <section aria-label="SAP export" className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
-  <h2 className="text-xl font-semibold">SAP export</h2>
+  <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-semibold">SAP export</h2><span className="simulation-label">Simulated · Mock SAP</span></div>
   <p className="mt-3 font-semibold" role="status">{state?.status ?? (attempted ? "Check queue status" : "Not exported")}</p>
+  <p className="mt-2 text-sm text-slate-600">{state ? ({ QUEUED: "Queued for processing. You can leave this page; the saved job continues in the background.", PROCESSING: "The worker is contacting SAP. No further action is needed.", SUCCEEDED: "Export complete. The external reference identifies the accepted record.", FAILED: "Processing stopped. Review the outcome below before taking action.", UNKNOWN: "The outcome is uncertain. Reconcile to check whether SAP already has the record; do not blindly resend." })[state.status] : "Only approved timesheets can be queued. This environment uses a simulated SAP service."}</p>
   {state?.externalReference && <p className="mt-2 break-all">SAP reference: <strong>{state.externalReference}</strong></p>}
-  {state?.exportedAt && <p className="mt-2 text-sm text-slate-600">Exported <time dateTime={state.exportedAt}>{utc(state.exportedAt)}</time></p>}
+  {state?.exportedAt && <p className="mt-2 text-sm text-slate-600">Exported <time dateTime={state.exportedAt}>{eventTime(state.exportedAt)}</time></p>}
   {state && <div className="mt-3 space-y-2 text-sm">
    <p>Export attempts: <strong data-testid="export-attempt-count">{state.job.attemptCount}</strong></p>
-   {state.job.lastAttemptAt && <p>Last operation: {utc(state.job.lastAttemptAt)}</p>}
-   {state.job.nextAttemptAt && <p data-testid="next-sap-attempt">{state.job.operation === "RECONCILE" ? "Next reconciliation" : "Next export attempt"}: {utc(state.job.nextAttemptAt)}</p>}
+   {state.job.lastAttemptAt && <p>Last operation: {eventTime(state.job.lastAttemptAt)}</p>}
+   {state.job.nextAttemptAt && <p data-testid="next-sap-attempt">{state.job.operation === "RECONCILE" ? "Next reconciliation" : "Next export attempt"}: {eventTime(state.job.nextAttemptAt)}</p>}
    {state.job.status === "PROCESSING" && <p>{state.job.operation === "RECONCILE" ? "Checking SAP for the existing record…" : "Export in progress…"}</p>}
   </div>}
   {state?.failureMessage && <p role="alert" className="mt-3 rounded-lg bg-amber-50 p-3 text-amber-950">{state.failureMessage}</p>}
   {state?.status === "UNKNOWN" && <p className="mt-3 text-sm">SAP may have accepted this timesheet. Reconciliation checks the existing identity before another export.</p>}
-  {state?.status === "FAILED" && !state.job.retryEligible && <p className="mt-3 text-sm">This failure is not eligible for retry.</p>}
+  {state?.status === "FAILED" && <p className="mt-3 text-sm">{state.job.retryEligible ? "Retry queues another attempt using the same export identity and saved payload." : "This failure is not eligible for retry. Ask an administrator to investigate the data or integration configuration."}</p>}
+  {state && <details className="mt-4 text-sm"><summary>Export technical details</summary><dl className="mt-2 space-y-2 break-all"><div><dt>Stable identity</dt><dd>{state.idempotencyKey}</dd></div><div><dt>Export ID</dt><dd>{state.exportId}</dd></div>{state.failureCode && <div><dt>Safe error code</dt><dd>{state.failureCode}</dd></div>}</dl></details>}
   {error && <p role="alert" className="mt-3 text-red-700">{error}</p>}
   {canExport && <div className="mt-4 flex flex-wrap gap-3">
    {!state && !attempted && <button className="button" disabled={pending} onClick={() => act("export")}>Export to SAP</button>}
@@ -61,11 +64,11 @@ export default function ExportPanel({ id, version, initial, canExport = false }:
   </div>}
   {canExport && state?.status === "SUCCEEDED" && <DownloadExport id={id} />}
   {!!state?.attempts.length && <section aria-label="Export history" className="mt-6 border-t border-slate-200 pt-4">
-   <h3 className="font-semibold">Recent operation history</h3>
+   <h3 className="font-semibold">Recent operation history</h3><p className="mt-2 text-sm text-slate-600">Export attempts send the saved payload. Reconciliation only checks for an existing SAP record and does not create one.</p>
    <ol className="mt-3 grid gap-3">{state.attempts.map(attempt => <li key={attempt.id} className="rounded-lg bg-slate-50 p-3 text-sm">
-    <p className="font-semibold">#{attempt.attemptNumber} {attempt.operation} · {attempt.outcome}</p>
-    <p>{utc(attempt.finishedAt)} · {attempt.durationMs} ms</p>
-    {attempt.safeErrorCode && <p>{attempt.safeErrorCode}</p>}
+    <p className="font-semibold">#{attempt.attemptNumber} {label(attempt.operation)} · {attempt.outcome}</p>
+    <p>{eventTime(attempt.finishedAt)} · {attempt.durationMs} ms</p>
+    {attempt.safeErrorCode && <details><summary>Technical details</summary><p className="break-all">{attempt.safeErrorCode}</p></details>}
    </li>)}</ol>
    {state.job.executionCount > 20 && <p className="mt-2 text-sm">Showing the latest 20 completed operations.</p>}
   </section>}

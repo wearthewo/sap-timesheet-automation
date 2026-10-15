@@ -62,7 +62,8 @@ test("self-registration verifies email, creates isolated workspace, handles slug
  await page.getByLabel("Organization address", { exact: true }).fill(slug);
  await page.getByRole("button", { name: "Create organization", exact: true }).click();
  await expect(page.getByText("ADMIN · Zoë & Team", { exact: true })).toBeVisible();
- await expect(page.getByRole("heading", { name: "Your organization workspace is ready" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Organization setup" })).toContainText("Set your team up for success");
+  await expect(page.getByRole("region", { name: "Organization overview" }).getByText("Active employees", { exact: true }).locator("..")).toContainText("0");
  await expect(page.locator("body")).not.toContainText("QA3-E-");
  const selected = (await context.cookies()).find(c => c.name === "workforce-organization");
  expect(selected?.httpOnly).toBe(true);

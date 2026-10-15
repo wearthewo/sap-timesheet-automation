@@ -15,7 +15,7 @@ export default function AdminForm({ operation, id = null, fields, submit, confir
     <input id={formId + f.name} name={f.name} type={f.type ?? "text"} required={f.required} maxLength={f.maxLength} value={values[f.name]} onChange={e => setValues(v => ({ ...v, [f.name]: e.target.value }))} className="mt-1 w-full rounded-lg border p-3" />}
   </div>)}
   {confirmation && <label className="flex items-start gap-3 rounded-lg bg-amber-50 p-3 text-sm"><input type="checkbox" required className="mt-1" />{confirmation}</label>}
-  {state.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{state.error}</p>}
+  {state.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{state.error}<button type="button" className="button-secondary mt-3 block" onClick={() => { if (window.confirm("Reload the saved record? Unsaved form values will be lost.")) window.location.reload(); }}>Reload saved record</button></p>}
   {state.success && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{state.success}</p>}
   <button className="button w-fit max-w-full disabled:opacity-60" disabled={pending}>{pending ? "Saving…" : submit}</button>
  </form>;
