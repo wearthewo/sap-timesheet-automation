@@ -15,6 +15,7 @@ public class JwtConfiguration {
             @Value("${spring.security.oauth2.resourceserver.jwt.audiences}") String audience) {
         return new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuer),
+                new JwtClaimValidator<java.time.Instant>(JwtClaimNames.EXP, java.util.Objects::nonNull),
                 new JwtClaimValidator<List<String>>(JwtClaimNames.AUD,
                         values -> values != null && values.contains(audience)),
                 new JwtClaimValidator<String>(JwtClaimNames.SUB,

@@ -54,6 +54,9 @@ management:
     health:
       show-details: never
 app:
+  security:
+    max-request-bytes: ${API_MAX_REQUEST_BYTES:65536}
+    sensitive-requests-per-minute: ${API_SENSITIVE_REQUESTS_PER_MINUTE:60}
   invitations:
     signing-key: ${INVITATION_SIGNING_KEY:}
     validity: ${INVITATION_VALIDITY:PT168H}

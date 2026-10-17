@@ -22,7 +22,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class SecurityConfiguration {
  @Bean
  SecurityFilterChain security(HttpSecurity http,ObjectMapper mapper,IdentityService identity,com.acme.workforce.organization.application.OrganizationAccess organization,
-  @Value("${app.cors-allowed-origins}") String origins) throws Exception {
+  @Value("${app.cors-allowed-origins}") String origins,
+  @Value("${app.security.max-request-bytes:65536}") int maxRequestBytes,
+  @Value("${app.security.sensitive-requests-per-minute:60}") int requestsPerMinute) throws Exception {
+  var limits=new ApiRequestLimits(java.time.Clock.systemUTC(),maxRequestBytes,requestsPerMinute,10000);
   var cors=new CorsConfiguration();
   cors.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::strip).filter(s->!s.isEmpty()).toList());
   cors.setAllowedMethods(List.of("GET","POST","PUT","DELETE","OPTIONS"));
@@ -40,6 +43,8 @@ public class SecurityConfiguration {
    .addFilterAfter(new OncePerRequestFilter() {
     @Override protected void doFilterInternal(HttpServletRequest req,HttpServletResponse res,FilterChain chain) throws ServletException,IOException {
      if(req.getRequestURI().startsWith("/api/") && SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken token) {
+      try { req=limits.protect(req,token.getToken().getSubject()); }
+      catch(com.acme.workforce.common.application.DomainException ex) { write(mapper,req,res,ex.status(),ex.code(),ex.getMessage()); return; }
       var user=identity.current(token.getToken());
       boolean identityOnly=req.getRequestURI().equals("/api/v1/auth/organizations") || (req.getRequestURI().equals("/api/v1/auth/me") && req.getHeader("X-Organization-Id")==null);
       if(!identityOnly) try {
@@ -56,6 +61,7 @@ public class SecurityConfiguration {
  }
  private static void write(ObjectMapper mapper,HttpServletRequest req,HttpServletResponse res,int status,String code,String message) throws IOException {
   res.setStatus(status); res.setContentType("application/json");
+  if(status==429) res.setHeader("Retry-After","60");
   if(status==401) res.setHeader("WWW-Authenticate","Bearer");
   mapper.writeValue(res.getOutputStream(),ApiError.of(status,code,message,req.getRequestURI()));
  }

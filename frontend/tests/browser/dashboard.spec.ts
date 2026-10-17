@@ -33,6 +33,7 @@ test("each role receives its own dashboard with accessible mobile navigation", a
  }
 });
 test("presentation separates calendar dates from Athens event instants", () => {
+ for (const [instant, day] of [["2026-01-31T22:30:00Z","2026-02-01"],["2026-02-28T22:30:00Z","2026-03-01"],["2026-04-30T21:30:00Z","2026-05-01"],["2026-03-28T22:30:00Z","2026-03-29"],["2026-03-29T21:30:00Z","2026-03-30"],["2026-10-24T21:30:00Z","2026-10-25"],["2026-10-25T22:30:00Z","2026-10-26"]]) expect(businessDate(new Date(instant))).toBe(day);
  expect(businessDate(new Date("2028-02-29T22:30:00Z"))).toBe("2028-03-01");
  expect(calendarDate("2028-02-29")).toBe("29 Feb 2028");
  expect(eventTime("2026-03-29T00:30:00Z")).toContain("02:30");
