@@ -14,3 +14,9 @@ node_modules/
 
 frontend/test-results/
 frontend/playwright-report/
+
+secrets/
+backups/
+*.dump
+*.age
+infra/production/*.env

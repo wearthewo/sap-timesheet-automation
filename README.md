@@ -21,7 +21,7 @@ Checkpoint 12B adds a role-aware Overview: ADMIN gets organization setup counts/
 
 Use the desktop sidebar or wrapping mobile navigation; Log out stays available. Open a project/employee name under Administration, then use the assignment shortcuts. Save project changes details; Archive project stops new time entry and preserves history. SAP is explicitly labelled Simulated · Mock SAP. UNKNOWN requires reconciliation, not blind resending. UI event times are labelled Athens; work dates and download contracts remain unchanged. See [checkpoint progress](docs/phase12-progress.md) for verification and remaining work.
 
-Browser → Render Next.js service / BFF → Render Spring Boot service → Render PostgreSQL
+Browser → HTTPS proxy → Next.js Node BFF → Spring Boot → PostgreSQL
 
 Local mock now, real SAP adapter later: Spring Boot → SapTimesheetGateway → SAP S/4HANA
 
@@ -29,8 +29,8 @@ See [architecture](docs/architecture.md) for the diagram, authentication boundar
 
 - Java 21, Spring Boot 3.5.16 (stable 3.5 line), Maven Wrapper 3.9.11.
 - Spring Web, Security/JWT, Data JPA, Bean Validation, Flyway, PostgreSQL, springdoc 2.8.17.
-- Next.js 16.3.8 App Router, React, strict TypeScript, Tailwind, Node 24, pnpm 12.8.1.
-- Keycloak 26.8.0 with NextAuth 4.24.15 OIDC; JUnit 5 and Testcontainers PostgreSQL.
+- Next.js 16.4.1 App Router, React, strict TypeScript, Tailwind, Node 24, pnpm 12.8.1.
+- Keycloak 26.8.1 with NextAuth 4.24.15 OIDC; JUnit 5 and Testcontainers PostgreSQL.
 - Node server/standalone output, not static export; no Vercel services.
 
 ```text
@@ -272,3 +272,7 @@ Select **Organization** in the authenticated navigation to switch active members
 Before starting an upgraded backend against populated Phase 8.5 data, review its ownership and explicitly set `LEGACY_TENANT_CONFIRMED=true` only if all records belong to one organization. V15 otherwise stops. Existing records are preserved under the legacy organization, including roles, approvals, snapshots and notification history. Do not use this acknowledgement for a database mixing unrelated organizations. New installations need explicit memberships using the trusted onboarding SQL above.
 
 See [Phase 9 isolation and verification](docs/phase9-multitenancy-verification.md) for migration decisions, API/BFF contracts, worker isolation, current test results and remaining risks. Organization onboarding and administration UI remain out of scope.
+
+## Production infrastructure preparation (12D)
+
+A separate six-service VPS template is available in [the deployment guide](docs/production-deployment.md): Caddy, Next.js, Spring Boot with workers, production-mode Keycloak, PostgreSQL and private Mock SAP. The local/CI Compose stack still includes Mailpit and is unchanged. Runtime file secrets, pinned multiarchitecture images, encrypted backups, empty-target restoration and operational checks are prepared. No cloud resources, production credentials or public deployment were created. See [checkpoint evidence and limitations](docs/phase12-progress.md) and [Phase 13 launch prerequisites](docs/phase13-deployment-checklist.md); 12E remains a separate checkpoint.

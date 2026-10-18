@@ -1,0 +1,81 @@
+{
+ admin off
+ log default {
+  format filter {
+   wrap json
+   fields {
+    request delete
+    resp_headers delete
+   }
+  }
+ }
+ servers {
+  timeouts {
+   read_header 10s
+   read_body 30s
+   idle 2m
+  }
+ }
+}
+(security) {
+ tls {$TLS_CONFIG}
+ header {
+  Strict-Transport-Security "max-age=31536000"
+  X-Content-Type-Options nosniff
+  Referrer-Policy strict-origin-when-cross-origin
+  -Server
+  X-Request-Id {http.request.uuid}
+ }
+ request_body {
+  max_size 128KB
+ }
+ # Deliberately omit URI, headers, cookies and query strings from access logs.
+ log {
+  output stdout
+  format filter {
+   wrap json
+   fields {
+    request delete
+    resp_headers delete
+   }
+  }
+ }
+ log_append request_id {http.request.uuid}
+}
+(forward) {
+ header_up -Forwarded
+ header_up -X-Forwarded-*
+ header_up -X-Original-*
+ header_up -X-Real-IP
+ header_up -traceparent
+ header_up -tracestate
+ header_up X-Forwarded-For {remote_host}
+ header_up X-Forwarded-Proto https
+ header_up X-Forwarded-Host {host}
+ header_up X-Forwarded-Port 443
+ header_up X-Request-Id {http.request.uuid}
+}
+{$APP_HOST} {
+ import security
+ reverse_proxy frontend:3000 {
+  import forward
+  header_up Host {$APP_HOST}
+ }
+}
+{$AUTH_HOST} {
+ import security
+ @public path /realms/workforce/* /resources/* /.well-known/*
+ handle @public {
+  reverse_proxy keycloak:8080 {
+   import forward
+   header_up Host {$AUTH_HOST}
+  }
+ }
+ handle {
+  respond 404
+ }
+}
+
+http://127.0.0.1:8081 {
+ respond /health 200
+}

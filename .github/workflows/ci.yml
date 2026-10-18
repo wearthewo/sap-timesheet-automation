@@ -122,5 +122,6 @@ jobs:
       - run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
       - run: '"$(go env GOPATH)/bin/actionlint"'
       - run: node --test infra/ci/ci.test.mjs
+      - run: node --test infra/production/production.test.mjs
       - run: node infra/ci/stack.mjs prepare
       - run: node infra/ci/stack.mjs config

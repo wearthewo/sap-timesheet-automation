@@ -1,0 +1,72 @@
+{
+    "realm":  "workforce",
+    "enabled":  true,
+    "displayName":  "Workforce",
+    "registrationAllowed":  true,
+    "resetPasswordAllowed":  true,
+    "loginWithEmailAllowed":  true,
+    "duplicateEmailsAllowed":  false,
+    "sslRequired":  "all",
+    "accessTokenLifespan":  900,
+    "ssoSessionIdleTimeout":  1800,
+    "clients":  [
+                    {
+                        "clientId":  "workforce-web",
+                        "name":  "Workforce web BFF",
+                        "enabled":  true,
+                        "protocol":  "openid-connect",
+                        "publicClient":  false,
+                        "secret":  "${KEYCLOAK_CLIENT_SECRET}",
+                        "standardFlowEnabled":  true,
+                        "directAccessGrantsEnabled":  false,
+                        "serviceAccountsEnabled":  false,
+                        "redirectUris":  [
+                                             "${FRONTEND_URL}/api/auth/callback/keycloak",
+                                             "${FRONTEND_URL}/api/auth/callback/keycloak-register"
+                                         ],
+                        "webOrigins":  [
+                                           "${FRONTEND_URL}"
+                                       ],
+                        "attributes":  {
+                                           "post.logout.redirect.uris":  "${FRONTEND_URL}/login",
+                                           "pkce.code.challenge.method":  "S256"
+                                       },
+                        "defaultClientScopes":  [
+                                                    "basic",
+                                                    "web-origins",
+                                                    "profile",
+                                                    "email"
+                                                ],
+                        "protocolMappers":  [
+                                                {
+                                                    "name":  "workforce-api-audience",
+                                                    "protocol":  "openid-connect",
+                                                    "protocolMapper":  "oidc-audience-mapper",
+                                                    "consentRequired":  false,
+                                                    "config":  {
+                                                                   "included.custom.audience":  "workforce-api",
+                                                                   "id.token.claim":  "false",
+                                                                   "access.token.claim":  "true"
+                                                               }
+                                                }
+                                            ],
+                        "fullScopeAllowed":  false
+                    }
+                ],
+    "verifyEmail":  true,
+    "bruteForceProtected":  true,
+    "permanentLockout":  false,
+    "failureFactor":  5,
+    "passwordPolicy":  "length(12) and notUsername(undefined) and notEmail(undefined)",
+    "smtpServer":  {
+                       "host":  "${KEYCLOAK_SMTP_HOST}",
+                       "port":  "${KEYCLOAK_SMTP_PORT}",
+                       "from":  "${KEYCLOAK_SMTP_FROM}",
+                       "fromDisplayName":  "Workforce accounts",
+                       "auth":  "${KEYCLOAK_SMTP_AUTH}",
+                       "starttls":  "${KEYCLOAK_SMTP_STARTTLS}",
+                       "ssl":  "${KEYCLOAK_SMTP_SSL}",
+                       "user":  "${KEYCLOAK_SMTP_USERNAME}",
+                       "password":  "${KEYCLOAK_SMTP_PASSWORD}"
+                   }
+}

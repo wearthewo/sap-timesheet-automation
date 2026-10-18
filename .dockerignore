@@ -1,0 +1,15 @@
+.git
+.verification
+.tools
+**/node_modules
+**/target
+**/.next
+**/.env*
+**/*.log
+**/*.dump
+**/*.age
+**/test-results
+**/playwright-report
+**/*.tsbuildinfo
+secrets
+backups

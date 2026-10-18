@@ -1,13 +1,13 @@
 # Phase 12 production-readiness checkpoints
 
-Branch: `feature/phase12-production-readiness`. Current checkpoint: 12C. 12A (`06ce4f5`) and 12B (`9c3d1f5`) were committed before this checkpoint; their historical verification below is preserved. 12C changes remain uncommitted. No deployment, push, merge, legacy database migration or original Keycloak realm change is authorized here.
+Branch: `feature/phase12-production-readiness`. Current checkpoint: 12D. 12A (`06ce4f5`), 12B (`9c3d1f5`) and 12C (`ae14b2e`) were committed before this checkpoint; their historical verification below is preserved. 12D changes remain uncommitted. No deployment, push, merge, legacy database migration or original Keycloak realm change is authorized here.
 
 | Checkpoint | Status |
 | --- | --- |
 | 12A — repository audit and test reliability | Complete: isolated fixtures, full single-run browser pass and security regression verified |
 | 12B — professional UX and dashboard | Complete: role dashboards, workflow UX, security tests and full single-run browser verification passed |
 | 12C — security and performance | Complete for local verification: 409 backend tests, 28 smoke tests, 16 browser tests in one run, Mailpit and bounded performance checks passed; deployment risks documented |
-| 12D — production infrastructure | Not started |
+| 12D — production infrastructure | Complete for local AMD64 preparation/verification; encrypted restore passed; ARM64 frontend and external launch checks remain unverified |
 | 12E — final verification | Not started |
 
 ## 12A scope and decisions
@@ -409,3 +409,125 @@ JVM heaps must remain below container budgets to leave native/metaspace/thread h
 - 12D must cover backup/restore verification, secrets/rotation, health probes, resource limits and private networking. 12E remains the final release gate. **Do not begin either checkpoint automatically.**
 
 Final Git state: branch `feature/phase12-production-readiness`, HEAD `9c3d1f5`; **15 modified tracked files and four new untracked source/test files**, all unstaged/uncommitted. `git diff --check` passes. Original migrations V1–V17 are unchanged. Checkpoint **12C is complete for local verification**, with the limitations above; 12D and 12E are not started.
+
+## 12D — production infrastructure, backups and operations (2026-10-17–18)
+
+**Completed for infrastructure preparation and local AMD64 verification, with an explicit ARM64 frontend verification gap. This is not public-deployment approval. 12E has not started.** Entry branch was `feature/phase12-production-readiness`, clean at `ae14b2e` (committed 12C). Earlier 12A–12C results above are historical and unchanged.
+
+### Implementation and boundaries
+
+Added an independent production definition under `infra/production/`: Caddy HTTPS ingress, Next.js BFF, Spring API/workers, optimized production Keycloak, PostgreSQL with separate database owners, and private persistent Mock SAP. Only proxy TCP 80/443 is published. Local synthetic bindings were 127.0.0.1:24080/24443. No Mailpit or new queue service in production; existing local/CI Compose files remain unchanged.
+
+Images pin multiarchitecture base-index digests in `images.lock.json`. Application containers run nonroot with dropped capabilities/no-new-privileges, bounded resources/logs and graceful-stop allowances. PostgreSQL's official initialization drops to its database user; the one-shot backup helper has only CHOWN and DAC_READ_SEARCH (to read owner-only Mock SAP data through a read-only mount). Caddy's inherited file capability is removed at build time so it can execute with all runtime capabilities dropped.
+
+Named runtime file secrets are outside Git/build contexts. No actual secret value occurs in final container Config.Env or captured stdout/stderr logs. Host root/Docker administrators can still access mounted files/process environments; this is not a vault. Runtime schema/role/approval/SAP/notification behavior is unchanged. No Flyway migration was added or rewritten.
+
+Caddy fixes public hosts and forwarded headers, blocks administration/master/management paths, issues correlation IDs, limits request body/read times, and removes request/response-header objects from logs. Keycloak uses production start, persistent PostgreSQL, fixed HTTPS issuer/callbacks, exact confidential PKCE client, verified email and existing brute-force/password controls. Real SMTP is only prepared: authenticated required STARTTLS and hostname verification, synthetic disabled host during QA; **no external email sent**.
+
+### Verification matrix
+
+| Scenario | Observed result | Status / evidence |
+|---|---|---|
+| Production env and Compose | Dummy required secrets, host validation and config --quiet passed | PASS; validate-env.mjs, production.test.mjs, verify.mjs config |
+| New production regression checks | 10 passed, zero failed/skipped | PASS; infra/production/production.test.mjs |
+| Existing CI helper regressions | 8 passed, zero failed/skipped | PASS; infra/ci/ci.test.mjs |
+| Existing Mock SAP tests on Node 24 host | 7 passed, zero failed/skipped; combined final helper/mock run 25/25 | PASS; mock-sap/server.test.mjs |
+| AMD64 builds | Backend Maven package, frontend frozen install/build, proxy, Keycloak, Mock SAP and backup image built | PASS; ignored build logs |
+| Frontend lint / typecheck | pnpm lint and pnpm typecheck both exit 0 in pinned Node24 build image | PASS; frontend-checks.log |
+| Backend security regression | 51 tests: PhaseTwelveSecurityTest 12, PhaseNineIsolationTest 33, ApiRequestLimitsTest 6; zero failures/errors/skips; 4:39 | PASS; Testcontainers PostgreSQL, security-reports |
+| HTTPS frontend smoke | Existing suite 28/28, zero skips/failures (6.22s), local CA trusted through NODE_EXTRA_CA_CERTS | PASS; existing smoke.test.mjs |
+| Production-mode browser | 16 checks passed in the final execution: proxy restrictions, issuer, login/callback, tenant onboarding, Secure/HttpOnly/SameSite cookies, token privacy, CSRF rejection, mobile logout and fresh credential prompt afterward | PASS; browser-check.mjs, browser-result.json |
+| HTTPS edge controls | HTTP308 to canonical HTTPS, private paths404, oversized request413, forwarded-header spoof resistance and query-marker log redaction passed with local CA trusted | PASS; edge-check.mjs |
+| Private endpoints | Backend readiness/liveness/OpenAPI/Swagger 200; unauthenticated dashboard and Mock SAP rejected | PASS; internal-check.mjs |
+| Actual imported identity settings | SSL required, verified email, exact HTTPS callbacks, restricted scope and authenticated STARTTLS settings verified through private admin API | PASS; internal-check.mjs; no SMTP connection/delivery |
+| Service health and exposure | Six healthy; only proxy mapped to host; final containers no OOM and restart count zero after deliberate recreations | PASS; health-resources.json |
+| Encrypted backup | Both DB dumps + Mock SAP copied while writers stopped, encrypted to age archive; only encrypted archive/checksum persisted outside tmpfs | PASS; backup.log |
+| Empty-target restore | Both DBs' public-table counts/content hashes match; three organization memberships and all 17 successful Flyway migrations restored | PASS; restore.log and restore-result.json |
+| Restore guard | Second restore into populated target rejected before overwrite | PASS; verify-backup.mjs |
+| Mock SAP recovery | Restored identity lookup succeeds; explicit duplicate request returns HTTP409 | PASS; duplicate-check.mjs; synthetic record only |
+| Shell syntax | bash -n backup.sh ops.sh offsite.sh monitor.sh | PASS in backup image; host timer/wrapper orchestration not installed |
+| ARM64 base manifests | All six pinned base indices list linux/amd64 and linux/arm64 | PASS for manifest availability only |
+| ARM64 backend | Image builds; Temurin Java21.0.12.1 executes under emulation | PASS for build/JVM startup; full ARM backend stack not exercised |
+| ARM64 Mock SAP | Image builds, Node24.18.0 reports arm64; final HTTP/persistence suite 7/7 | PASS under Docker emulation, not native Oracle |
+| ARM64 frontend | Dependency installation stalled with extremely slow npm downloads; stopped after >8h rather than claiming success | NOT VERIFIED; build-arm64-frontend.log. Native/bounded rerun required before ARM deployment |
+| Public TLS / cloud host | Local CA only; no real ACME, DNS, renewal or Oracle/Hetzner execution | NOT TESTED |
+| Offsite disaster recovery / alerts | SSH encrypted-transfer helper, retention and operator runbooks prepared; no remote destination, systemd timer or external alert delivery configured | NOT TESTED; local restore is not offsite DR |
+| Full business suite / full browser suite | Not rerun in 12D; prior 409-backend/16-browser Phase12C results remain historical | NOT CLAIMED as 12D results; checkpoint12E remains separate |
+
+The disposable projects were `workforce-prod-qa-acce6074d6` and `workforce-prod-qa-acce6074d6-restore`. The latter started only PostgreSQL and Mock SAP for restore validation. Synthetic identities/data and private evidence remain ignored under `.verification/phase12d/`. The original `workforce-*`, interactive `workforce-ci-98b4339864f0-*` and 12C `workforce-ci-e89655cbbe2f-*` data/realms/volumes were not modified or reset. No `down -v`, cloud deployment, purchase, commit, push or merge occurred.
+
+### Failures and corrections, including reruns
+
+- Initial test regex incorrectly treated a mounted NEXTAUTH_SECRET declaration as a plaintext environment value. Narrowed it to environment entries; no secret handling was weakened.
+- Readiness originally searched for UP anywhere, incorrectly accepting Keycloak's overall DOWN response with one UP subcheck. Changed both Java probes to require HTTP200; regression added.
+- Initial static proxy .2 collided with a dynamically allocated service address. Moved the six-service topology's proxy to .254 and updated Keycloak's trusted address; no volume reset.
+- Caddy initially failed to execute with all runtime capabilities dropped because the upstream binary carried a file capability. Removed that capability at image build; retained nonroot/capability restrictions.
+- First browser probes required an explicit navigation wait and longer bounded assertions on this shared host. One later probe overlapped the deliberate backup maintenance stop and failed connection refusal; it was not a valid application failure. The final browser run was performed separately and passed.
+- One cold post-login workspace request hit the existing 10s BFF timeout while the shared host was busy. A subsequent warm run progressed; no timeout or business validation was weakened. Dedicated-host cold-start/load validation remains a launch gate.
+- HTTPS logout reproducibly returned Forbidden with the new Caddy no-referrer policy. Matched the frontend's established strict-origin-when-cross-origin policy; regression now verifies the actual form Origin, unchanged cross-origin rejection, successful logout and new credential prompt.
+- First backup failed reading mode0600 Mock SAP state with all helper capabilities dropped. The helper now has DAC_READ_SEARCH, with the source still mounted read-only; failed backup did not produce a success marker, and writers were restarted. The corrected backup/restore passed.
+- ARM Mock SAP image initially hit a registry EOF; retry built it. ARM frontend downloads then stalled and were stopped; this remains a disclosed verification gap.
+- ARM emulation exposed two existing Mock SAP tests that aborted after 30ms before the request was actually transmitted. Replaced that wall-clock assumption with bounded synchronization on body consumption/handler execution, then abort the response. All original duplicate/lookup/status assertions remain. Initial ARM result 5/7; corrected host and ARM runs each 7/7. Production Mock SAP business behavior was not changed.
+- One manual runtime probe had a PowerShell quoting error for a Node expression; separate process.arch/--version commands passed. PowerShell labels native stderr as NativeCommandError in redirected files even for successful eslint commands; exit codes and test summaries, not that wrapper label, determine success.
+
+### Exact commands and runtime evidence
+
+The host Node24 executable was `.verification/runtime/node-v24.18.0-win-x64/node.exe`; no global installation changed. Docker commands used outside-sandbox execution. Production browser runner is the existing `workforce-browser-tests` image (its Node24.21.0 runtime stays within Node24); production Node base is pinned24.18.0.
+
+```sh
+node infra/production/resolve-images.mjs
+node infra/production/verify.mjs prepare
+node infra/production/verify.mjs config
+node infra/production/verify.mjs build
+node infra/production/validate-env.mjs --env-file .verification/phase12d/production.env --local-test
+node infra/production/verify.mjs start
+node --test infra/production/production.test.mjs infra/ci/ci.test.mjs mock-sap/server.test.mjs
+
+docker build -f infra/production/caddy.Dockerfile -t workforce-proxy:phase12d-qa .
+docker build -f infra/production/mock-sap.Dockerfile -t workforce-mock-sap:phase12d-qa .
+docker build -f infra/production/backup.Dockerfile -t workforce-backup:phase12d-qa .
+docker build --target build -f infra/production/frontend.Dockerfile -t workforce-frontend-checks:phase12d .
+docker run --rm workforce-frontend-checks:phase12d sh -c 'pnpm lint && pnpm typecheck'
+docker buildx build --platform linux/arm64 --load -f infra/production/backend.Dockerfile -t workforce-backend:phase12d-arm64 .
+docker buildx build --platform linux/arm64 --load -f infra/production/mock-sap.Dockerfile -t workforce-mock-sap:phase12d-arm64 .
+docker buildx build --platform linux/arm64 --load -f infra/production/frontend.Dockerfile -t workforce-frontend:phase12d-arm64 .
+docker run --rm --platform linux/arm64 --entrypoint java workforce-backend:phase12d-arm64 -version
+docker run --rm --platform linux/arm64 --entrypoint node workforce-mock-sap:phase12d-arm64 -p process.arch
+docker run --rm --platform linux/arm64 --entrypoint node workforce-mock-sap:phase12d-arm64 --version
+docker run --rm --platform linux/arm64 --entrypoint node -v "$PWD/mock-sap:/checks:ro" workforce-mock-sap:phase12d-arm64 --test /checks/server.test.mjs
+
+node infra/production/verify-backup.mjs
+node infra/production/verify-health.mjs
+git diff --check
+```
+
+The build helper runs `docker compose -p <QA project> --env-file .verification/phase12d/production.env -f infra/production/compose.yaml build <service>` sequentially; start runs `up -d --wait --wait-timeout 600`. Build commands now have a 20-minute bound; Compose helper calls a 12-minute bound. The first ARM frontend attempt used the separate buildx command above, before that helper safeguard.
+
+The backend image executed `./mvnw -B -ntp clean package -DskipTests`. The frontend image executed `pnpm install --frozen-lockfile` and `pnpm build`. Security tests used the pinned Maven21 image, Docker socket and existing dependency cache, copied source into an isolated /work, then:
+```sh
+./mvnw -B -ntp test -Dtest=PhaseTwelveSecurityTest,PhaseNineIsolationTest,ApiRequestLimitsTest '-DargLine=-Xmx1024m -XX:ActiveProcessorCount=2 -Dspring.test.context.cache.maxSize=1'
+```
+Docker test runner: `--memory=2g -e MAVEN_OPTS=-Xmx512m -e JAVA_TOOL_OPTIONS=-XX:ActiveProcessorCount=2 -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal -v /var/run/docker.sock:/var/run/docker.sock -v workforce-maven-cache:/root/.m2`, source mounted read-only and reports mounted under ignored evidence. These Testcontainers databases were unrelated to application databases.
+
+Browser command used `docker run --rm --init --ipc=host --network workforce-prod-qa-acce6074d6_ingress`, mounted browser-check.mjs at /work/production-check.mjs and ignored QA material at /qa, then `workforce-browser-tests node /work/production-check.mjs`. Chromium ignored only the synthetic local-CA certificate warning; separately, all28 HTTPS smoke tests used the copied **public** root certificate through NODE_EXTRA_CA_CERTS, without disabling TLS verification. Internal checks ran internal-check.mjs with the production Node image on the private services network. edge-check.mjs ran with that image on the ingress network and NODE_EXTRA_CA_CERTS=/qa/root.crt; its query marker was then checked absent from proxy stdout/stderr. No browser trace or authentication action link was retained.
+
+Backup keys were generated in the ignored directory using `workforce-backup:phase12d-qa` with `--entrypoint age-keygen -o /qa/restore-key.txt`, then public recipient extraction `age-keygen -y -o /qa/recipients.txt /qa/restore-key.txt`. verify-backup.mjs stopped/restarted only the disposable writers, used backup.compose.yaml, created a separate empty restore project, added restore.compose.yaml only for decryption and ran the populated-target refusal check. An additional explicit duplicate-check.mjs probe verified HTTP409 from restored Mock SAP. Shell scripts passed bash -n in the backup image. Actual host systemd/flock/offsite orchestration remains prepared, not installed/tested.
+
+### Resource sample, costs and remaining gates
+
+Final single post-restart sample: Caddy31.11MiB, Next52.48MiB, Spring/workers367.6MiB, Keycloak488.4MiB, PostgreSQL75.71MiB, Mock SAP20.69MiB; approximately1.01GiB combined. This is **not a load benchmark, peak-memory measurement or capacity guarantee**. Multiple untouched development stacks shared Docker Desktop's ~7.69GiB host. Cold startup and emulation were slow. Container ceilings total5.5GiB; the [deployment guide](production-deployment.md) gives preliminary8/12GiB budgets and provider caveats.
+
+Oracle Always Free capacity/availability and idle-reclamation rules must be checked at provisioning; no PAYG. Hetzner total must fit EUR15/month including tax/IP/domain/SMTP/offsite; no purchase or price guarantee. Neither cloud was accessed. Native ARM frontend/full-stack verification, maintained dependency/advisory strategy (including prior Spring findings), OS-image scanning, anonymous ingress abuse controls, public DNS/ACME renewal, real SMTP sender/DNS/delivery, installed backup/alert timers and independent offsite restore remain Phase13 gates. SMTP ambiguous acceptance can still duplicate physical delivery. No exactly-once claim.
+
+### Changed files and next checkpoint
+
+Modified: `.github/workflows/ci.yml` (adds production configuration tests), `.gitignore`, `README.md`, `docs/architecture.md`, `docs/phase12-progress.md`, `mock-sap/server.test.mjs` (deterministic network-response-loss tests).
+
+New:
+- `.dockerignore`.
+- `infra/production/`: compose.yaml, backup.compose.yaml, restore.compose.yaml; six Dockerfiles (backend/frontend/mock-sap/keycloak/caddy/backup); Caddyfile; images.lock.json/resolve-images.mjs; workforce-realm.json; postgres-init.sh/with-secrets.sh; production.env.example/validate-env.mjs; backup.sh/manifest.sql/ops.sh/operations.sql/offsite.sh/monitor.sh; production.test.mjs; verify.mjs/browser-check.mjs/internal-check.mjs/edge-check.mjs/verify-backup.mjs/verify-health.mjs.
+- [Production deployment](production-deployment.md), [environment reference](production-environment.md), [Keycloak production](keycloak-production.md), [backup/restore](backup-restore.md), [operations](operations.md), [Phase13 checklist](phase13-deployment-checklist.md).
+
+No changes to AGENTS, migrations, backend/frontend application logic, original realms or original/CI Compose files. New root dockerignore excludes private verification/environment/key/dump artifacts. GitHub-hosted runs of the modified CI gate were not executed.
+
+Final working tree contains **six modified tracked files and 38 new files**, all unstaged. git diff --check passes. Leave all12D changes **uncommitted** on `feature/phase12-production-readiness`, HEAD `ae14b2e`. Review the diff and architecture verification gap. Next checkpoint is **12E only when explicitly requested**; do not treat this report as authorization to start it or deploy.

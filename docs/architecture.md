@@ -144,3 +144,9 @@ Notification templates now include authoritative manager names, stable SAP ident
 The BFF renders role-specific sections from read-only `/api/v1/dashboard` and existing authorized personal APIs. The backend resolves active membership and returns only relevant role sections. Every aggregate is tenant-scoped; rejected months are owner-only, and manager activity requires current direct-report ownership and that manager's decisions. Lists are capped at five; SQL aggregates avoid loading complete datasets. A repeatable-read transaction provides a consistent projection.
 
 No dashboard writes, new schema or approval overrides. Finance operational counts span all approved months; monthly reports retain their period/filter semantics. Event timestamps use explicit en-GB/Europe/Athens; calendar dates do not shift. Persisted instants and downloaded reports retain UTC. Desktop sidebar and mobile navigation expose the same authorized routes and direct logout.
+
+## Single-VPS runtime preparation (12D)
+
+The application architecture and database schema are unchanged. A separate production Compose definition places a nonroot Caddy HTTPS proxy in front of the Node BFF and production Keycloak. Spring Boot and its PostgreSQL-backed workers share one artifact. Separate database logins own Workforce and Keycloak databases; only the proxy publishes ports. Mock SAP remains private with persistent idempotency state. Runtime file secrets stay outside images and Git.
+
+The operator backup profile quiesces writers, encrypts both database dumps and Mock SAP state, and restores only into an empty target with per-table integrity checks. Generated report/SAP spreadsheets are still on demand and are not stored. Public TLS, native cloud sizing, offsite recovery and real SMTP require later approved verification. See [production deployment](production-deployment.md) and [backup runbook](backup-restore.md). No new migration or service boundary was introduced.

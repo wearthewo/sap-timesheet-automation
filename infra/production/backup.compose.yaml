@@ -1,0 +1,23 @@
+# Operator-only profile, not an always-running service.
+services:
+  backup:
+    profiles: [operations]
+    image: workforce-backup:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: {context: ../.., dockerfile: infra/production/backup.Dockerfile}
+    platform: ${PLATFORM}
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_READ_SEARCH"]
+    mem_limit: 512m
+    cpus: 0.5
+    tmpfs: ["/scratch:size=512m,mode=0700"]
+    environment:
+      PGHOST: postgres
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    secrets: [PG_ADMIN_PASSWORD]
+    volumes:
+      - ${BACKUP_DIR:?Set BACKUP_DIR}:/out
+      - mock_sap_data:/mock:ro
+      - ${AGE_RECIPIENTS_FILE:?Set AGE_RECIPIENTS_FILE}:/run/backup/recipients.txt:ro
+    networks: [services]
