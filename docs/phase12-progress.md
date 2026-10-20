@@ -1,6 +1,6 @@
 # Phase 12 production-readiness checkpoints
 
-Branch: `feature/phase12-production-readiness`. Current checkpoint: 12D. 12A (`06ce4f5`), 12B (`9c3d1f5`) and 12C (`ae14b2e`) were committed before this checkpoint; their historical verification below is preserved. 12D changes remain uncommitted. No deployment, push, merge, legacy database migration or original Keycloak realm change is authorized here.
+Branch: `feature/phase12-production-readiness`. Current checkpoint: 12E local checkpoint, 21 October 2026. 12A (`06ce4f5`), 12B (`9c3d1f5`), 12C (`ae14b2e`) and 12D (`dc03a3f`) are committed; their historical verification below is preserved. The reviewed 12E work is preserved by the local checkpoint commit accompanying this update. Phase 12 acceptance remains incomplete. No deployment, push, merge, legacy database migration or original Keycloak realm change is authorized here.
 
 | Checkpoint | Status |
 | --- | --- |
@@ -8,7 +8,7 @@ Branch: `feature/phase12-production-readiness`. Current checkpoint: 12D. 12A (`0
 | 12B — professional UX and dashboard | Complete: role dashboards, workflow UX, security tests and full single-run browser verification passed |
 | 12C — security and performance | Complete for local verification: 409 backend tests, 28 smoke tests, 16 browser tests in one run, Mailpit and bounded performance checks passed; deployment risks documented |
 | 12D — production infrastructure | Complete for local AMD64 preparation/verification; encrypted restore passed; ARM64 frontend and external launch checks remain unverified |
-| 12E — final verification | Not started |
+| 12E — final verification | Local checkpoint reviewed; acceptance INCOMPLETE. Hydration fix and deterministic regression retained; historical browser 15/16 and separate Mailpit 51-message pass. Disk headroom recovered; browser/CI issue P12E-CI-001 remains open. ARM64/launch gates remain. |
 
 ## 12A scope and decisions
 
@@ -531,3 +531,91 @@ New:
 No changes to AGENTS, migrations, backend/frontend application logic, original realms or original/CI Compose files. New root dockerignore excludes private verification/environment/key/dump artifacts. GitHub-hosted runs of the modified CI gate were not executed.
 
 Final working tree contains **six modified tracked files and 38 new files**, all unstaged. git diff --check passes. Leave all12D changes **uncommitted** on `feature/phase12-production-readiness`, HEAD `ae14b2e`. Review the diff and architecture verification gap. Next checkpoint is **12E only when explicitly requested**; do not treat this report as authorization to start it or deploy.
+
+## 12E final release verification
+
+Status: **Assessment concluded on 20 October 2026; Phase 12 acceptance INCOMPLETE.** See the [release-readiness report](phase12-production-readiness-verification.md). Historical 12A–12D evidence above is unchanged. No further broad verification run is pending.
+
+### Changes completed
+
+- Repository-scoped LF rules and a real Windows-style checkout regression for 50 tracked Linux inputs; no global Git changes.
+- Restore now distinguishes an unreachable database from a populated target and still fails closed. Four shell regressions, two actual refusal probes, CI and the runbook cover the correction.
+- Fixed duplicate-slug onboarding input loss before hydration. Server-returned submitted values initialize controlled fields; a deterministic blocked-bundle regression preserves conflict, correction, account recovery and isolation assertions. An intermediate uncontrolled-input reset defect was caught and corrected.
+- CI conservatively requests one Playwright worker. This is not a claim of serial stability: the final serial administration case still failed. No assertions, test timeouts or retry policy were weakened.
+- Updated README, deployment prerequisites and final evidence/decision report.
+
+### Verification results
+
+| Check | Observed result |
+| --- | --- |
+| Complete backend suite | PASS: 409 tests, 17 classes, zero failures/errors/skips in one run |
+| Production backend package | PASS; Java 21 |
+| Frozen frontend install, lint, typecheck, build | PASS after final form fix; scoped Node 24 / pnpm 12.8.1 |
+| Final frontend smoke | PASS: 28/28 |
+| Latest complete two-worker browser run | FAIL: 15 passed, one administration registration-navigation timeout; corrected onboarding passed |
+| Final one-worker browser run | INCOMPLETE/FAIL: 10 recorded passes, one administration failure, five without confirmed outcomes; runner timed out after an approximately 23-hour execution gap |
+| Mailpit | Both notification browser cases passed; final aggregate comparison was not reached |
+| Infrastructure/CI/Mock SAP tests | PASS: 26 total (10 production, 8 CI, 1 LF, 7 Mock SAP) |
+| Shell / workflow checks | PASS: seven syntax checks, four guard cases, Actionlint exit zero |
+| Encrypted restore | PASS: both database manifests match; four memberships, 17 migrations and historical records preserved; duplicate restore rejected |
+| AMD64 | Final corrected frontend image built and disposable production frontend refreshed; earlier six-service health/proxy/internal checks passed |
+| ARM64 | Backend image and Java startup passed; frontend compilation and Keycloak augmentation exceeded bounded caller timeouts; full runtime UNVERIFIED |
+
+The additional post-refresh HTTPS browser probe did not execute because its local runner image was missing and pull access was denied. Earlier production edge/internal evidence remains scoped to its recorded execution. The idle six-service sample was approximately 1,016 MiB, not a capacity guarantee. GitHub-hosted CI was not run.
+
+### Failures, blockers and decisions
+
+Three complete two-worker runs each finished 15/16: first onboarding state loss, then an intermediate form-reset defect, then administration navigation. The final serial run reproduced administration waiting for Keycloak's first-name field while the invitation page remained visible. Its root cause is unresolved; parallel contention alone is not established. Focused onboarding passed separately and is not added to full-suite totals.
+
+Earlier disk exhaustion interrupted a backend run after 330 tests and disposable restore initialization. Those tests are not added to the successful 409. A fresh isolated restore succeeded. Registry EOF, reserved SMTP binding and execution gaps interrupted other setup/build attempts. Final serial startup reused recorded corrected image IDs without registry pulls, then seeded fresh fixtures. Its test and diagnostics wrappers timed out. No final browser XML exists and no aggregate Mailpit success is claimed.
+
+Spring maintenance status and unresolved production-image advisory findings block public launch. npm production audit has zero advisories, with one HIGH development-only finding tracked separately. All 111 Maven runtime coordinates match the audited inventory. Anonymous registration/recovery abuse coverage, actual public TLS/DNS, production SMTP, offsite restore/retention, operator alerts, target-host resources and secrets still require verification.
+
+No controlled process-kill-after-claim exercise was added in 12E; deterministic expired-claim regression and historical 12D restart evidence remain distinct. SMTP ambiguous acceptance can duplicate physical delivery. Mock SAP remains a simulator.
+
+Original V14 database/realm and volumes were not migrated or reset. Their post-interruption health is not certified. Existing populated data requires a fresh ownership mapping/rehearsal; legacy confirmation remains false. Fresh production must exclude synthetic QA identities.
+
+**Decisions:** reviewable unfinished changes, but NO-GO for Phase 12 completion/merge sign-off; NO-GO to begin Phase 13 from this checkpoint; NO-GO for public registration. Required next work is the administration navigation defect, one complete browser/aggregate-Mailpit pass and reviewed GitHub CI, followed by the documented dependency/security and target-architecture gates. Do not begin deployment from this report.
+
+### Commands, changed files and Git
+
+Exact commands, per-run evidence and limitations are in the release report. Java 21 Docker tests/package, Docker build/probes/restore, dependency downloads/audits and browser execution used outside-sandbox access; no global toolchain was replaced.
+
+15 working-tree paths (12 modified, three new): .gitattributes; .github/workflows/ci.yml and e2e.yml; README.md; infra/production/Caddyfile (line endings only), backup.sh, new backup-guards.test.sh and line-endings.test.mjs; frontend/src/app/onboarding/actions.ts and create-form.tsx; frontend/tests/browser/onboarding.spec.ts; docs/backup-restore.md, phase12-progress.md, phase13-deployment-checklist.md and new phase12-production-readiness-verification.md.
+
+Changes remain uncommitted on feature/phase12-production-readiness, HEAD dc03a3f. No commit, push, merge, public deployment or Phase 13 operation was performed. Private QA artifacts remain ignored.
+
+### 12E registration follow-up — 20 October 2026
+
+This addendum supersedes the earlier unresolved-registration diagnosis and latest-run/file counts above; all historical failures remain recorded.
+
+- User-provided manual evidence: NEW account registration through an invitation and authenticated ADMIN dashboard succeeded. Compared with automation's immediate invitation redirect/click after logout.
+- Instrumented unchanged-image reproduction failed in 49.9 seconds. At the invitation-page click, React had not attached the button handler; no OIDC request followed; the same single page remained on `/invitations/review`. Cookie metadata and read-only Keycloak settings showed the expected invitation/session boundary, enabled registration, both callbacks and S256 PKCE. No token/cookie values or action-link query/fragment were captured.
+- Fixed only the shared client auth control: disabled during SSR/hydration, enabled after hydration, preserving pending/error handling and all OIDC/security configuration.
+- Added a deterministic delayed-script regression to the existing administration workflow. Before-fix image failed the disabled assertion in 45.6 seconds. Existing role, invitation, replay, last-admin, employee/project, approval, SAP and mobile/logout checks remain.
+- Frozen install/lint/typecheck/production build and corrected frontend Docker build passed. All six services of the new isolated QA project became healthy. Setup initially used nonexistent image tags; corrected to inspected container image IDs before service creation.
+- First post-fix repetition batch: one pass, two failures before invitation handling (initial Keycloak navigation timeout and safe BFF SERVICE_UNAVAILABLE). It began after a 6.6-hour idle interval; exact resource/network cause is not proven.
+- Second batch: **3/3 consecutive complete administration repetitions passed**, one worker, zero retries, 266.531 seconds. This is repetition of one scenario, not three new unique tests.
+- Full suite: **28/28 smoke passed; 15/16 browser passed**, two workers, zero retries/skips, 272.331 seconds. The remaining error was initial `/login` load timeout before registration, not the fixed invitation lost click.
+- Aggregate Mailpit executed separately after the failed browser command: **51 exact delivered messages across seven types passed**, including recipient/subject/UTF-8 body/links/comments/ordinary deduplication. It does not make the full browser run green.
+- Final fresh serial confirmation: **NOT RUN / disk-blocked** before prepare/seed/service creation, with 3.45 GiB free against the existing 4 GiB guard. The completed QA project's containers were stopped but all volumes retained. The existing user environment on port 33000 remained running. `.next/cache` was only 0.05 GiB; nothing was deleted and no guard was lowered.
+
+Next prerequisite is adequate disk headroom, followed by a fresh isolated one-worker full suite and aggregate Mailpit verification. Keep the consumed fixtures and failed-run evidence; do not reset the original V14 database/realm or existing QA databases. No further broad run is pending. CI remains one worker conservatively; full parallel stability is unproven.
+
+Additional changed files: `frontend/src/app/login/sign-in.tsx`, `frontend/tests/browser/administration.spec.ts`. Updated README, this progress report, release report and Phase13 checklist. **17 uncommitted paths** total (14 modified, three new), branch `feature/phase12-production-readiness`, HEAD `dc03a3f`; `git diff --check` passes. Browser/Docker/scoped-runtime verification required outside-sandbox access. No push, merge or deployment.
+
+Evidence and exact commands: [12E release report](phase12-production-readiness-verification.md), private `.verification/phase12e/registration/` and `.verification/phase12e-registration/browser-results/browser.xml`. The prior complete 409-test backend result is retained as earlier evidence; no backend source changed or new backend run is claimed.
+
+### 12E local checkpoint — 21 October 2026
+
+This checkpoint supersedes the earlier uncommitted/disk-blocked status, preserving all historical test results and failed attempts above. The user reports successful manual use of the existing application at `localhost:33000` after VHDX compaction, with existing data accessible. Host disk inspection found approximately 60.09 GiB free. No database contents were revalidated here; no services, volumes, databases or Keycloak realms were modified, recreated or reset.
+
+Reviewed the complete Phase 12E diff and artifact exclusions. The React hydration guard and deterministic delayed-JavaScript administration regression are present. Authentication, authorization, invitation/role assertions, duplicate-slug and recovery coverage remain intact. Onboarding error-state preservation, fail-closed restore diagnostics and repository-scoped LF checks are retained. No backend code, migrations, dependencies or lockfiles changed.
+
+Targeted verification only: **19/19 infrastructure/CI Node tests passed**, **4/4 executable restore-guard cases passed**, two changed shell scripts passed `bash -n`, and targeted ESLint passed for all five changed frontend files. Git whitespace checks passed. The final staged LF checkout test is also checked separately, without adding its repeated execution to the 19 unique tests. Exact commands are in the release report. No full backend/browser/smoke suite, builds, dependency installs or Docker startup were repeated. Local runtime checks needed no escalation; Git index/commit writes are subject to sandbox permissions.
+
+**P12E-CI-001 remains OPEN:** initial `/login` navigation timed out in the latest complete browser run (15/16 passed, zero retries). This is separate from the fixed invitation hydration defect. Root cause is unproven; one-worker CI is a conservative setting, not a proven successful complete serial run. Close with a complete zero-retry browser pass and aggregate Mailpit verification, then reviewed GitHub CI before merge. Do not hide this gate behind the three focused passes or the separate 51-message Mailpit pass.
+
+The user authorized one descriptive local checkpoint commit on `feature/phase12-production-readiness`, based on `dc03a3f`. It contains 16 changed files listed in the release report; Caddy's additional working-copy normalization produces no semantic commit change. Secrets, backups, databases and generated `.verification` evidence remain excluded. Git history identifies the checkpoint hash. No push, merge or deployment is authorized.
+
+**Final checkpoint decision:** reviewed work preserved for continued development; Phase 12 acceptance remains INCOMPLETE, with NO-GO for completion/merge sign-off, Phase 13 execution and public launch. Next work is the tracked browser/CI issue and existing dependency/security and architecture gates, not another unrequested full verification loop. The recovered disk headroom is no longer a current blocker. Preserve the running application and prior QA evidence.

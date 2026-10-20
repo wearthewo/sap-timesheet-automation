@@ -1,4 +1,11 @@
 * text=auto
+# Linux runtime inputs must survive Windows core.autocrlf checkouts unchanged.
 *.sh text eol=lf
 mvnw text eol=lf
+Dockerfile text eol=lf
+*.Dockerfile text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+Caddyfile text eol=lf
+*.sql text eol=lf
 *.cmd text eol=crlf

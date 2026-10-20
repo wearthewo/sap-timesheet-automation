@@ -10,7 +10,7 @@ async function mail(email: string, subject: string) {
  const item = (await find())[0]; expect(item.To.map(t => t.Address)).toEqual([email]);
  return (await (await fetch(mailpit + "/api/v1/message/" + item.ID)).json()) as { Text: string };
 }
-async function safeGoto(page: Page, link: string) { try { await page.goto(link.replaceAll("&amp;", "&")); } catch { throw new Error("Secure email link could not be opened"); } }
+async function safeGoto(page: Page, link: string, waitUntil: "load" | "commit" = "load") { try { await page.goto(link.replaceAll("&amp;", "&"), { waitUntil }); } catch { throw new Error("Secure email link could not be opened"); } }
 async function register(page: Page, a: Account) {
  await page.getByRole("button", { name: "Create an account", exact: true }).click();
  await page.locator("#firstName").fill(a.firstName); await page.locator("#lastName").fill("Administration");
@@ -40,8 +40,31 @@ async function invite(page: Page, a: Account, role: string, fromEmployee = false
  const message = await mail(a.email, "Workforce organization invitation"); expect(message.Text.includes(`as ${role}`)).toBe(true);
  const link = message.Text.match(/https?:\/\/[^\s]+\/invitations\/accept#token=[^\s]+/)?.[0]; if (!link) throw new Error("Invitation link missing"); return link;
 }
-async function acceptNew(page: Page, a: Account, link: string) {
- await safeGoto(page, link); await expect(page).toHaveURL(/\/invitations\/review$/);
+async function acceptNew(page: Page, a: Account, link: string, verifyHydration = false) {
+ if (verifyHydration) {
+  // The invitation handoff redirects before the review page hydrates. Hold its
+  // scripts to prove the auth controls cannot silently swallow an early click.
+  const scripts = "**/_next/static/**/*.js", review = "**/invitations/review";
+  let release!: () => void;
+  const ready = new Promise<void>(resolve => { release = resolve; });
+  await page.route(review, async route => {
+   await page.route(scripts, async script => { await ready; await script.continue(); });
+   await route.continue();
+  });
+  try {
+   await safeGoto(page, link, "commit");
+   await expect(page).toHaveURL(/\/invitations\/review$/);
+   await expect(page.getByRole("heading", { name: "Join your organization" })).toBeVisible();
+   await expect(page.getByRole("button", { name: "Create an account", exact: true })).toBeDisabled();
+   await expect(page.getByRole("button", { name: "Sign in with your work account", exact: true })).toBeDisabled();
+  } finally {
+   release();
+   await page.unroute(review);
+   await page.unroute(scripts, undefined);
+  }
+ } else {
+  await safeGoto(page, link); await expect(page).toHaveURL(/\/invitations\/review$/);
+ }
  await register(page, a); await expect(page.getByRole("button", { name: "Accept invitation" })).toBeVisible(); await page.getByRole("button", { name: "Accept invitation" }).click(); await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
  await expect(page.getByRole("link", { name: "Administration", exact: true })).toHaveCount(0);
 }
@@ -62,7 +85,7 @@ test("new organization administers profiles, invitations, roles and assignments 
  await projectForm.getByLabel("Project code").fill("ADMIN11"); await projectForm.getByLabel("Project name").fill("Administration workflow"); await projectForm.getByRole("button", { name: "Create project" }).click(); await expect(page).toHaveURL(/\/admin\/projects\/[0-9a-f-]+$/); const projectUrl = page.url();
  await page.goto(employeeUrl); const assignment = page.getByRole("form", { name: "Assign project", exact: true }); await choose(assignment, "Project", "ADMIN11"); await assignment.getByLabel("Valid from").fill("2026-01-01"); await assignment.getByRole("button", { name: "Assign project" }).click(); await expect(assignment.getByRole("status")).toHaveText("Changes saved.");
  await page.goto("/app/admin/members"); const own = page.locator("details").filter({ hasText: admin.email }); await own.locator("summary").click(); await own.getByLabel("Organization role", { exact: true }).selectOption("EMPLOYEE"); await own.getByRole("checkbox").check(); await own.getByRole("button", { name: "Update membership" }).click(); await expect(own.getByRole("alert")).toContainText("at least one active administrator");
- await logout(page); await acceptNew(page, manager, managerLink); await logout(page); await acceptNew(page, employee, employeeLink);
+ await logout(page); await acceptNew(page, manager, managerLink, true); await logout(page); await acceptNew(page, employee, employeeLink);
  expect((await context.cookies()).some(c => c.name === "workforce-invitation")).toBe(false);
  await page.goto("/app/timesheets/2026/10"); await page.getByRole("button", { name: "Create draft" }).click(); await page.getByLabel("Work date").fill("2026-10-05");
  const projects = page.getByRole("combobox", { name: "Project", exact: true }); const option = projects.locator("option").filter({ hasText: "ADMIN11" }); await expect(option).toHaveCount(1); await projects.selectOption((await option.getAttribute("value"))!);

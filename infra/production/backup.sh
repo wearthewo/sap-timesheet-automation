@@ -33,7 +33,11 @@ case "$mode" in
   archive="${BACKUP_ARCHIVE:-}"
   [[ "$archive" =~ ^workforce-[0-9TZ]+-[0-9]+\.tar\.age$ ]] || { echo 'Invalid archive filename' >&2; exit 1; }
   for db in workforce keycloak; do
-   [ "$(psql -XAt -v ON_ERROR_STOP=1 -d "$db" -c "SELECT count(*) FROM pg_tables WHERE schemaname='public'")" = 0 ] || { echo "Refusing non-empty database: $db" >&2; exit 1; }
+   if ! table_count=$(psql -XAt -v ON_ERROR_STOP=1 -d "$db" -c "SELECT count(*) FROM pg_tables WHERE schemaname='public'"); then
+    echo "Cannot verify restore target database: $db; check connectivity and initialization" >&2
+    exit 1
+   fi
+   [ "$table_count" = 0 ] || { echo "Refusing non-empty database: $db" >&2; exit 1; }
   done
   [ ! -e /mock/timesheets.json ] || { echo 'Refusing existing Mock SAP state' >&2; exit 1; }
   (cd /out && sha256sum -c "$archive.sha256")

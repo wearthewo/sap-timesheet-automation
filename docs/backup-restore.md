@@ -20,6 +20,7 @@ Configure a root-owned systemd oneshot/timer (WorkingDirectory = reviewed checko
 ## Restore: empty, isolated target only
 1. Disable all ingress/writers. Select a **new** project/volumes and reviewed environment; never use down -v on original or QA environments.
 2. Initialize only PostgreSQL on the empty target so the two owners/databases exist. Supply archived/coordinated secrets.
+   Confirm password-authenticated connectivity from the backup container, not only local `pg_isready`. A disk-full interruption during first initialization can leave a locally healthy server with incomplete network access rules. A connectivity failure must stop recovery; preserve that target for diagnosis and use another explicitly approved empty target. Never reset or relax authentication on an existing database to force a restore.
 3. Mount the chosen encrypted archive, public recipients and temporarily the offline identity file; use the restore override. Run:
 ```sh
 bash infra/production/ops.sh workforce-prod-restore /etc/workforce/restore.env restore workforce-YYYYMMDDTHHMMSSZ-NNN.tar.age

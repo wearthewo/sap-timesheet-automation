@@ -3,7 +3,10 @@ import { useActionState, useState } from "react";
 import { createOrganization } from "./actions";
 export default function CreateForm({ requestKey }: { requestKey: string }) {
  const [state, action, pending] = useActionState(createOrganization, {});
- const [name, setName] = useState(""); const [slug, setSlug] = useState("");
+ // Resume server-rendered errors without losing values before hydration. Controlled
+ // fields also prevent an action's automatic reset from replacing a new correction.
+ const [name, setName] = useState(state.values?.name ?? "");
+ const [slug, setSlug] = useState(state.values?.slug ?? "");
  return <form action={action} className="mt-7 grid gap-5">
   <input type="hidden" name="requestKey" value={requestKey} />
   <div><label htmlFor="name" className="block font-semibold">Organization name</label>

@@ -54,6 +54,20 @@ test("self-registration verifies email, creates isolated workspace, handles slug
   await logout(owner);
  } finally { await ownerContext.close(); }
  await register(page, context, username, password);
+ // A server-rendered form can be submitted before hydration. Exercise that path
+ // deterministically using the real verified session, without storing credentials.
+ const scripts = "**/_next/static/**/*.js";
+ await page.route(scripts, route => route.abort());
+ try {
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByLabel("Organization name", { exact: true }).fill("Zoë & Team");
+  await page.getByLabel("Organization address", { exact: true }).fill(takenSlug);
+  await page.getByRole("button", { name: "Create organization", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "already in use" })).toBeVisible();
+  await expect(page.getByLabel("Organization name", { exact: true })).toHaveValue("Zoë & Team");
+  await expect(page.getByLabel("Organization address", { exact: true })).toHaveValue(takenSlug);
+ } finally { await page.unroute(scripts); }
+ await page.reload();
  await page.getByLabel("Organization name", { exact: true }).fill("Zoë & Team");
  await page.getByLabel("Organization address", { exact: true }).fill(takenSlug);
  await page.getByRole("button", { name: "Create organization", exact: true }).click();
