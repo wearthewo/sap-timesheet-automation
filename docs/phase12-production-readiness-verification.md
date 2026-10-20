@@ -309,3 +309,59 @@ This is a local tracked issue identifier, not a newly created GitHub issue.
 - **Closure gate:** one complete 16-test browser execution with zero retries/skips, followed by aggregate Mailpit verification, and passing GitHub CI on the reviewed revision before merge approval. Do not combine partial runs. The existing independent 51-message Mailpit pass remains valid evidence, but does not close the browser gate.
 
 No broad rerun is pending in this checkpoint. Continue development from the local commit while treating this issue and the documented support/security, target-architecture and real deployment prerequisites as outstanding. SMTP ambiguous acceptance still permits duplicate physical delivery; local verification does not establish exactly-once email or offsite disaster recovery.
+
+## GitHub backend failure investigation — 21 October 2026
+
+Investigated [CI run 39513130921, backend job 118938773590](https://github.com/wearthewo/sap-timesheet-automation/actions/runs/39513130921/job/118938773590), triggered for PR 32 on head `0f9a0c42ee27b0b81a798ada71352f23d02af242`. Actions checked out the synthetic merge `af7d9b4dfb4d2edd78812b3768af9e1ef24a0066`. GitHub blob hashes for the failing test and `ProjectService` match the local checkpoint, ruling out different implementations of these files in the tested merge.
+
+Downloaded the actual `backend-reports` artifact and job log into ignored `.verification/phase12e/github-39513130921/` and `.verification/phase12e/github-backend-39513130921.log`. Summing all 17 Surefire XML reports confirms **409 tests: 408 passed, 1 failure, 0 errors, 0 skipped**. The only failing class/method is `com.acme.workforce.PhaseOneIntegrationTest.assignedProjectsRespectOwnerDatesAndActiveFlags`; that class ran 21 tests with one failure. All other classes passed. Production packaging was skipped after the failure.
+
+The artifact's complete failure stack is:
+
+```text
+java.lang.AssertionError: JSON path "$.totalElements" expected:<1> but was:<2>
+    at org.springframework.test.util.AssertionErrors.fail(AssertionErrors.java:61)
+    at org.springframework.test.util.AssertionErrors.assertEquals(AssertionErrors.java:128)
+    at org.springframework.test.util.JsonPathExpectationsHelper.assertValue(JsonPathExpectationsHelper.java:172)
+    at org.springframework.test.web.servlet.result.JsonPathResultMatchers.lambda$value$2(JsonPathResultMatchers.java:112)
+    at org.springframework.test.web.servlet.MockMvc$1.andExpect(MockMvc.java:214)
+    at com.acme.workforce.PhaseOneIntegrationTest.assignedProjectsRespectOwnerDatesAndActiveFlags(PhaseOneIntegrationTest.java:170)
+    at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+    at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+    at java.base/java.util.ArrayList.forEach(ArrayList.java:1596)
+```
+
+**Confirmed cause:** this legacy test constructed assignment dates using `LocalDate.now(ZoneOffset.UTC)`, while the production query correctly uses its injected clock in `Europe/Athens`. The failed HTTP response contains projects P0 and P2. Its fixture created P2 with `validFrom=2026-10-21` at approximately `2026-10-20T23:11:48Z`, when Athens was already October 21 (02:11). P2 was therefore valid on the business date, despite the test calling it a future assignment. This is a time-dependent fixture defect, not evidence of broken tenant filtering, PostgreSQL startup or Testcontainers.
+
+| Environment | Earlier successful local run | Failed GitHub run |
+| --- | --- | --- |
+| Relevant execution time | October 18, approximately 15:55 UTC; UTC/Athens share October 18 | October 20, 23:11 UTC; Athens is October 21 |
+| JVM default timezone | `Etc/UTC` | `Etc/UTC` |
+| Java | Temurin 21.0.10 | Temurin 21.0.12.1 |
+| Host/kernel | Docker Desktop, WSL2 Linux 6.6.87.2, amd64 | Ubuntu 24.04.5, Azure kernel 6.17.0-1022, amd64; runner 2.338.0, image 20261012.334.1 |
+| Docker / Testcontainers / PostgreSQL | 29.3.1 / 1.21.4 / 17.11 | 28.0.4 / 1.21.4 / 17.11 |
+| Surefire JVM | `-Xmx1024m -XX:ActiveProcessorCount=2 -Dspring.test.context.cache.maxSize=1` | `-Xmx1536m -XX:ActiveProcessorCount=2`, default context cache |
+
+These environment differences are recorded, not presumed causal. The response payload and explicit calendar calculation explain the assertion failure without an OOM, connection or container-startup hypothesis.
+
+**Smallest correction:** change only the affected test class to inject a fixed `notificationClock`, using the existing Mockito clock pattern. Parameterize the existing owner/date/active-state test at `2026-10-20T15:55:00Z` (expected Athens date October 20) and `2026-10-20T23:11:48Z` (expected October 21). Fixture dates use the explicit expected business date. All existing result, ownership and active-state assertions remain unchanged. Production code, migrations, dependencies, timeouts and workflow test selection are unchanged. Existing PhaseTwelveSecurityTest cases retain month-end, leap-year and DST coverage.
+
+The workflow already has `if: always()` on report preservation and artifact upload. Both steps succeeded in this failed run; no speculative workflow change is needed. Reports are retained for seven days. Raw artifacts remain ignored and are not committed.
+
+Read-only GitHub commands: `gh run list --repo wearthewo/sap-timesheet-automation --branch feature/phase12-production-readiness --limit 8 --json databaseId,workflowName,headSha,status,conclusion,createdAt,url`; `gh run view 39513130921 --repo wearthewo/sap-timesheet-automation --json jobs,headSha,event,createdAt,updatedAt`; `gh run download 39513130921 --repo wearthewo/sap-timesheet-automation --name backend-reports --dir .verification/phase12e/github-39513130921/backend-reports`; `gh run view 39513130921 --repo wearthewo/sap-timesheet-automation --job 118938773590 --log`; and GitHub REST commit/contents reads for the merge/file hashes. Sandbox credentials could not access the repository; outside-sandbox GitHub CLI reads succeeded. No GitHub run was restarted and no remote state was changed.
+
+Focused verification uses the pinned Java 21 Maven image already documented above, a read-only backend source mount copied into ephemeral `/work`, the existing Maven dependency cache and disposable PostgreSQL Testcontainers. No application database/realm volume is mounted. It uses CI's Maven/Surefire memory and processor settings, without the earlier local context-cache override:
+
+```sh
+MAVEN_OPTS=-Xmx768m
+JAVA_TOOL_OPTIONS='-XX:ActiveProcessorCount=2 -XX:MaxRAMPercentage=50'
+./mvnw -B -ntp test -Dtest=PhaseOneIntegrationTest,PhaseTwelveSecurityTest '-DargLine=-Xmx1536m -XX:ActiveProcessorCount=2'
+```
+
+The first focused execution ran **34 tests: 32 passed, zero assertion failures, two errors, zero skips**, in 3:03. Both errors were in the new parameterized case: the initial helper used `when(clock.withZone(any())).thenAnswer(...)` twice, causing the previous answer to evaluate Mockito's null matcher argument during re-stubbing. The exception was `NullPointerException: Cannot invoke "java.time.ZoneId.equals(Object)" because "zone" is null`, at `PhaseOneIntegrationTest.at:61` and `assignedProjectsRespectOwnerDatesAndActiveFlags:171`. Replacing that stub with `doAnswer(...).when(clock).withZone(any())` avoids evaluating the old answer during setup. This introduced test-helper error is distinct from the original GitHub assertion failure. Its full evidence remains in `github-39513130921/focused/`; the justified rerun writes to `focused-corrected/`, without overwriting the failed execution.
+
+**Corrected focused execution: PASS, 34/34 tests, zero failures/errors/skips, Maven exit 0, 2:50 total.** PhaseOneIntegrationTest passed 22 cases (47.32 seconds), including both fixed-clock assignment cases; PhaseTwelveSecurityTest passed 12 cases (80.77 seconds), including the existing eight calendar/DST scenarios. Surefire XML/text, Java version, command script and exit code are preserved in `github-39513130921/focused-corrected/`. This local container used Temurin 21.0.10 and PostgreSQL 17.11 with the CI JVM settings; it is not an execution on GitHub's Java 21.0.12.1 runner. The first local run and corrected run are not combined into a larger pass count.
+
+`git diff --check` passed. At the end of this diagnostic step, three files remained modified and uncommitted: `backend/src/test/java/com/acme/workforce/PhaseOneIntegrationTest.java`, this report and `docs/phase12-progress.md`. The test image was absent after disk cleanup and was pulled by pinned digest; no application image was rebuilt. Read-only GitHub operations and the two isolated test executions required outside-sandbox access. No complete backend/browser suite was rerun, no assertion was removed or relaxed, and no test was skipped. The original failed GitHub run remains historical evidence. No commit, push, merge, deployment or application-stack recreation was performed during diagnosis.
+
+Subsequent review authorizes a local commit of these three reviewed files and a push to the existing `feature/phase12-production-readiness` branch, followed by GitHub CI/E2E inspection. The fixed instants and explicit Athens dates are deterministic, and the existing production business timezone and all assertions are preserved. No private verification artifacts are included. New remote-run outcomes must be read from GitHub; the earlier 34-test local pass alone does not establish a green complete CI or close the separate browser gate. No local full-suite run, application-stack recreation, merge or deployment is authorized.
