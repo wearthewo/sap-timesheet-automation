@@ -146,3 +146,43 @@ The lightweight review reran `node --test mock-sap/server.test.mjs infra/product
 No blocking regression was found in the review or targeted evidence. The user has now authorized one checkpoint commit (`build: upgrade Node and Spring Boot dependencies`) and a push to the existing feature branch. PR #32 targets main; pushing updates its CI checks. Full-stack E2E is manually dispatched on the exact pushed feature revision because feature pushes do not trigger that workflow automatically. Only completed GitHub runs at this revision count as new full-regression evidence; their exact job results will be reported after execution. Earlier passing runs remain baseline evidence.
 
 The existing Caddy public-edge high findings, Java trust-store/font applicability questions, Debian OS findings and PostgreSQL gosu review remain open as documented above. Approval to commit/push for CI is not production security clearance. No merge or deployment is authorized.
+
+### Post-browser notification readiness correction — 24 October 2026
+
+Checkpoint `a4dd3185dcb485932226d45d42629607347c4eb7` reached GitHub. [Core CI run 40064923117](https://github.com/wearthewo/sap-timesheet-automation/actions/runs/40064923117) passed: backend 411/411 (zero failures/errors/skips), production packaging, frontend install/lint/typecheck/build and 28 smoke tests, Mock SAP 7 tests/image build, and quality checks. This supersedes the pending-CI statement above; it does not resolve the documented production security findings.
+
+[E2E run 40064934207, job 120786069689](https://github.com/wearthewo/sap-timesheet-automation/actions/runs/40064934207/job/120786069689) passed 28 smoke tests and 16 Playwright tests with one worker and zero retries, but **the complete E2E job failed**. The browser completion log is `05:14:43.1820409Z`; `CI test failed: Readiness deadline exceeded` follows at `05:15:44.1726502Z`. Aggregate Mailpit verification was never reached. All six services were healthy in the saved diagnostics.
+
+**Confirmed gate defect:** `infra/ci/stack.mjs` waited up to 60 seconds for the count of fixture-user notifications with `status <> 'SENT'` to become zero. A terminal CANCELLED notification can never satisfy that predicate. Saved `diagnostics/jobs.txt` contains 65 SENT notifications and one `APPROVAL_REMINDER|CANCELLED|1`, with no failed or unresolved notification rows. Expected negative-test SAP failures are separate from notification delivery failures.
+
+**Historical evidence limitation:** the old diagnostic query retained only notification type, status and attempt count. It did not retain the cancelled notification ID, business key, recipient/organization, period, related timesheets or immutable attempt reason. The disposable GitHub database was removed during cleanup. Those exact historical values cannot be recovered from the saved artifacts, and the legitimacy of this particular cancellation is **not independently proven**. Do not infer its timesheet or reason from row order or label it a confirmed valid cancellation.
+
+The existing production rule in `NotificationStore.claim/relevant` cancels an approval digest when it is no longer relevant and appends `NOTIFICATION_NO_LONGER_REQUIRED` to its attempt history. An active manager with no remaining pending direct-report timesheets for that month is a legitimate example. `NotificationEvaluation.managers` uses the digest key `APPROVAL_REMINDER:<managerEmployeeId>:<year-month>:<Europe/Athens-date>`; it is a manager/month digest, not a one-timesheet notification. No application notification code or business rule was changed.
+
+The verification correction accepts only a narrowly evidenced obsolete approval digest:
+
+- Read notification and independent organization, membership, manager, same-organization direct-report timesheets, approval history and delivery-attempt evidence in one PostgreSQL statement.
+- Require the exact manager/period/Athens-day business key, active organization and MANAGER membership/profile, no sent timestamp, and exactly one CANCELLED attempt with `NOTIFICATION_NO_LONGER_REQUIRED`.
+- Require associated timesheets, no currently pending report, review decisions by that manager before cancellation, and at least one review between enqueue and cancellation. An older decision cannot justify a resubmission before cancellation. Later reopen/resubmit/approval cycles retain earlier immutable decision evidence.
+- Unsupported or unproven cancellations and FAILED/unknown states fail immediately. PENDING/PROCESSING must resolve within the **unchanged 60-second deadline**. No error-swallowing retry is used for invalid evidence.
+- Every SENT intent still requires exactly one Mailpit message matching recipient, subject and normalized UTF-8 plain-text body, with no HTML. Every previously required business notification type must still have SENT coverage. An accepted cancellation must have zero matching delivered messages. A truncated Mailpit search fails rather than silently accepting incomplete deduplication evidence.
+- Capture `diagnostics/notification-readiness.json` before evaluation and during failure diagnostics. It contains IDs, key, period, states and safe attempt/decision evidence, excluding addresses, message subjects/bodies, invitation links and credentials. Full intents remain in the existing private verification file, outside uploaded diagnostics.
+
+This deliberately fails closed for role-loss/inactive-profile cancellations, ambiguous prior SMTP attempts, absent historical evidence, or a business-day boundary not corroborated by the persisted timestamps. The worker currently captures the cancellation attempt time at claim transaction start; a concurrent decision later in that transaction window may be legitimate but will not pass the strict historical-time proof. Such a failure requires inspection of the new evidence, not a timeout increase or blanket cancellation exemption. SMTP ambiguous-acceptance duplicate-delivery limitations remain unchanged.
+
+Focused verification used the repository-scoped Node **24.22.1**, without rebuilding or recreating the local QA stack:
+
+| Command/check | Observed result |
+| --- | --- |
+| `node --check infra/ci/notification-verification.mjs` and `node --check infra/dev/verify-phase8-mailpit.mjs` | PASS |
+| `node --test infra/ci/ci.test.mjs` | 48/48 PASS: 40 new focused cases plus 8 existing CI cases |
+| `node --test infra/ci/ci.test.mjs infra/production/production.test.mjs infra/production/line-endings.test.mjs` | 60/60 PASS, zero failures/skips; includes the same 48 tests, not 108 distinct tests |
+| `node .verification/phase13b1/notification-sql-check.mjs` | First run exposed a JSON aggregate alias collision; corrected `decision` row alias to `review`. Rerun: 4/4 PostgreSQL checks PASS |
+| PostgreSQL query checks | Actual V1–V17 schema: valid cancellation with other-tenant pending report excluded; escaped subject scope; pending direct report rejected; later resubmission invalidates older approval |
+| `git diff --check` | PASS |
+
+The PostgreSQL query exercise applied unchanged migration SQL to a new, network-isolated PostgreSQL 17 container with tmpfs data, no host ports or mounted existing volumes. V15's placeholder was substituted with `false` only in the in-memory SQL for this empty database. This was a query/schema compatibility check, **not** a Flyway-runner or backend integration-suite rerun. Both temporary containers were removed in `finally`; existing databases, volumes and QA services were untouched. Docker access for this focused exercise required outside-sandbox execution. Local Node checks required no global toolchain change. The temporary query script and downloaded historical evidence stay ignored under `.verification/phase13b1/`.
+
+Changed repository files: `infra/ci/stack.mjs`, `infra/ci/ci.test.mjs`, new `infra/ci/notification-verification.mjs`, new `infra/ci/notification-verification.test.mjs`, `infra/dev/verify-phase8-mailpit.mjs`, and this report. The existing quality workflow imports and runs the new cases through its unchanged CI test entrypoint. No backend, migration, dependency, scheduler, timeout or workflow configuration changed.
+
+**Current status:** focused correction verified locally, uncommitted on `feature/phase12-production-readiness` for review. No new full browser run or live aggregate Mailpit run was performed; the Mailpit regression cases use deterministic HTTP responses. GitHub E2E acceptance remains pending a separately authorized commit/push/run. The historical cancellation cannot be retroactively certified. No production security clearance, merge or deployment is claimed.

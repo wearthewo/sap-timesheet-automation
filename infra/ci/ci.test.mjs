@@ -4,6 +4,7 @@ import { waitFor, assertProject, sqlLiteral, redact, fixtureNames, fixtureEnviro
 import { resolve, dirname } from 'node:path';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import './notification-verification.test.mjs';
 test('cleanup rejects developer project and shell/path injection', () => {
   for (const name of ['workforce', '', '../workforce-ci-123', 'workforce-ci-abc;echo']) assert.throws(() => assertProject(name));
   assert.equal(assertProject('workforce-ci-012345abcdef'), 'workforce-ci-012345abcdef');

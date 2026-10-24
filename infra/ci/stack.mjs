@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { assertProject, sqlLiteral as q, redact, waitFor, fixtureNames, fixtureEnvironment, verificationDirectory, reserveFile } from './support.mjs';
 import { verifyRegistrationRealm } from './registration-realm.mjs';
+import { notificationSnapshotSql, notificationDiagnostics, waitForNotifications } from './notification-verification.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const directory = verificationDirectory(root, process.env.CI_RUN_ID);
 const stateFile = resolve(directory, 'state.json');
@@ -158,13 +159,18 @@ async function tests() {
     const code = await new Promise(resolve => { child.on('error', () => resolve(1)); child.on('exit', resolve); });
     if (code !== 0) throw new Error(`${script} failed`);
   }
-  const subjects = Object.values(state.bundles).flatMap(bundle => Object.values(bundle.users)).map(user => q(user.subject)).join(',');
-  const scope = `FROM notifications n JOIN app_users u ON u.id=n.recipient_user_id WHERE u.external_subject IN (${subjects})`;
-  await waitFor(() => Number(sql(`SELECT count(*) ${scope} AND n.status<>'SENT';`).trim()) === 0, 60000);
+  const intents = await waitForNotifications(captureNotificationSnapshot);
   const intentsPath = resolve(directory,'intents.json');
-  writeFileSync(intentsPath,sql(`SELECT coalesce(json_agg(n),'[]'::json) ${scope};`), { mode: 0o600 });
+  writeFileSync(intentsPath,JSON.stringify(intents), { mode: 0o600 });
   execFileSync(process.execPath, [resolve(root,'infra/dev/verify-phase8-mailpit.mjs'),intentsPath],
     { env: { ...process.env, MAILPIT_API_URL: `http://localhost:${state.env.MAILPIT_WEB_PORT}` }, stdio: 'inherit' });
+}
+function captureNotificationSnapshot() {
+  const subjects = Object.values(state.bundles ?? {}).flatMap(bundle => Object.values(bundle.users)).map(user => user.subject);
+  const rows = JSON.parse(sql(notificationSnapshotSql(subjects)));
+  const folder = resolve(directory,'diagnostics'); mkdirSync(folder,{recursive:true});
+  writeFileSync(resolve(folder,'notification-readiness.json'),JSON.stringify(notificationDiagnostics(rows),null,2),{mode:0o600});
+  return rows;
 }
 function diagnostics() {
   const folder = resolve(directory, 'diagnostics'); mkdirSync(folder, { recursive: true });
@@ -185,6 +191,7 @@ function diagnostics() {
   }
   try { writeFileSync(resolve(folder,'jobs.txt'), sql(`SELECT status,operation,attempt_count,cycle_attempts,last_error_code,next_attempt_at FROM sap_export_jobs;
     SELECT type,status,attempt_count FROM notifications;`)); } catch { console.log('Job diagnostics unavailable (database/startup may have failed).'); }
+  try { captureNotificationSnapshot(); } catch { console.log('Notification business evidence unavailable (database/fixtures may not be ready).'); }
 }
 try {
   if (command === 'prepare') {
