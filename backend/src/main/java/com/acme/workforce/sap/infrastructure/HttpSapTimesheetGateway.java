@@ -1,7 +1,7 @@
 package com.acme.workforce.sap.infrastructure;
 import com.acme.workforce.sap.domain.*;
 import com.acme.workforce.sap.domain.SapGatewayException.Failure;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.*;
@@ -44,8 +44,8 @@ public class HttpSapTimesheetGateway implements SapTimesheetGateway {
      if(status<200||status>=300)throw new SapGatewayException(Failure.UNKNOWN);
      var bytes=response.getBody().readNBytes(65537);
      if(bytes.length>65536)throw new SapGatewayException(Failure.UNKNOWN);
-     com.fasterxml.jackson.databind.JsonNode node;
-     try { node=json.readTree(bytes); } catch(com.fasterxml.jackson.core.JsonProcessingException ex) { throw new SapGatewayException(Failure.UNKNOWN); }
+     tools.jackson.databind.JsonNode node;
+     try { node=json.readTree(bytes); } catch(tools.jackson.core.JacksonException ex) { throw new SapGatewayException(Failure.UNKNOWN); }
      String reference=node==null?"":node.path("externalReference").asText("");
      if(node==null||!node.path("success").asBoolean(false)||!reference.matches("[A-Za-z0-9][A-Za-z0-9._/-]{0,127}"))throw new SapGatewayException(Failure.UNKNOWN);
      return new SapExportResult(reference);
@@ -72,8 +72,8 @@ public class HttpSapTimesheetGateway implements SapTimesheetGateway {
      if(status!=200)throw new SapGatewayException(Failure.UNKNOWN);
      var bytes=response.getBody().readNBytes(65537);
      if(bytes.length>65536)throw new SapGatewayException(Failure.UNKNOWN);
-     com.fasterxml.jackson.databind.JsonNode node;
-     try{node=json.readTree(bytes);}catch(com.fasterxml.jackson.core.JsonProcessingException ex){throw new SapGatewayException(Failure.UNKNOWN);}
+     tools.jackson.databind.JsonNode node;
+     try{node=json.readTree(bytes);}catch(tools.jackson.core.JacksonException ex){throw new SapGatewayException(Failure.UNKNOWN);}
      String ref=node==null?"":node.path("externalReference").asText("");
      if(node==null||!node.path("success").asBoolean(false)||!node.path("exportIdentity").asText().equals(identity)||!ref.matches("[A-Za-z0-9][A-Za-z0-9._/-]{0,127}"))throw new SapGatewayException(Failure.UNKNOWN);
      return Optional.of(new SapExportResult(ref));

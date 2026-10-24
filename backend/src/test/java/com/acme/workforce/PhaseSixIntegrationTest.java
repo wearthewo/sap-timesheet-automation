@@ -6,14 +6,14 @@ import com.acme.workforce.reporting.api.*;
 import com.acme.workforce.reporting.domain.*;
 import com.acme.workforce.reporting.application.*;
 import com.acme.workforce.reporting.infrastructure.*;
-import com.fasterxml.jackson.databind.*;
+import tools.jackson.databind.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.ss.usermodel.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.*;
@@ -23,7 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import java.util.*;
 import java.math.BigDecimal;
@@ -36,7 +36,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
 class PhaseSixIntegrationTest extends TenantFixtures {
- @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
+ @Container static final PostgreSQLContainer postgres=new PostgreSQLContainer("postgres:17-alpine");
  @DynamicPropertySource static void config(DynamicPropertyRegistry p){
   p.add("app.reporting.max-download-rows",()->"16");p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
  }

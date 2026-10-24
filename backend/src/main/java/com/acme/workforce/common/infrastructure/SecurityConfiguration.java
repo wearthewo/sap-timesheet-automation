@@ -2,7 +2,7 @@ package com.acme.workforce.common.infrastructure;
 
 import com.acme.workforce.common.api.ApiError;
 import com.acme.workforce.identity.application.IdentityService;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import java.io.IOException;

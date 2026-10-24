@@ -12,7 +12,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.*;
@@ -21,7 +21,7 @@ import org.springframework.security.oauth2.jwt.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.*;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import java.util.*;
 import java.time.*;
@@ -37,7 +37,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
 class PhaseSevenIntegrationTest extends TenantFixtures {
- @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
+ @Container static final PostgreSQLContainer postgres=new PostgreSQLContainer("postgres:17-alpine");
  @DynamicPropertySource static void config(DynamicPropertyRegistry p){
   p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
   p.add("app.notifications.batch-size",()->"2");p.add("app.notifications.max-attempts",()->"3");

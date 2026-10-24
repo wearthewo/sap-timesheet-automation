@@ -13,6 +13,20 @@ test('deployment publishes only proxy and keeps legacy confirmation false',()=>{
 test('backup private key is restore-only and target is non-destructive',()=>{assert.doesNotMatch(source('./backup.compose.yaml'),/identity.txt/);assert.match(source('./restore.compose.yaml'),/identity.txt:ro/);const s=source('./backup.sh');assert.match(s,/Refusing non-empty database/);assert.match(s,/Refusing existing Mock SAP state/);assert.match(s,/pipefail/);assert.match(s,/age -R/);assert.match(s,/cmp "\$db.manifest" "\$db.restored"/);assert.doesNotMatch(s,/DROP DATABASE|dropdb|TRUNCATE/);});
 test('all production image roots pin reviewed multiarch digests',()=>{const lock=JSON.parse(source('./images.lock.json'));for(const image of Object.values(lock)){assert.match(image.reference,/@sha256:[a-f0-9]{64}$/);assert.deepEqual(image.platforms,['linux/amd64','linux/arm64']);}for(const name of ['backend','frontend','mock-sap','caddy','keycloak','backup'])for(const line of source('./'+name+'.Dockerfile').split('\n').filter(v=>v.startsWith('FROM ')))assert.match(line,/@sha256:[a-f0-9]{64}/);});
 
+test('Node runtime is consistent across development, CI and production images',()=>{
+ const version=source('../../.nvmrc').trim();
+ assert.match(version,/^24\.\d+\.\d+$/);
+ const pinned=JSON.parse(source('./images.lock.json')).node.reference;
+ assert.ok(pinned.startsWith(`node:${version}-bookworm-slim@sha256:`));
+ for(const file of ['./frontend.Dockerfile','./mock-sap.Dockerfile','../../frontend/Dockerfile','../../frontend/tests/Dockerfile','../../mock-sap/Dockerfile']){
+  const bases=source(file).split('\n').filter(line=>line.startsWith('FROM node:'));
+  assert.ok(bases.length>0,file);
+  for(const base of bases)assert.equal(base.split(' ')[1],pinned,file);
+ }
+ assert.equal(JSON.parse(source('../../frontend/package.json')).engines.node,`>=${version} <25`);
+ for(const workflow of ['ci','e2e'])assert.match(source(`../../.github/workflows/${workflow}.yml`),/node-version-file: \.nvmrc/);
+});
+
 test('readiness requires HTTP success, not a partially UP response body',()=>{const s=source('./compose.yaml');assert.doesNotMatch(s,/grep -q UP/);assert.equal((s.match(/HTTP\/1\.\[01\] 200/g)||[]).length,2);});
 
 test('proxy preserves same-origin form Origin and removes incompatible file capabilities',()=>{assert.match(source('./Caddyfile'),/Referrer-Policy strict-origin-when-cross-origin/);assert.doesNotMatch(source('./Caddyfile'),/Referrer-Policy no-referrer/);assert.match(source('./caddy.Dockerfile'),/setcap -r \/usr\/bin\/caddy/);});

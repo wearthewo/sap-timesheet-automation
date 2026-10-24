@@ -3,12 +3,12 @@ package com.acme.workforce;
 import com.acme.workforce.identity.application.IdentityService;
 import com.acme.workforce.employee.domain.Employee;
 import com.acme.workforce.employee.infrastructure.EmployeeRepository;
-import com.fasterxml.jackson.databind.*;
+import tools.jackson.databind.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.*;
@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.*;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -29,7 +29,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 @AutoConfigureMockMvc
 @Testcontainers
 class PhaseTwoIntegrationTest extends TenantFixtures {
- @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
+ @Container static final PostgreSQLContainer postgres=new PostgreSQLContainer("postgres:17-alpine");
  @DynamicPropertySource static void database(DynamicPropertyRegistry p) {
   p.add("spring.datasource.url",postgres::getJdbcUrl); p.add("spring.datasource.username",postgres::getUsername); p.add("spring.datasource.password",postgres::getPassword);
  }
@@ -69,7 +69,7 @@ class PhaseTwoIntegrationTest extends TenantFixtures {
  MockHttpServletRequestBuilder submit(JsonNode s) { return post(base(s)+"/submit").header("X-Timesheet-Version",s.get("version").asLong()); }
  @Test void createsDraftAndIndependentEmployeeMonth() throws Exception {
   var a=create("alice"); var b=create("bob");
-  assertThat(a.get("status").asText()).isEqualTo("DRAFT"); assertThat(a.get("totalHours").decimalValue()).isEqualByComparingTo("0");
+  assertThat(a.get("status").asText()).isEqualTo("DRAFT"); assertThat(a.get("totalHours").isString()).isTrue(); assertThat(new java.math.BigDecimal(a.get("totalHours").asText())).isEqualByComparingTo("0");
   assertThat(a.get("id")).isNotEqualTo(b.get("id"));
  }
  @Test void duplicateMonthConflicts() throws Exception {

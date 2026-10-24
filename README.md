@@ -15,6 +15,8 @@ Phase 7 adds durable email notifications, scheduled reminders and owner-only not
 
 **Exports now run in the existing backend worker with PostgreSQL jobs, bounded retries and reconciliation. No production SAP/email provider, additional channels, payroll or deployment is included.**
 
+Dependency maintenance: [Phase 13B.1 assessment and verification](docs/phase13b1-dependency-security.md) records the Node 24.22.1 pins, Boot 4 migration, targeted tests and unresolved container security findings. This dependency checkpoint is not public-launch clearance.
+
 ## Architecture and stack
 
 Checkpoint 12B adds a role-aware Overview: ADMIN gets organization setup counts/actions; MANAGER gets direct-report approvals and recent decisions; FINANCE gets SAP operational counts and reporting shortcuts. Linked active employees see their current month and recent rejected months. Empty organizations show real zero counts and setup guidance.
@@ -27,10 +29,10 @@ Local mock now, real SAP adapter later: Spring Boot → SapTimesheetGateway → 
 
 See [architecture](docs/architecture.md) for the diagram, authentication boundaries and future modules.
 
-- Java 21, Spring Boot 3.5.16 (stable 3.5 line), Maven Wrapper 3.9.11.
+- Java 21, Spring Boot 4.1.2, Maven Wrapper 3.9.11.
 - Spring Web, Security/JWT, Data JPA, Bean Validation, Flyway, PostgreSQL, springdoc 2.8.17.
 - Next.js 16.4.1 App Router, React, strict TypeScript, Tailwind, Node 24, pnpm 12.8.1.
-- Keycloak 26.8.1 with NextAuth 4.24.15 OIDC; JUnit 5 and Testcontainers PostgreSQL.
+- Keycloak 26.8.1 with NextAuth 4.24.15 OIDC; JUnit Jupiter and Testcontainers PostgreSQL.
 - Node server/standalone output, not static export; no Vercel services.
 
 ```text

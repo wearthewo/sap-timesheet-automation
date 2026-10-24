@@ -4,7 +4,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.*;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.boot.test.autoconfigure.web.servlet.MockMvcBuilderCustomizer;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;

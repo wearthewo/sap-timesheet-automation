@@ -3,7 +3,7 @@ import com.acme.workforce.sap.domain.*;
 import com.acme.workforce.common.application.DomainException;
 import com.acme.workforce.identity.infrastructure.UserRepository;
 import com.acme.workforce.identity.domain.UserRole;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.*;

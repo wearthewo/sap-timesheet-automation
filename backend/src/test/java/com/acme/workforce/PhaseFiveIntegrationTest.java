@@ -2,13 +2,13 @@ package com.acme.workforce;
 import com.acme.workforce.identity.application.IdentityService;
 import com.acme.workforce.employee.domain.Employee;
 import com.acme.workforce.employee.infrastructure.EmployeeRepository;
-import com.fasterxml.jackson.databind.*;
+import tools.jackson.databind.*;
 import com.sun.net.httpserver.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.*;
@@ -16,7 +16,7 @@ import org.springframework.test.web.servlet.*;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -30,7 +30,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
 class PhaseFiveIntegrationTest extends TenantFixtures {
- @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
+ @Container static final PostgreSQLContainer postgres=new PostgreSQLContainer("postgres:17-alpine");
  static final HttpServer server;
  static volatile java.util.function.Consumer<HttpExchange> handler;
  static {try{server=HttpServer.create(new InetSocketAddress("0.0.0.0",0),0);server.createContext("/sap/timesheets",e->handler.accept(e));server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());server.start();}catch(Exception e){throw new ExceptionInInitializerError(e);}}

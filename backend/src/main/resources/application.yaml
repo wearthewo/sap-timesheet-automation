@@ -3,6 +3,8 @@ server:
   error:
     include-message: never
 spring:
+  jackson:
+    use-jackson2-defaults: true
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
