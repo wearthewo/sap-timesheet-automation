@@ -6,6 +6,7 @@ project="$1"; envfile="$2"; action="$3"
 [[ "$project" =~ ^workforce-prod(-[a-z0-9-]+)?$ ]] || { echo 'Use an explicit workforce-prod[-suffix] project' >&2; exit 2; }
 [[ "$envfile" = /* ]] || { echo 'Use an absolute environment-file path' >&2; exit 2; }
 compose=(docker compose -p "$project" --env-file "$envfile" -f infra/production/compose.yaml -f infra/production/backup.compose.yaml)
+if [ -f release.compose.json ]; then compose+=(-f release.compose.json); fi
 if [ "$action" = restore ]; then compose+=(-f infra/production/restore.compose.yaml); fi
 "${compose[@]}" config --quiet
 case "$action" in

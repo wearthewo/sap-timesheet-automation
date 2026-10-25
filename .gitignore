@@ -20,3 +20,8 @@ backups/
 *.dump
 *.age
 infra/production/*.env
+release.json
+release.compose.json
+*.tar.age.sha256
+*.pem
+*.key

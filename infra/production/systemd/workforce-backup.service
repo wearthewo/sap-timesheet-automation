@@ -1,0 +1,14 @@
+[Unit]
+Description=Coordinated encrypted Workforce backup and verified offsite copy
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/workforce/current
+EnvironmentFile=/etc/workforce/operations.env
+ExecStart=/bin/bash infra/production/scheduled-backup.sh
+TimeoutStartSec=20min
+UMask=0077
+Nice=10

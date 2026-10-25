@@ -13,3 +13,8 @@
 **/*.tsbuildinfo
 secrets
 backups
+
+**/*.pem
+**/*.key
+release.json
+release.compose.json

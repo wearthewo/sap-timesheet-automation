@@ -1,5 +1,5 @@
 # Encrypted backup and restore runbook
-12D adds an operator-only backup profile; no backup is sent offsite automatically. A local restore rehearsal is not offsite disaster-recovery proof.
+12D adds an operator-only backup profile. Phase 13 prepares opt-in systemd scheduling and an offsite wrapper; nothing is installed or sent automatically until an operator configures/enables it. Follow the [Contabo runbook](contabo-deployment.md). Local and remote checksums must pass before offsite success is recorded. A local restore rehearsal is not offsite disaster-recovery proof.
 
 ## Consistency and contents
 Workforce and Keycloak share a PostgreSQL 17 instance with separate databases/owners. `ops.sh backup` stops the five application writers/proxy (only those previously running), retains PostgreSQL, dumps both databases and copies Mock SAP state, then starts the prior writers even on failure. This intentionally trades brief downtime for a consistent cross-service point. Do not run another backend/worker against these databases during backup.

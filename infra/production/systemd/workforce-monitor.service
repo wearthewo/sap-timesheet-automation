@@ -1,0 +1,15 @@
+[Unit]
+Description=Local Workforce checks and external success pulse
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/workforce/current
+EnvironmentFile=/etc/workforce/operations.env
+RuntimeDirectory=workforce
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+ExecStart=/bin/bash infra/production/monitor-cycle.sh
+TimeoutStartSec=90
+UMask=0077

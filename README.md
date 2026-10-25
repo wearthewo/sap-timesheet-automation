@@ -17,6 +17,8 @@ Phase 7 adds durable email notifications, scheduled reminders and owner-only not
 
 Dependency maintenance: [Phase 13B.1 assessment and verification](docs/phase13b1-dependency-security.md) records the Node 24.22.1 pins, Boot 4 migration, targeted tests and unresolved container security findings. This dependency checkpoint is not public-launch clearance.
 
+Deployment target is now **Contabo Cloud VPS 4, AMD64, 8 GB**, subject to the EUR15/month total budget. See the [Contabo operator runbook](docs/contabo-deployment.md) and [Phase 13 readiness checkpoints](docs/phase13-contabo-readiness.md) for manual release gates, encrypted backups, SMTP, rollback, local browser testing and remaining launch blockers. No server or production infrastructure has been provisioned.
+
 ## Architecture and stack
 
 Checkpoint 12B adds a role-aware Overview: ADMIN gets organization setup counts/actions; MANAGER gets direct-report approvals and recent decisions; FINANCE gets SAP operational counts and reporting shortcuts. Linked active employees see their current month and recent rejected months. Empty organizations show real zero counts and setup guidance.
@@ -30,7 +32,7 @@ Local mock now, real SAP adapter later: Spring Boot → SapTimesheetGateway → 
 See [architecture](docs/architecture.md) for the diagram, authentication boundaries and future modules.
 
 - Java 21, Spring Boot 4.1.2, Maven Wrapper 3.9.11.
-- Spring Web, Security/JWT, Data JPA, Bean Validation, Flyway, PostgreSQL, springdoc 2.8.17.
+- Spring Web, Security/JWT, Data JPA, Bean Validation, Flyway, PostgreSQL, springdoc 3.1.1.
 - Next.js 16.4.1 App Router, React, strict TypeScript, Tailwind, Node 24, pnpm 12.8.1.
 - Keycloak 26.8.1 with NextAuth 4.24.15 OIDC; JUnit Jupiter and Testcontainers PostgreSQL.
 - Node server/standalone output, not static export; no Vercel services.

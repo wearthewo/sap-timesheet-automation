@@ -1,0 +1,91 @@
+name: Publish reviewed AMD64 images
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type PUBLISH after reviewing security findings and exact-revision CI/E2E'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'PUBLISH'
+    environment: production-publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REGISTRY: ghcr.io/wearthewo/sap-timesheet-automation
+      TRIVY: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with: {node-version-file: .nvmrc}
+      - name: Verify exact source and approval policy
+        run: node infra/production/release-gates.mjs "$GITHUB_SHA" production-publish
+      - name: Build AMD64 release once, then scan all images before any publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .verification/release/scans
+          for service in proxy backend frontend keycloak mock-sap backup; do
+            dockerfile="$service"
+            if [ "$service" = proxy ]; then dockerfile=caddy; fi
+            docker buildx build --platform linux/amd64 --load --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              -f "infra/production/$dockerfile.Dockerfile" -t "$REGISTRY/$service:$GITHUB_SHA" .
+            df -h / | tail -n 1
+          done
+          postgres=$(node -p 'JSON.parse(require("node:fs").readFileSync("infra/production/images.lock.json")).postgres.reference')
+          docker pull --platform linux/amd64 "$postgres"
+          failed=0
+          for service in proxy backend frontend keycloak mock-sap backup postgres; do
+            image="$REGISTRY/$service:$GITHUB_SHA"
+            if [ "$service" = postgres ]; then image="$postgres"; fi
+            if ! docker run --rm --memory=768m -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$PWD/.verification/release/scans:/reports" "$TRIVY" image --image-src docker \
+              --timeout 5m --scanners vuln --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --format json \
+              --output "/reports/$service.json" "$image"; then failed=1; continue; fi
+            if ! node infra/production/scan-verification.mjs \
+              ".verification/release/scans/$service.json"; then failed=1; fi
+          done
+          test "$failed" = 0
+      - name: Publish only scanned images and capture registry digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          trap 'docker logout ghcr.io' EXIT
+          for service in proxy backend frontend keycloak mock-sap backup; do
+            docker push "$REGISTRY/$service:$GITHUB_SHA"
+          done
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {services,validateRelease} from './infra/production/release.mjs';
+          const images={};
+          for(const service of services) {
+            const tag=`${process.env.REGISTRY}/${service}:${process.env.GITHUB_SHA}`;
+            const data=JSON.parse(execFileSync('docker',['image','inspect',tag],{encoding:'utf8'}))[0];
+            if(data.Architecture!=='amd64'||data.Os!=='linux') throw Error('Wrong platform');
+            images[service]=data.RepoDigests.find(x=>x.startsWith(`${process.env.REGISTRY}/${service}@`));
+          }
+          images.postgres=JSON.parse(readFileSync('infra/production/images.lock.json')).postgres.reference;
+          const manifest=validateRelease({schema:1,revision:process.env.GITHUB_SHA,platform:'linux/amd64',images});
+          writeFileSync('.verification/release/release.json',JSON.stringify(manifest,null,2));
+          NODE
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: production-release
+          path: .verification/release/
+          include-hidden-files: true
+          retention-days: 30

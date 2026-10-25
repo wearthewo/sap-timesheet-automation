@@ -1,4 +1,5 @@
 # Production infrastructure preparation (12D)
+Current provider decision: Contabo Cloud VPS 4 AMD64/8 GB replaces Hetzner and Oracle as the private-demo target. Follow the [Phase 13 Contabo runbook](contabo-deployment.md) and [current evidence](phase13-contabo-readiness.md); provider comparisons below are historical 12D context. Registry release manifests and manually gated workflows now wrap the same Compose topology. Local image IDs are not published registry digests.
 This is a reviewed deployment **template**, not a deployed service or Phase 13 approval. Existing local/CI Compose files, databases and realms are independent and unchanged. See [checkpoint evidence](phase12-progress.md), [environment reference](production-environment.md), [Keycloak](keycloak-production.md), [backups](backup-restore.md), [operations](operations.md) and [launch checklist](phase13-deployment-checklist.md).
 
 ## Topology
