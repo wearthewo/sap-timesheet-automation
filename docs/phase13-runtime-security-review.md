@@ -1,5 +1,11 @@
 # Phase 13 runtime security review - 25 October 2026
 
+This is the historical baseline at `8aa47fc`. The subsequent
+[runtime-remediation checkpoint](phase13-runtime-remediation.md) records patched
+Caddy/PostgreSQL candidates, final scans and compatibility results. It also
+clarifies that CVE-2026-91415 concerns broader OpenJDK2D processing, not only a
+font-upload route. Keep the original453-record inventory for comparison.
+
 **Private-demo deployment: NO-GO.** This is an inventory and exposure review, not security clearance or a suppression policy. Production pins and application behavior are unchanged.
 
 ## Exact inventory and scope

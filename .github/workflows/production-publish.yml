@@ -37,19 +37,16 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .verification/release/scans
-          for service in proxy backend frontend keycloak mock-sap backup; do
+          for service in proxy backend frontend keycloak mock-sap backup postgres; do
             dockerfile="$service"
             if [ "$service" = proxy ]; then dockerfile=caddy; fi
             docker buildx build --platform linux/amd64 --load --label "org.opencontainers.image.revision=$GITHUB_SHA" \
               -f "infra/production/$dockerfile.Dockerfile" -t "$REGISTRY/$service:$GITHUB_SHA" .
             df -h / | tail -n 1
           done
-          postgres=$(node -p 'JSON.parse(require("node:fs").readFileSync("infra/production/images.lock.json")).postgres.reference')
-          docker pull --platform linux/amd64 "$postgres"
           failed=0
           for service in proxy backend frontend keycloak mock-sap backup postgres; do
             image="$REGISTRY/$service:$GITHUB_SHA"
-            if [ "$service" = postgres ]; then image="$postgres"; fi
             if ! docker run --rm --memory=768m -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$PWD/.verification/release/scans:/reports" "$TRIVY" image --image-src docker \
               --timeout 5m --scanners vuln --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --format json \
@@ -64,12 +61,12 @@ jobs:
           set -euo pipefail
           printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           trap 'docker logout ghcr.io' EXIT
-          for service in proxy backend frontend keycloak mock-sap backup; do
+          for service in proxy backend frontend keycloak mock-sap backup postgres; do
             docker push "$REGISTRY/$service:$GITHUB_SHA"
           done
           node --input-type=module <<'NODE'
           import {execFileSync} from 'node:child_process';
-          import {readFileSync,writeFileSync} from 'node:fs';
+          import {writeFileSync} from 'node:fs';
           import {services,validateRelease} from './infra/production/release.mjs';
           const images={};
           for(const service of services) {
@@ -78,7 +75,6 @@ jobs:
             if(data.Architecture!=='amd64'||data.Os!=='linux') throw Error('Wrong platform');
             images[service]=data.RepoDigests.find(x=>x.startsWith(`${process.env.REGISTRY}/${service}@`));
           }
-          images.postgres=JSON.parse(readFileSync('infra/production/images.lock.json')).postgres.reference;
           const manifest=validateRelease({schema:1,revision:process.env.GITHUB_SHA,platform:'linux/amd64',images});
           writeFileSync('.verification/release/release.json',JSON.stringify(manifest,null,2));
           NODE

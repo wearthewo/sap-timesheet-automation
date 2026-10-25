@@ -18,7 +18,7 @@ if(command==='prepare'){
  state=JSON.parse(readFileSync(stateFile,'utf8'));if(!/^workforce-prod-qa-[a-f0-9]{10}$/.test(state.project))throw Error('Invalid QA project');
  if(command==='config'){compose(['config','--quiet']);console.log('Production Compose configuration valid');}
  else if(command==='build'){
-  for(const service of ['mock-sap','proxy','keycloak','backend','frontend']){
+  for(const service of ['postgres','mock-sap','proxy','keycloak','backend','frontend']){
    console.log('Building '+service);const out=createWriteStream(resolve(dir,'build-'+service+'.log'));
    const child=spawn('docker',['compose','-p',state.project,'--env-file',resolve(dir,'production.env'),'-f',resolve(root,'infra/production/compose.yaml'),'build',service],{stdio:['ignore','pipe','pipe']});
    child.stdout.pipe(out,{end:false});child.stderr.pipe(out,{end:false});const timer=setTimeout(()=>child.kill(),20*60*1000);const code=await new Promise((r,j)=>{child.once('error',j);child.once('close',r)});clearTimeout(timer);out.end();if(code!==0)throw Error('Build failed: '+service);console.log('Built '+service);

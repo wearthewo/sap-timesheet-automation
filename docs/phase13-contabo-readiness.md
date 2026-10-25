@@ -1,5 +1,29 @@
 # Phase 13 - Contabo preparation and evidence
 
+## Runtime-remediation update — 26 October 2026
+
+See [the reviewed runtime checkpoint](phase13-runtime-remediation.md) and its
+[13 retained candidate findings](phase13-remediated-image-findings.csv). The
+AMD64 Caddy, PostgreSQL and backup definitions now rebuild patched Go binaries;
+the final assembled images each have0HIGH/0CRITICAL detections. Caddy's six HIGHs
+and gosu's1CRITICAL/25HIGH detections were removed without an ignore rule. A real
+proxy test found and fixed trusted forwarding headers being deleted by a
+wildcard;6proxy scenarios,5PostgreSQL scenarios and backup runtime smoke passed.
+The production release inventory now carries seven Workforce image digests,
+including patched PostgreSQL; it must not substitute an unpatched official image.
+
+Focused verification:81/81 combined Node checks, a later33/33 overlapping
+production/release check, Compose validation, actionlint and shell syntax passed.
+The existing17containers remain healthy, with original data/volumes untouched.
+No full browser/backend suite or general infrastructure exercise was repeated.
+
+**Deployment remains NO-GO:** Keycloak's two JDK HIGHs, frontend1CRITICAL/56HIGH
+vendor-qualified/OS detections, residual UNKNOWN review and exact-revision
+GitHub/final-image verification remain open. No exception is approved. The
+historical preparation and453-record baseline below are preserved; they do not
+describe the newly patched candidate images. GO only for local checkpoint
+review and separately authorized GitHub CI, not publication or cloud deployment.
+
 Date: 25 October 2026. Branch: `feature/phase12-production-readiness`. **No server exists, no deployment or publication was performed, and no purchase is authorized by this report.** Selected target: Contabo Cloud VPS 4, AMD64, four shared vCPU, 8 GB RAM, 100 GB SSD, Ubuntu 24.04 LTS, EU, one-month billing. Initial scope is an IP-restricted synthetic portfolio/demo, not unrestricted SaaS.
 
 ## Decisions and checkpoints

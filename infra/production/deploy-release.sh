@@ -32,7 +32,10 @@ node --input-type=module - "$temporary/release.json" <<'NODE'
 import {readFileSync} from 'node:fs';
 const release=JSON.parse(readFileSync(process.argv[2]));
 const lock=JSON.parse(readFileSync('infra/production/images.lock.json'));
-if(release.images.postgres!==lock.postgres.reference) throw Error('PostgreSQL must match reviewed source pin');
+// The helper-patched image is published under our namespace, never as official postgres.
+// Preserve the reviewed PostgreSQL major/root in the exact source checkout as well.
+if(!readFileSync('infra/production/postgres.Dockerfile','utf8').split('\n').includes('FROM '+lock.postgres.reference)) throw Error('PostgreSQL root must match reviewed source pin');
+if(!release.images.postgres.startsWith('ghcr.io/wearthewo/sap-timesheet-automation/postgres@sha256:')) throw Error('Reviewed PostgreSQL helper image required');
 NODE
 # Override contains immutable registry digests, never mutable release tags.
 node /opt/workforce/tools/release.mjs compose "$temporary/release.json" release.compose.json

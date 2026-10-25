@@ -3,18 +3,17 @@ import assert from 'node:assert/strict';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-export const services=['proxy','backend','frontend','keycloak','mock-sap','backup'];
+export const services=['proxy','backend','frontend','keycloak','mock-sap','backup','postgres'];
 const namespace='ghcr.io/wearthewo/sap-timesheet-automation';
 export function validateRelease(value) {
  assert.equal(value.schema,1); assert.equal(value.platform,'linux/amd64');
  assert.match(value.revision,/^[a-f0-9]{40}$/);
- assert.deepEqual(Object.keys(value.images).sort(),[...services,'postgres'].sort());
+ assert.deepEqual(Object.keys(value.images).sort(),[...services].sort());
  for(const service of services) {
   const parts=value.images[service].split('@');
   assert.equal(parts.length,2); assert.equal(parts[0],`${namespace}/${service}`);
   assert.match(parts[1],/^sha256:[a-f0-9]{64}$/);
  }
- assert.match(value.images.postgres,/^postgres:17-alpine@sha256:[a-f0-9]{64}$/);
  return value;
 }
 export function composeRelease(value) {

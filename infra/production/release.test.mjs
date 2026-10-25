@@ -4,7 +4,7 @@ import {services,validateRelease,composeRelease} from './release.mjs';
 import {assertApproval,assertVerification,assertJobs} from './release-gates.mjs';
 import {assertScan} from './scan-verification.mjs';
 const sha='a'.repeat(40),digest='b'.repeat(64);
-const release=()=>({schema:1,revision:sha,platform:'linux/amd64',images:{...Object.fromEntries(services.map(s=>[s,`ghcr.io/wearthewo/sap-timesheet-automation/${s}@sha256:${digest}`])),postgres:`postgres:17-alpine@sha256:${digest}`}});
+const release=()=>({schema:1,revision:sha,platform:'linux/amd64',images:Object.fromEntries(services.map(s=>[s,`ghcr.io/wearthewo/sap-timesheet-automation/${s}@sha256:${digest}`]))});
 test('release uses only exact AMD64 immutable image inventory',()=>{
  const value=release();assert.equal(validateRelease(value),value);
  const overlay=composeRelease(value);assert.equal(overlay.services.backend.image,value.images.backend);
@@ -18,7 +18,9 @@ for(const [name,change] of [
  ['missing backup image',v=>delete v.images.backup],
  ['wrong architecture',v=>v.platform='linux/arm64'],
  ['source path injection',v=>v.revision='../main'],
- ['postgres major upgrade',v=>v.images.postgres=v.images.postgres.replace(':17',':18')],
+ ['unpatched upstream postgres instead of reviewed helper image',v=>v.images.postgres=`postgres:17-alpine@sha256:${digest}`],
+ ['postgres major upgrade',v=>v.images.postgres=`postgres:18-alpine@sha256:${digest}`],
+ ['missing postgres image',v=>delete v.images.postgres],
 ]) test(`release rejects ${name}`,()=>{const v=release();change(v);assert.throws(()=>validateRelease(v));});
 const runs=()=>['ci','e2e'].map((name,i)=>({id:i+1,head_sha:sha,path:`.github/workflows/${name}.yml`,status:'completed',conclusion:'success'}));
 test('release requires CI and E2E on the same exact revision',()=>{assertVerification(runs(),sha);assert.throws(()=>assertVerification(runs(),'c'.repeat(40)));assert.throws(()=>assertVerification(runs().slice(0,1),sha));});

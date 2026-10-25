@@ -19,6 +19,9 @@
 }
 (security) {
  tls {$TLS_CONFIG}
+ # Remove untrusted forwarding headers before reverse_proxy constructs its trusted values.
+ # A wildcard header_up deletion runs after header_up assignments and erases them too.
+ request_header -X-Forwarded-*
  header {
   Strict-Transport-Security "max-age=31536000"
   X-Content-Type-Options nosniff
@@ -44,7 +47,6 @@
 }
 (forward) {
  header_up -Forwarded
- header_up -X-Forwarded-*
  header_up -X-Original-*
  header_up -X-Real-IP
  header_up -traceparent

@@ -31,9 +31,11 @@ services:
       keycloak: {condition: service_healthy}
     healthcheck: {test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/health"], interval: 15s, timeout: 5s, retries: 5}
   postgres:
-    # Official entrypoint starts as root only to initialize/chown, then drops to postgres.
+    # Official PostgreSQL root/entrypoint; only gosu is rebuilt with patched Go.
+    # Starts as root to initialize/chown, then drops to postgres.
     restart: unless-stopped
-    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    image: workforce-postgres:${RELEASE_TAG:?Set RELEASE_TAG}
+    build: {context: ../.., dockerfile: infra/production/postgres.Dockerfile}
     platform: ${PLATFORM}
     security_opt: ["no-new-privileges:true"]
     logging: {driver: local, options: {max-size: "10m", max-file: "3"}}
