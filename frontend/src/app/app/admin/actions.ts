@@ -16,6 +16,7 @@ export async function administer(operation: string, id: string | null, _state: A
   case "employee-edit": path = `/admin/employees/${id}`; method = "PUT"; body = { employeeNumber: value("employeeNumber"), displayName: value("displayName"), managerId: optional("managerId"), version }; break;
   case "employee-status": path = `/admin/employees/${id}/status`; body = { active: value("active") === "true", version }; break;
   case "employee-link": path = `/admin/employees/${id}/link`; body = { userId: value("userId"), version }; break;
+  case "employee-delete": path = `/admin/employees/${id}`; method = "DELETE"; body = { version }; break;
   case "member-change": path = `/admin/members/${id}`; method = "PUT"; body = { role: value("role"), status: value("status"), version }; break;
   case "invite-create": path = "/admin/invitations"; body = { email: value("email"), employeeId: optional("employeeId"), role: value("role") }; break;
   case "invite-revoke": path = `/admin/invitations/${id}/revoke`; break;
@@ -25,10 +26,15 @@ export async function administer(operation: string, id: string | null, _state: A
   case "assignment-create": case "assignment-edit": path = "/project-assignments" + (operation === "assignment-edit" ? `/${id}` : ""); method = operation === "assignment-edit" ? "PUT" : "POST"; body = { employeeId: value("employeeId"), projectId: value("projectId"), validFrom: value("validFrom"), validTo: optional("validTo"), active: value("active") === "true" }; break;
   default: return { error: "Unsupported administration action." };
  }
- let createdId: string | undefined;
- try { const r = await backendResponse("/api/v1" + path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }); if (destination) createdId = (await r.json()).id; }
+ let createdId: string | undefined, savedVersion: number | undefined;
+ const employeeUpdate = ["employee-edit", "employee-status", "employee-link"].includes(operation);
+ try { const r = await backendResponse("/api/v1" + path, { method, headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }); if (destination) createdId = (await r.json()).id; else if (employeeUpdate) savedVersion = (await r.json()).version; }
  catch (e) { if (e instanceof BackendError) return { error: e.status === 409 ? e.message + " Review the latest saved record before retrying. Your form values have been kept." : e.message }; throw e; }
  revalidatePath("/app", "layout");
  if (destination && createdId) redirect(destination + createdId);
+ // A version-keyed form remounts after a successful write. Keep confirmation in
+ // the refreshed record page instead of the form state that is being discarded.
+ if (employeeUpdate) redirect(`/app/admin/employees/${id}?saved=${operation}&version=${savedVersion}`);
+ if (operation === "employee-delete") redirect("/app/admin/employees?deleted=1");
  return { success: operation === "invite-create" ? "Invitation queued for delivery." : "Changes saved." };
 }

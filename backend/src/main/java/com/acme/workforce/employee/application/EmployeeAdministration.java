@@ -43,4 +43,19 @@ public class EmployeeAdministration {
  @Transactional public View link(UUID id,Link r){UUID org=access.write();var current=get(org,id);AdministrationAccess.version(current.version(),r.version());member(org,r.userId());if(current.userId()!=null)throw new DomainException(409,"EMPLOYEE_ALREADY_LINKED","This employee already has an account.");
   if(Boolean.TRUE.equals(sql.queryForObject("SELECT EXISTS(SELECT 1 FROM organization_invitations WHERE employee_id=? AND status='PENDING' AND expires_at>now())",Boolean.class,id)))throw new DomainException(409,"INVITATION_PENDING","Revoke the pending invitation before linking another account.");
   sql.update("UPDATE employees SET user_id=?,version=version+1,updated_at=now() WHERE id=? AND organization_id=?",r.userId(),id,org);access.audit(org,"EMPLOYEE_LINKED",id,"{}");return get(org,id);}
+ @Transactional public void delete(UUID id,long version){
+  UUID org=access.write();var current=get(org,id);AdministrationAccess.version(current.version(),version);
+  // Only unused, unlinked profiles may be removed. Keep even cancelled invitation
+  // and inactive assignment history; deactivation is the safe alternative.
+  boolean used=current.userId()!=null || Boolean.TRUE.equals(sql.queryForObject("""
+   SELECT EXISTS(SELECT 1 FROM employees WHERE organization_id=? AND manager_id=?)
+    OR EXISTS(SELECT 1 FROM project_assignments WHERE organization_id=? AND employee_id=?)
+    OR EXISTS(SELECT 1 FROM timesheets WHERE organization_id=? AND employee_id=?)
+    OR EXISTS(SELECT 1 FROM timesheet_approvals WHERE organization_id=? AND manager_employee_id=?)
+    OR EXISTS(SELECT 1 FROM organization_invitations WHERE organization_id=? AND employee_id=?)
+   """,Boolean.class,org,id,org,id,org,id,org,id,org,id));
+  if(used)throw new DomainException(409,"EMPLOYEE_IN_USE","This profile has a linked account, direct reports or business history. Deactivate it instead. Membership access is managed separately on Members.");
+  sql.update("DELETE FROM employees WHERE id=? AND organization_id=?",id,org);
+  access.audit(org,"EMPLOYEE_DELETED",id,"{}");
+ }
 }

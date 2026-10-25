@@ -639,3 +639,23 @@ Focused backend evidence: 22/22 initial tests; a 242-test run had one Jackson te
 No new authenticated Playwright/full GitHub run is claimed. The prior green CI cannot accept this major framework upgrade. **Production-security gate remains blocked** by Caddy high findings, outstanding JDK/OS applicability review and full candidate CI. New AMD64 frontend/Mock SAP/Keycloak image builds passed; ARM64 was not reverified. All17 preexisting containers remained healthy with unchanged uptimes; only new disposable verification containers were removed. No database/realm changes, push, merge, deployment or checkpoint commit.
 
 Exact versions, commands, failures/reruns, vulnerability counts/classification, image IDs, file inventory, disk usage and outside-sandbox operations: [Phase13B.1 dependency security](phase13b1-dependency-security.md). Next action is review, then explicitly authorized local checkpoint and later GitHub CI; resolve public-launch findings before deployment.
+
+### Phase 12F browser acceptance — 25 October 2026
+
+This addendum preserves the historical checkpoints above. Phase 13 preparation was paused for actual customer-workflow acceptance against the existing application at `http://localhost:33000`, with Mailpit at `http://localhost:38025`.
+
+**Covered customer workflows: GO.** 56 exploratory real-Chromium scenarios passed, plus one independent administration Playwright scenario (one worker, zero retries, 2.7 minutes). The independent scenario overlaps coverage; counts are not individual assertions. Admin onboarding/account linking, newly invited managers receiving existing employee approvals, safe people removal, employee rejection/correction/approval, Finance reports/downloads and Mock SAP failure/retry/reconciliation were exercised. Role changes, suspension/revocation, manager reassignment, self-review/cycle guards, organization isolation and four-role desktop/mobile logout passed.
+
+Corrections: employee success feedback survives versioned form remounts; guarded deletion of unused unlinked employee profiles with audit retention; clearer membership removal/suspension and explicit removal confirmation. No speculative account auto-linking or business authorization relaxation. Two focused PostgreSQL integration tests passed; backend packaging, targeted ESLint, TypeScript/build and 28 smoke tests passed. Only affected backend/frontend services were replaced; all six QA services are healthy. No database reset, volume deletion, push, merge, deployment or new checkpoint commit.
+
+Naturally expired invitation and obsolete-undelivered-reminder cancellation remain NOT TESTED in this browser run. Unsupported organization-settings/read-unread controls are distinguished from existing tested functions. Full candidate CI remains a later gate before merge; this local functional GO does not clear production security or deployment requirements.
+
+Full scenario matrix, exact commands, failures/harness corrections, screenshots, changed files and limits: [Phase12F acceptance report](phase12f-browser-acceptance.md). User-facing instructions for all roles and common problems: [Local browser testing guide](local-browser-testing-guide.md).
+
+Changes remain uncommitted on `feature/phase12-production-readiness`, HEAD `444f4b4306fc212ca6bb0567c1f68df15ac836d6`. Preserve the separate preexisting Phase13 changes; review/stage only intended files. Phase13 work was not automatically resumed.
+
+#### Phase 12F local checkpoint finalization
+
+The subsequent user instruction authorizes one local commit of the reviewed Phase 12F changes. The checkpoint `fix: complete Phase 12F browser acceptance and people management` includes exactly the 13 files listed in the acceptance report. The progress-file change is limited to this Phase 12F addendum; prior checkpoint records remain intact. All 31 preexisting Phase 13 deployment-related files are excluded and remain unstaged, with preservation hashes recorded privately.
+
+Existing acceptance evidence was reused; no browser suite, build, Docker operation or database change was performed for this commit. The stale B07 workbook-inspection note was corrected after checking the saved XLSX. No credentials, downloaded artifacts or verification files are included. No push, merge or deployment is authorized by this checkpoint; the outstanding acceptance limits and future full-CI gate remain unchanged.

@@ -57,6 +57,29 @@ class PhaseElevenAdministrationTest {
   call(post("/api/v1/admin/employees/"+id+"/status"),"owner",org,Map.of("active",true,"version",2)).andExpect(status().isOk());
   assertThat(sql.queryForObject("SELECT count(*) FROM organization_admin_audit WHERE organization_id=?",Integer.class,org)).isEqualTo(4);
  }
+ @Test void unusedProfileDeletionIsVersionedScopedAndAudited()throws Exception{
+  UUID e=id(employee("UNUSED",null,null));
+  call(delete("/api/v1/admin/employees/"+e),"other",other,Map.of("version",0)).andExpect(status().isNotFound());
+  member("ordinary","EMPLOYEE");call(delete("/api/v1/admin/employees/"+e),"ordinary",org,Map.of("version",0)).andExpect(status().isForbidden());
+  call(delete("/api/v1/admin/employees/"+e),"owner",org,Map.of("version",1)).andExpect(status().isConflict());
+  call(delete("/api/v1/admin/employees/"+e),"owner",org,Map.of("version",0)).andExpect(status().isNoContent());
+  call(get("/api/v1/admin/employees/"+e),"owner",org,null).andExpect(status().isNotFound());
+  assertThat(sql.queryForObject("SELECT count(*) FROM organization_admin_audit WHERE resource_id=?",Integer.class,e)).isEqualTo(2);
+ }
+ @Test void deletionPreservesLinkedProfilesAndHistoricalDependencies()throws Exception{
+  member("linked","EMPLOYEE");var linked=employee("LINKED",null,user("linked"));
+  UUID manager=id(employee("MANAGER",null,null));employee("REPORT",manager,null);
+  UUID assigned=id(employee("ASSIGNED",null,null));UUID p=id(project("HISTORY"));
+  call(post("/api/v1/project-assignments"),"owner",org,Map.of("employeeId",assigned,"projectId",p,"validFrom","2026-01-01","active",false)).andExpect(status().isCreated());
+  UUID invited=id(employee("INVITED",null,null));var invitation=invite("unused@example.test",invited,"EMPLOYEE");
+  call(post("/api/v1/admin/invitations/"+id(invitation)+"/revoke"),"owner",org,null).andExpect(status().isNoContent());
+  UUID historical=id(employee("HISTORICAL",null,null));sql.update("INSERT INTO timesheets(id,organization_id,employee_id,year,month,status,total_hours,version) VALUES (?,?,?,2026,10,'DRAFT',0,0)",UUID.randomUUID(),org,historical);
+  for(UUID id:List.of(id(linked),manager,assigned,invited,historical)){
+   call(delete("/api/v1/admin/employees/"+id),"owner",org,Map.of("version",0)).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("EMPLOYEE_IN_USE"));
+   call(get("/api/v1/admin/employees/"+id),"owner",org,null).andExpect(status().isOk());
+  }
+  assertThat(sql.queryForObject("SELECT count(*) FROM organization_admin_audit WHERE action='EMPLOYEE_DELETED'",Integer.class)).isZero();
+ }
  @Test void scopedNumbersSearchAndPagination()throws Exception{employee("E001",null,null);employee("E002",null,null);call(post("/api/v1/admin/employees"),"owner",org,Map.of("employeeNumber","E001","displayName","duplicate","active",true)).andExpect(status().isConflict());
   call(post("/api/v1/admin/employees"),"other",other,Map.of("employeeNumber","E001","displayName","Other","active",true)).andExpect(status().isCreated());
   call(get("/api/v1/admin/employees?search=E00&size=1&page=1"),"owner",org,null).andExpect(jsonPath("$.totalElements").value(2)).andExpect(jsonPath("$.content[0].employeeNumber").value("E002"));}

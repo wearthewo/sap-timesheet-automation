@@ -2,11 +2,11 @@
 import { useActionState, useId, useState } from "react";
 import { administer } from "./actions";
 export type Field = { name: string; label: string; type?: "text" | "email" | "date" | "textarea" | "select" | "hidden"; value?: string; required?: boolean; maxLength?: number; options?: { value: string; label: string }[]; lookup?: "employees" | "members" | "projects" };
-export default function AdminForm({ operation, id = null, fields, submit, confirmation }: { operation: string; id?: string | null; fields: Field[]; submit: string; confirmation?: string }) {
+export default function AdminForm({ operation, id = null, fields, submit, confirmation, destructive }: { operation: string; id?: string | null; fields: Field[]; submit: string; confirmation?: string; destructive?: string }) {
  const [state, action, pending] = useActionState(administer.bind(null, operation, id), {});
  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map(f => [f.name, f.value ?? ""])));
  const formId = useId();
- return <form action={action} className="grid min-w-0 gap-4" aria-label={submit}>
+ return <form action={action} onSubmit={event => { const prompt = destructive ?? (operation === "member-change" && values.status === "REVOKED" ? "Remove this member from the organization? Access will be revoked; historical records are retained. Reassign any direct reports." : undefined); if (prompt && !window.confirm(prompt)) event.preventDefault(); }} className="grid min-w-0 gap-4" aria-label={submit}>
   {fields.map(f => f.type === "hidden" ? <input key={f.name} type="hidden" name={f.name} value={f.value ?? ""} /> : <div key={f.name} className="min-w-0">
    <label htmlFor={formId + f.name} className="block text-sm font-semibold">{f.label}</label>
    {f.lookup ? <Lookup field={f} id={formId + f.name} value={values[f.name]} change={value => setValues(v => ({ ...v, [f.name]: value }))} /> : f.type === "select" ?
