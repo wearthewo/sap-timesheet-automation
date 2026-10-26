@@ -147,7 +147,7 @@ Configure required reviewers, prevent self-review, restrict deployment branches 
 
 Production environment inputs: `DEPLOY_HOST` variable; `DEPLOY_SSH_KEY` and independently verified `DEPLOY_KNOWN_HOSTS` secrets. Registry writes use the job-scoped GitHub token. On the VPS, private GHCR pulls require a separately protected **read:packages-only** credential entered via `docker login --password-stdin`, never a repository write token. Decide package visibility deliberately; publishing workflow must not unexpectedly expose a private project.
 
-Install the reviewed source checkout at `/opt/workforce/releases/<SHA>` before invoking deployment. Check `git rev-parse HEAD` and tracked-file cleanliness. Install reviewed `release.mjs` at `/opt/workforce/tools/release.mjs` and `deploy-release.sh` as root0755 `/usr/local/sbin/workforce-deploy`. Install its helper `validate-env.mjs` only through the reviewed source checkout. Keep source/tool directories non-writable by the deployment account.
+Install the reviewed source checkout at `/opt/workforce/releases/<SHA>` before invoking deployment. Check `git rev-parse HEAD` and tracked-file cleanliness. Install reviewed `release.mjs`, `enforce-release-policy.mjs` and `private-demo-policy.mjs` together under `/opt/workforce/tools/`, and `deploy-release.sh` as root0755 `/usr/local/sbin/workforce-deploy`. Install its helper `validate-env.mjs` only through the reviewed source checkout. Keep source/tool directories non-writable by the deployment account. Root must explicitly install `/etc/workforce/release-policy.json`: `{"mode":"public-saas"}` for the unchanged strict path, or the externally trusted private configuration described in [the private-demo operator guide](private-demo-release-policy.md). Missing policy fails closed. Private deployment also requires the reviewed evidence directory and current independent signature; it is not enabled by choosing a workflow input alone.
 
 For remote automation, create an unprivileged `workforce-deploy` account. Its authorized key must use `restrict,command="sudo /usr/local/sbin/workforce-deploy"`; sudoers permits only `/usr/local/sbin/workforce-deploy` **with no arguments** (`""` argument restriction), validated with `visudo -cf`. No password, interactive shell access, agent forwarding or generic sudo/docker membership for that account. The release JSON is bounded and validated; source must already be installed by an operator. Protect this key as production authority.
 
@@ -166,6 +166,8 @@ printf '%s\n' 'workforce-deploy ALL=(root) NOPASSWD: /usr/local/sbin/workforce-d
 chmod 0440 /etc/sudoers.d/workforce-deploy
 visudo -cf /etc/sudoers.d/workforce-deploy
 install -m 0644 infra/production/release.mjs /opt/workforce/tools/release.mjs
+install -m 0644 infra/production/enforce-release-policy.mjs /opt/workforce/tools/enforce-release-policy.mjs
+install -m 0644 infra/production/private-demo-policy.mjs /opt/workforce/tools/private-demo-policy.mjs
 install -m 0755 infra/production/deploy-release.sh /usr/local/sbin/workforce-deploy
 ```
 

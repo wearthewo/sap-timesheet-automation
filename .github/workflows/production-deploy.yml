@@ -2,6 +2,12 @@ name: Deploy approved Contabo release
 on:
   workflow_dispatch:
     inputs:
+      policy:
+        description: Explicit target policy; private approvals never apply to public SaaS
+        required: true
+        default: public-saas
+        type: choice
+        options: [public-saas, private-demo]
       publish_run_id:
         description: 'Successful Publish reviewed AMD64 images run ID'
         required: true
@@ -26,6 +32,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       PUBLISH_RUN: ${{ inputs.publish_run_id }}
+      RELEASE_POLICY: ${{ inputs.policy }}
     steps:
       - id: check
         shell: bash
@@ -35,18 +42,21 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLISH_RUN" > run.json
           node <<'NODE'
           const fs=require('fs'),r=JSON.parse(fs.readFileSync('run.json'));
-          if(r.path!=='.github/workflows/production-publish.yml'||r.head_branch!=='main'||r.status!=='completed'||r.conclusion!=='success'||r.event!=='workflow_dispatch'||!/^[a-f0-9]{40}$/.test(r.head_sha)) throw Error('Untrusted or incomplete publishing run');
+          const paths={'public-saas':'.github/workflows/production-publish.yml','private-demo':'.github/workflows/private-demo-publish.yml'};
+          if(!paths[process.env.RELEASE_POLICY]||r.path!==paths[process.env.RELEASE_POLICY]||r.head_branch!=='main'||r.status!=='completed'||r.conclusion!=='success'||r.event!=='workflow_dispatch'||!/^[a-f0-9]{40}$/.test(r.head_sha)) throw Error('Untrusted or incomplete publishing run');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,`revision=${r.head_sha}\n`);
           NODE
   deploy:
     needs: provenance
-    environment: production
+    environment: ${{ inputs.policy == 'private-demo' && 'private-demo' || 'production' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
       REVISION: ${{ needs.provenance.outputs.revision }}
       PUBLISH_RUN: ${{ inputs.publish_run_id }}
+      RELEASE_POLICY: ${{ inputs.policy }}
+      TRUST_JSON: ${{ vars.PRIVATE_DEMO_TRUST_JSON }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -56,9 +66,17 @@ jobs:
         with: {node-version-file: .nvmrc}
       - name: Revalidate source gates and download immutable inventory
         run: |
-          node infra/production/release-gates.mjs "$REVISION" production
+          environment=production
+          if [ "$RELEASE_POLICY" = private-demo ]; then environment=private-demo; fi
+          node infra/production/release-gates.mjs "$REVISION" "$environment"
           gh run download "$PUBLISH_RUN" --repo "$GITHUB_REPOSITORY" --name production-release --dir .verification/release
           test "$(node infra/production/release.mjs check .verification/release/release.json)" = "$REVISION"
+          if [ "$RELEASE_POLICY" = private-demo ]; then
+            printf '%s' "$TRUST_JSON" > "$RUNNER_TEMP/demo-trust.json"
+            node infra/production/private-demo-policy.mjs .verification/release .verification/release/approval.json "$RUNNER_TEMP/demo-trust.json" .verification/release/release.json
+          else
+            node -e 'if(JSON.parse(require("fs").readFileSync(".verification/release/release.json")).privateDemo)throw Error("Private policy cannot authorize public SaaS")'
+          fi
       - name: Request deployment through restricted SSH key
         shell: bash
         env:

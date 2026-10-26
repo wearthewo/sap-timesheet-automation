@@ -18,13 +18,21 @@ test('Node build runtime remains consistent across development, CI and productio
  assert.match(version,/^24\.\d+\.\d+$/);
  const pinned=JSON.parse(source('./images.lock.json')).node.reference;
  assert.ok(pinned.startsWith(`node:${version}-bookworm-slim@sha256:`));
- for(const file of ['./frontend.Dockerfile','./mock-sap.Dockerfile','../../frontend/Dockerfile','../../frontend/tests/Dockerfile','../../mock-sap/Dockerfile']){
+ for(const file of ['./frontend.Dockerfile','../../frontend/Dockerfile','../../frontend/tests/Dockerfile','../../mock-sap/Dockerfile']){
   const bases=source(file).split('\n').filter(line=>line.startsWith('FROM node:'));
   assert.ok(bases.length>0,file);
   for(const base of bases)assert.equal(base.split(' ')[1],pinned,file);
  }
  assert.equal(JSON.parse(source('../../frontend/package.json')).engines.node,`>=${version} <25`);
  for(const workflow of ['ci','e2e'])assert.match(source(`../../.github/workflows/${workflow}.yml`),/node-version-file: \.nvmrc/);
+});
+
+test('mock runtime preserves state ownership and uses the same reviewed minimal Node base',()=>{
+ const dockerfile=source('./mock-sap.Dockerfile'),lock=JSON.parse(source('./images.lock.json'));
+ assert.ok(dockerfile.includes('FROM '+lock.frontendRuntime.reference));
+ assert.match(dockerfile,/USER 1000:1000/);assert.match(dockerfile,/--chown=1000:1000 .*mock-data/);
+ assert.match(dockerfile,/ENTRYPOINT \["\/nodejs\/bin\/node","\/app\/mock-entrypoint.mjs"\]/);
+ assert.match(source('./compose.yaml'),/"\/nodejs\/bin\/node", "-e", "fetch\('http:\/\/127\.0\.0\.1:8090\/health'/);
 });
 
 test('frontend uses the reviewed shell-free non-root runtime with an executable health probe',()=>{

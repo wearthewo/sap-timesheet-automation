@@ -22,7 +22,7 @@ export function assertJobs(jobs,required) {
 if(process.argv[1] && resolve(process.argv[1])===fileURLToPath(import.meta.url)) {
  const [sha,environment]=process.argv.slice(2),repo=process.env.GITHUB_REPOSITORY;
  assert.equal(repo,'wearthewo/sap-timesheet-automation');
- assert.ok(['production-publish','production'].includes(environment));
+ assert.ok(['production-publish','production','private-demo-publish','private-demo'].includes(environment));
  const api=path=>JSON.parse(execFileSync('gh',['api',`repos/${repo}/${path}`],{encoding:'utf8'}));
  const runs=api(`actions/runs?head_sha=${sha}&per_page=100`).workflow_runs;
  assertVerification(runs,sha);

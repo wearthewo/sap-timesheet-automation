@@ -1,11 +1,9 @@
-FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205
-# The simulator uses Node built-ins and requires no runtime package manager.
-RUN rm -rf /usr/local/lib/node_modules/npm && rm -f /usr/local/bin/npm /usr/local/bin/npx
+FROM gcr.io/distroless/nodejs24-debian13:nonroot@sha256:cb606325b7ec4af55462cb0b424a53b452a5b4a894ffe841fcf1048d216fb9f8
+# Retain UID 1000 for existing mock-state volume and backup compatibility.
 WORKDIR /app
-COPY --chown=node:node mock-sap/server.mjs ./
-COPY --chown=node:node infra/production/mock-runner.mjs ./
-COPY --chmod=0555 infra/production/with-secrets.sh /usr/local/bin/with-secrets
-RUN mkdir /data && chown node:node /data
-USER node
+COPY --chown=1000:1000 mock-sap/server.mjs ./
+COPY --chown=1000:1000 infra/production/mock-runner.mjs infra/production/mock-entrypoint.mjs ./
+COPY --chown=1000:1000 infra/production/mock-data/ /data/
+USER 1000:1000
 ENV NODE_ENV=production PORT=8090 SAP_STORE_PATH=/data/timesheets.json
-ENTRYPOINT ["/usr/local/bin/with-secrets","node","mock-runner.mjs"]
+ENTRYPOINT ["/nodejs/bin/node","/app/mock-entrypoint.mjs"]

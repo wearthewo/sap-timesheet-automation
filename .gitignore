@@ -25,3 +25,4 @@ release.compose.json
 *.tar.age.sha256
 *.pem
 *.key
+__pycache__/

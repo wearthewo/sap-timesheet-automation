@@ -21,6 +21,9 @@ trap finish EXIT
 head -c 65537 > "$temporary/release.json"
 [ "$(wc -c < "$temporary/release.json")" -le 65536 ] || exit 1
 revision=$(node /opt/workforce/tools/release.mjs check "$temporary/release.json")
+# Independently enforce the host-selected policy and current reviewer revocations.
+# Evidence is root-installed under /opt/workforce/evidence/<bundle-sha256>/.
+node /opt/workforce/tools/enforce-release-policy.mjs "$temporary/release.json" /etc/workforce/release-policy.json /opt/workforce/evidence
 [[ "$revision" =~ ^[a-f0-9]{40}$ ]] || exit 1
 release="/opt/workforce/releases/$revision"
 [ -d "$release/.git" ] || { echo 'Operator must install the reviewed source checkout first' >&2; exit 1; }
@@ -62,6 +65,8 @@ elif [ -n "$(docker ps -aq --filter label=com.docker.compose.project=workforce-p
  echo 'Production data exists without a current release; require manual recovery review' >&2; exit 1
 fi
 echo 'Starting reviewed release. Failure does not trigger destructive or schema-unsafe rollback.'
+# Pull/backup may take time. Recheck expiry immediately before changing services.
+node /opt/workforce/tools/enforce-release-policy.mjs "$temporary/release.json" /etc/workforce/release-policy.json /opt/workforce/evidence
 "${compose[@]}" stop proxy frontend backend keycloak mock-sap
 "${compose[@]}" up -d --no-build --wait --wait-timeout 600
 cp "$temporary/release.json" release.json

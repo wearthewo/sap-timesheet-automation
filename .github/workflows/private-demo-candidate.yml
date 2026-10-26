@@ -1,0 +1,62 @@
+name: Prepare private demo review artifacts
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: private-demo-candidate
+  cancel-in-progress: false
+jobs:
+  candidate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TRIVY: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with: {node-version-file: .nvmrc}
+      - run: node infra/production/release-gates.mjs "$GITHUB_SHA" private-demo-publish
+      - name: Build once and retain full unfiltered evidence without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          directory="$PWD/.verification/private-demo"
+          docker buildx create --name private-demo-builder --driver docker-container --use
+          trap 'docker buildx rm private-demo-builder' EXIT
+          mkdir -p "$directory/scans" "$directory/sboms" "$directory/cache"
+          docker run --rm -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image --download-db-only
+          docker run --rm -v "$directory/cache:/root/.cache/trivy" "$TRIVY" --version --format json > "$directory/scanner.json"
+          for service in proxy backend frontend keycloak mock-sap backup postgres; do
+            dockerfile="$service"
+            if [ "$service" = proxy ]; then dockerfile=caddy; fi
+            docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+              --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+              --output "type=oci,dest=$directory/$service.tar" -f "infra/production/$dockerfile.Dockerfile" .
+            # Trivy accepts OCI layouts, not OCI tar archives. Verify before safe extraction.
+            python3 infra/production/oci-inventory.py "$directory/$service.tar" "$directory/$service-layout" > "$directory/$service-oci.json"
+            docker run --rm --memory=1g -v "$directory:/evidence" -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image \
+              --input "/evidence/$service-layout" --skip-db-update --timeout 5m --scanners vuln \
+              --format json --output "/evidence/scans/$service.json"
+            docker run --rm --memory=1g -v "$directory:/evidence" -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image \
+              --input "/evidence/$service-layout" --skip-db-update --timeout 5m --format cyclonedx \
+              --output "/evidence/sboms/$service.json"
+            df -h / | tail -n 1
+          done
+          node infra/production/private-demo-bundle.mjs create "$directory" "$GITHUB_SHA"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: private-demo-candidate
+          include-hidden-files: true
+          compression-level: 0
+          retention-days: 7
+          path: |
+            .verification/private-demo/*.tar
+            .verification/private-demo/*.json
+            .verification/private-demo/scans/
+            .verification/private-demo/sboms/

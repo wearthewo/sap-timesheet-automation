@@ -1,5 +1,35 @@
 # Phase 13 - Contabo preparation and evidence
 
+## Current private-demo mechanism checkpoint — 26 October 2026
+
+The approved **policy mechanism** is implemented and tested; see
+[implementation and blockers](phase13-private-demo-implementation.md) and the
+[operator guide](private-demo-release-policy.md). No actual exception is approved.
+The strict public scanner/publication workflow is unchanged. The private path
+requires independently signed exact-image evidence with at most14-day validity,
+fresh scans and host revalidation. UNKNOWN findings cannot be waived.
+
+Mock SAP's actual distroless runtime now scans **0 CRITICAL/0 HIGH**, retaining
+23 MEDIUM/8 LOW; nine isolated runtime checks passed, including persisted state
+after restart. Original volumes/services remain intact. The backend Java CA store
+retains eMudhra roots; it is not covered by the RPM mitigation assumed for Keycloak.
+Java/UNKNOWN assessment remains blocking, alongside fresh exact-revision GitHub
+and real deployment prerequisites. A narrow inherited Keycloak theme fixes the
+missing-password-field listener; the actual candidate passed all six focused
+browser groups with no uncaught errors. One preceding attempt failed with a BFF
+backend-unavailable response and is disclosed in the implementation report.
+Registration worked in the user's manual test and prior browser flows; the theme
+fix addresses a JavaScript exception, not a claimed universal onboarding failure.
+
+Final focused checks: **149/149 Node tests, 7/7 OCI safety tests**, workflow lint,
+deployment shell syntax and production Compose validation. No full backend suite
+or Phase 12F acceptance was repeated. Existing JDK/OS vulnerabilities are not
+removed by the theme correction, and no exception is approved.
+
+**NO-GO for deployment.** No push, publish, merge, provisioning or individual risk
+acceptance occurred. Earlier counts and pre-implementation text below are preserved
+as historical checkpoint evidence, not the current Mock SAP or policy status.
+
 ## Latest frontend and private-demo review — 26 October 2026
 
 The [actual distroless frontend image](phase13-frontend-runtime-remediation.md)

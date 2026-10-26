@@ -1,5 +1,11 @@
 # Phase 13: private-demo release policy proposal
 
+**Follow-on status:** the user subsequently approved implementation of this
+mechanism only. See [the implementation checkpoint](phase13-private-demo-implementation.md)
+and [operator guide](private-demo-release-policy.md). No individual exception was
+approved. The text below preserves the original pre-approval proposal and its
+historical findings; Mock SAP has since moved to the verified minimal runtime.
+
 26 October 2026. **DESIGN FOR REVIEW ONLY. No exception is approved or enabled.**
 The existing strict scanner and publication gates are unchanged. This document
 does not authorize pushing, publishing, provisioning or deployment.

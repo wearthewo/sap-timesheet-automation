@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 export const services=['proxy','backend','frontend','keycloak','mock-sap','backup','postgres'];
 const namespace='ghcr.io/wearthewo/sap-timesheet-automation';
 export function validateRelease(value) {
+ assert.deepEqual(Object.keys(value).sort(),['schema','platform','revision','images',...(value.privateDemo===undefined?[]:['privateDemo'])].sort());
  assert.equal(value.schema,1); assert.equal(value.platform,'linux/amd64');
  assert.match(value.revision,/^[a-f0-9]{40}$/);
  assert.deepEqual(Object.keys(value.images).sort(),[...services].sort());
@@ -13,6 +14,11 @@ export function validateRelease(value) {
   const parts=value.images[service].split('@');
   assert.equal(parts.length,2); assert.equal(parts[0],`${namespace}/${service}`);
   assert.match(parts[1],/^sha256:[a-f0-9]{64}$/);
+ }
+ if(value.privateDemo!==undefined){
+  assert.deepEqual(Object.keys(value.privateDemo).sort(),['approval','approvalHash','bundleHash']);
+  for(const field of ['approvalHash','bundleHash'])assert.match(value.privateDemo[field],/^sha256:[a-f0-9]{64}$/);
+  assert.deepEqual(Object.keys(value.privateDemo.approval).sort(),['keyId','payload','signature']);
  }
  return value;
 }

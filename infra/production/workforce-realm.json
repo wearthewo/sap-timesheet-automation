@@ -2,6 +2,7 @@
     "realm":  "workforce",
     "enabled":  true,
     "displayName":  "Workforce",
+    "loginTheme":  "workforce",
     "registrationAllowed":  true,
     "resetPasswordAllowed":  true,
     "loginWithEmailAllowed":  true,
