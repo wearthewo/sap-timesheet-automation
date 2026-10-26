@@ -47,8 +47,21 @@ test("self-registration verifies email, creates isolated workspace, handles slug
  try {
   const owner = await ownerContext.newPage();
   await register(owner, ownerContext, "slug-owner-" + suffix, randomBytes(24).toString("hex"));
-  await owner.getByLabel("Organization name", { exact: true }).fill("Collision fixture");
+  // A customer can type into SSR inputs while application scripts are still
+  // downloading. Preserve that name when hydration finishes and they edit slug.
+  const scripts = "**/_next/static/**/*.js";
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await owner.route(scripts, async route => { await held; await route.continue(); });
+  try {
+   await owner.reload({ waitUntil: "commit" });
+   await owner.getByLabel("Organization name", { exact: true }).fill("Collision fixture");
+   await expect(owner.getByLabel("Organization name", { exact: true })).toHaveValue("Collision fixture");
+  } finally { release(); }
+  await owner.waitForLoadState("load");
+  await owner.unroute(scripts);
   await owner.getByLabel("Organization address", { exact: true }).fill(takenSlug);
+  await expect(owner.getByLabel("Organization name", { exact: true })).toHaveValue("Collision fixture");
   await owner.getByRole("button", { name: "Create organization", exact: true }).click();
   await expect(owner.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
   await logout(owner);
