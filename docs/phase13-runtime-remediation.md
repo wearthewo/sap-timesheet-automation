@@ -1,5 +1,13 @@
 # Phase 13 runtime remediation — 25–26 October 2026
 
+Follow-on evidence: [frontend runtime remediation](phase13-frontend-runtime-remediation.md)
+records the assembled distroless image's 0 HIGH/0 CRITICAL scan and focused
+compatibility results, including the unresolved baseline Keycloak console error.
+The [private-demo policy proposal](phase13-private-demo-release-proposal.md)
+documents remaining Keycloak, Mock SAP and Java coverage work. No exceptions are
+approved or implemented; the historical Caddy/PostgreSQL/backup evidence below
+is unchanged and was not unnecessarily rebuilt or rescanned.
+
 Parent: `8aa47fccafea1471d7756d6b75da1a4f8e1862f2`; branch:
 `feature/phase12-production-readiness`. This checkpoint changes the proxy and
 PostgreSQL/backup helper builds and fixes a demonstrated forwarding-header defect. It does not alter business

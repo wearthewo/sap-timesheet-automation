@@ -1,5 +1,28 @@
 # Phase 13 - Contabo preparation and evidence
 
+## Latest frontend and private-demo review — 26 October 2026
+
+The [actual distroless frontend image](phase13-frontend-runtime-remediation.md)
+now passes the strict threshold: 0 CRITICAL/0 HIGH, with 23 MEDIUM/8 LOW retained.
+Its health, non-root/read-only permissions, secret loading, SSR, authentication,
+BFF and downloads were exercised. Focused checks passed 40/40; the browser helper
+recorded five PASS groups and one FAIL because an existing Keycloak registration
+script raises a null-listener error, independently reproduced on the unchanged
+application. No complete browser pass is claimed.
+
+**Deployment remains NO-GO.** Keycloak has two JDK HIGHs; the old Mock SAP runtime
+also retains 1 CRITICAL/56 HIGH in existing evidence. Backend Java coverage and
+retained UNKNOWNs need review. The [risk-based private-demo proposal](phase13-private-demo-release-proposal.md)
+separates public zero-HIGH/CRITICAL policy from explicitly approved, expiring,
+exact-image exceptions. It is documentation only: no exception or gate change is
+enabled. Current automation is strict and has no exception support. The proposal
+explains the required build-artifact approval change before any implementation.
+
+All 17 preexisting containers remain healthy. Only temporary candidate containers
+and networks were removed; original databases/realms/volumes remain intact. No
+push, publication, purchase, merge or deployment occurred. Historical findings
+and counts below are preserved as checkpoint evidence, not current frontend counts.
+
 ## Runtime-remediation update — 26 October 2026
 
 See [the reviewed runtime checkpoint](phase13-runtime-remediation.md) and its

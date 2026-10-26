@@ -13,7 +13,7 @@ test('deployment publishes only proxy and keeps legacy confirmation false',()=>{
 test('backup private key is restore-only and target is non-destructive',()=>{assert.doesNotMatch(source('./backup.compose.yaml'),/identity.txt/);assert.match(source('./restore.compose.yaml'),/identity.txt:ro/);const s=source('./backup.sh');assert.match(s,/Refusing non-empty database/);assert.match(s,/Refusing existing Mock SAP state/);assert.match(s,/pipefail/);assert.match(s,/age -R/);assert.match(s,/cmp "\$db.manifest" "\$db.restored"/);assert.doesNotMatch(s,/DROP DATABASE|dropdb|TRUNCATE/);});
 test('all production image roots pin reviewed multiarch digests',()=>{const lock=JSON.parse(source('./images.lock.json'));for(const image of Object.values(lock)){assert.match(image.reference,/@sha256:[a-f0-9]{64}$/);assert.deepEqual(image.platforms,['linux/amd64','linux/arm64']);}for(const name of ['backend','frontend','mock-sap','caddy','keycloak','backup','postgres'])for(const line of source('./'+name+'.Dockerfile').split('\n').filter(v=>v.startsWith('FROM ')))assert.match(line,/@sha256:[a-f0-9]{64}/);});
 
-test('Node runtime is consistent across development, CI and production images',()=>{
+test('Node build runtime remains consistent across development, CI and production images',()=>{
  const version=source('../../.nvmrc').trim();
  assert.match(version,/^24\.\d+\.\d+$/);
  const pinned=JSON.parse(source('./images.lock.json')).node.reference;
@@ -25,6 +25,16 @@ test('Node runtime is consistent across development, CI and production images',(
  }
  assert.equal(JSON.parse(source('../../frontend/package.json')).engines.node,`>=${version} <25`);
  for(const workflow of ['ci','e2e'])assert.match(source(`../../.github/workflows/${workflow}.yml`),/node-version-file: \.nvmrc/);
+});
+
+test('frontend uses the reviewed shell-free non-root runtime with an executable health probe',()=>{
+ const lock=JSON.parse(source('./images.lock.json'));
+ const dockerfile=source('./frontend.Dockerfile');
+ assert.ok(dockerfile.includes('FROM '+lock.frontendRuntime.reference));
+ assert.match(dockerfile,/USER 65532:65532/);
+ assert.match(dockerfile,/ENTRYPOINT \["\/nodejs\/bin\/node","\/app\/frontend-entrypoint.mjs"\]/);
+ assert.match(source('./compose.yaml'),/\["CMD", "\/nodejs\/bin\/node", "-e", "fetch\('http:\/\/127\.0\.0\.1:3000\/api\/health'/);
+ assert.doesNotMatch(dockerfile,/with-secrets\.sh|USER node/);
 });
 
 test('readiness requires HTTP success, not a partially UP response body',()=>{const s=source('./compose.yaml');assert.doesNotMatch(s,/grep -q UP/);assert.equal((s.match(/HTTP\/1\.\[01\] 200/g)||[]).length,2);});
