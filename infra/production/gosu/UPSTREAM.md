@@ -1,6 +1,6 @@
 # gosu source provenance
 
-Unmodified runtime sources and module checksums from gosu **1.20**, commit
+Unmodified runtime Go sources from gosu **1.20**, commit
 `29b939aa5bd4dc588af765b8248f6e39150d2565`:
 https://github.com/tianon/gosu/tree/29b939aa5bd4dc588af765b8248f6e39150d2565
 
@@ -15,6 +15,15 @@ Go1.27.3, `GOTOOLCHAIN=local`, module verification, CGO disabled and readonly
 module resolution. The published upstream binary still uses Go1.24.6; this is
 a locally maintained rebuild, not an upstream signed gosu binary. No upstream
 security exclusions or insecure environment overrides are enabled.
+
+Dependency-only maintenance on 2026-10-27: `golang.org/x/sys` is pinned to
+`v0.44.0` to eliminate CVE-2026-39824 / GO-2026-5024 from the embedded module
+inventory. Its upstream advisory concerns Windows `NewNTUnicodeString`; no
+scanner exception is used for the Linux build. `go.mod` now declares the pinned
+Go 1.27.3 toolchain version. `go.sum` was regenerated with the checksum database
+enabled and `go mod verify` passed. `github.com/moby/sys/user` remains v0.4.1.
+The archive hash above describes the original sources, not these maintained
+module files; no runtime Go source or upstream license was modified.
 
 Keep both build stages identical. Future source/compiler updates require a
 complete assembled-image scan and the focused PostgreSQL initialization,

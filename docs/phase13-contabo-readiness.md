@@ -1,5 +1,19 @@
 # Phase 13 - Contabo preparation and evidence
 
+## Runtime blocker correction — 27 October 2026
+
+The verified curl/musl proxy fix and fingerprint-checked backend CA mitigation
+are now adopted into production Dockerfiles. PostgreSQL and backup also update
+musl and rebuild gosu with x/sys 0.44.0. All four changed AMD64 images were
+rebuilt, fully scanned and checked in disposable runtime containers. The backend
+application JAR is unchanged. See the [exact evidence and remaining blockers](phase13-container-blockers-resolution.md).
+
+Remaining scanner blockers: **two Keycloak HIGH records and one proxy UNKNOWN**.
+The latter targets OpenPGP packages that are absent from this build's dependency
+graph, but the current UNKNOWN gate still rejects the module-level match. No
+finding is hidden, excluded or approved. Private-demo publication/deployment
+remains **NO-GO**. Historical results below describe their original revisions.
+
 ## Current private-demo mechanism checkpoint — 26 October 2026
 
 The approved **policy mechanism** is implemented and tested; see

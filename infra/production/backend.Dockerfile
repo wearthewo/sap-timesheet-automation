@@ -5,6 +5,8 @@ COPY backend/ ./
 ENV MAVEN_OPTS="-Xmx768m -XX:ActiveProcessorCount=2"
 RUN --mount=type=cache,target=/root/.m2 chmod +x mvnw && ./mvnw -B -ntp clean package -DskipTests
 FROM eclipse-temurin:21-jre-jammy@sha256:affcab5356e1270ac35d2361ee83135af2f03e8d580eca78a6d5d6fdbf048db0
+COPY --chmod=0555 infra/production/java-trust-mitigation.sh /tmp/java-trust-mitigation.sh
+RUN /tmp/java-trust-mitigation.sh && rm /tmp/java-trust-mitigation.sh
 RUN groupadd -g 1000 app && useradd -u 1000 -g app -M app
 WORKDIR /app
 COPY --from=build --chown=1000:1000 /app/target/workforce-0.1.0.jar app.jar
