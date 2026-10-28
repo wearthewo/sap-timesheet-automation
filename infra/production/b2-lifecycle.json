@@ -1,0 +1,8 @@
+[
+  {
+    "fileNamePrefix": "workforce/",
+    "daysFromUploadingToHiding": 30,
+    "daysFromHidingToDeleting": 1,
+    "daysFromStartingToCancelingUnfinishedLargeFiles": 1
+  }
+]

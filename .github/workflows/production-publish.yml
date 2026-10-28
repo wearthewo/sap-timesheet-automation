@@ -49,7 +49,7 @@ jobs:
             image="$REGISTRY/$service:$GITHUB_SHA"
             if ! docker run --rm --memory=768m -v /var/run/docker.sock:/var/run/docker.sock \
               -v "$PWD/.verification/release/scans:/reports" "$TRIVY" image --image-src docker \
-              --timeout 5m --scanners vuln --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --format json \
+              --timeout 5m --scanners vuln --list-all-pkgs --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL --format json \
               --output "/reports/$service.json" "$image"; then failed=1; continue; fi
             if ! node infra/production/scan-verification.mjs \
               ".verification/release/scans/$service.json"; then failed=1; fi

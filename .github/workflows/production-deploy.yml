@@ -76,6 +76,11 @@ jobs:
             node infra/production/private-demo-policy.mjs .verification/release .verification/release/approval.json "$RUNNER_TEMP/demo-trust.json" .verification/release/release.json
           else
             node -e 'if(JSON.parse(require("fs").readFileSync(".verification/release/release.json")).privateDemo)throw Error("Private policy cannot authorize public SaaS")'
+            # Recheck every retained report under the exact revision's public policy.
+            # Missing reports, UNKNOWN and HIGH/CRITICAL cannot pass via private approvals.
+            for service in proxy backend frontend keycloak mock-sap backup postgres; do
+              node infra/production/scan-verification.mjs ".verification/release/scans/$service.json"
+            done
           fi
       - name: Request deployment through restricted SSH key
         shell: bash

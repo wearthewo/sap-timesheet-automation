@@ -1,14 +1,14 @@
 # Contabo AMD64 deployment runbook
 
-Selected target: **Contabo Cloud VPS 4**, 4 shared vCPU, 8 GB RAM, 100 GB SSD, AMD64, Ubuntu 24.04 LTS, EU region and one-month billing. Initial use is a private portfolio/demo with synthetic data. Hetzner and Oracle are superseded choices. No VPS has been purchased. This runbook prepares operations; it is **not authorization to buy, provision, publish, change DNS or deploy**. See [checkpoint evidence and blockers](phase13-contabo-readiness.md). Use the existing `infra/production` stack, not development/CI Compose.
+Selected target: **Contabo Cloud VPS 6, 12 GB RAM**, AMD64, Ubuntu 24.04 LTS. Public website and self-registration, Namecheap DNS, Resend SMTP and Backblaze B2 encrypted backups. Confirm CPU/disk/invoice details at checkout; this is not a quoted price. No VPS has been purchased. This runbook is **not authorization to buy, provision, publish, change DNS or deploy**. [Public-production readiness](public-production-readiness.md) is the current launch decision. Use the existing `infra/production` stack, not development/CI Compose.
 
 ## 1. Go/no-go before spending money
 
 - Confirm the exact approved source revision has green core CI **and** full E2E/Mailpit verification. Review production image scans, Caddy/JDK/OS findings and a completed release digest inventory.
 - Obtain a final **one-month** quote including VAT, setup, region and IPv4, domain renewal amortized monthly, SMTP and independent backup storage. [Official Contabo specifications](https://docs.contabo.com/docs/servers-hosting/vps/) match the plan. The [sales page](https://contabo.com/en-us/vps/) displays long-term promotions, not a verified one-month checkout. EUR6.82 is historical, not a confirmed total. Do not select a 24-month term or extras to match advertising. Record the first invoice, recurring invoice and renewal rates before purchase. A directory on the same VPS is not offsite storage.
-- Choose two DNS names, an SMTP sender/provider with authenticated port587, external SSH storage supporting checksum commands, and an independent dead-man monitor with an adequate free plan. No provider/account is configured by this repository. If these costs exceed the cap, stop and revise the quote.
+- Use two Namecheap DNS names, Resend authenticated STARTTLS on port587, private Backblaze B2 storage and an independent dead-man monitor. The repository does not provision these accounts. Confirm free-tier storage/email limits and the actual recurring total before purchase.
 - Fresh production starts with empty volumes and a fresh Keycloak realm. Never import QA identities or original V14 data. A populated legacy migration needs a separate ownership audit and explicit authorization.
-- Keep Mock SAP visibly labelled a simulator. Private demos do not establish real SAP connectivity or public SaaS readiness.
+- Keep Mock SAP visibly labelled a simulator. A public website does not establish real SAP connectivity.
 
 ## 2. Host and network preparation (future approved operator actions)
 
@@ -23,7 +23,7 @@ install -d -m 0700 -o workforce-ops -g workforce-ops /home/workforce-ops/.ssh
 # Install the operator's authorized public key, owner workforce-ops, mode0600.
 apt-get update
 apt-get upgrade
-apt-get install -y ca-certificates curl git openssl age ufw unattended-upgrades gnupg util-linux dnsutils
+apt-get install -y ca-certificates curl git openssl age ufw unattended-upgrades gnupg util-linux dnsutils rclone
 timedatectl set-timezone UTC
 timedatectl set-ntp true
 install -m 0600 infra/production/ssh-hardening.conf /etc/ssh/sshd_config.d/00-workforce.conf
@@ -35,7 +35,7 @@ systemctl reload ssh
 
 The template disables SSH forwarding; an explicitly reviewed management-tunnel exception is required if later needed. Inspect effective settings because cloud-init includes can override expectations. Do not lose console recovery access. Keep host security updates enabled; schedule reboots and test Docker recovery. Set bounded journald retention (for example `SystemMaxUse=256M`) in a reviewed drop-in.
 
-Use both the included [Contabo network firewall](https://docs.contabo.com/docs/network-services/firewall/) and host firewall. Inbound: TCP22 **only from operator addresses**, TCP80/443 for approved HTTPS service use; no5432/8080/9000/3000/8090/SMTP management exposure. Review IPv4 **and IPv6**; omit AAAA until verified. For a private demo, restrict443 to testers. Account for ACME validation requirements before choosing port80 restrictions. Do not make Keycloak administration or Mailpit public.
+Use both the included [Contabo network firewall](https://docs.contabo.com/docs/network-services/firewall/) and host firewall. Inbound: TCP22 **only from operator addresses**, TCP80/443 for approved HTTPS service use; no5432/8080/9000/3000/8090/SMTP management exposure. Review IPv4 **and IPv6**; omit AAAA until verified. The selected deployment is public: allow80/443 to visitors, with no visitor IP allowlist. Preserve operator-only SSH. Do not make Keycloak administration or Mailpit public.
 
 ```sh
 # Replace the documentation address with your actual operator CIDR before running.
@@ -48,9 +48,9 @@ ufw enable
 ufw status verbose
 ```
 
-Docker-published ports can bypass UFW: the cloud firewall and the Compose rule publishing **only the proxy** are essential. See [Docker firewall guidance](https://docs.docker.com/engine/network/packet-filtering-firewalls/). Leave Docker packet filtering enabled. Outbound needs DNS, NTP, HTTPS registries/ACME/monitoring, provider SMTP587 and offsite SSH. Do not guess an egress deny list before testing those paths.
+Docker-published ports can bypass UFW: the cloud firewall and the Compose rule publishing **only the proxy** are essential. See [Docker firewall guidance](https://docs.docker.com/engine/network/packet-filtering-firewalls/). Leave Docker packet filtering enabled. Outbound needs DNS, NTP, HTTPS registries/ACME/monitoring, provider SMTP587 and B2 HTTPS. Do not guess an egress deny list before testing those paths.
 
-Install Docker Engine, Buildx and Compose plugin through the [official Ubuntu apt repository instructions](https://docs.docker.com/engine/install/ubuntu/), verifying the repository key and selected package versions. Do not use an unaudited curl-to-shell installer. Confirm `docker version` and `docker compose version`. Build on GitHub/off-host, not on the serving 8 GB machine. Install the repository's exact `.nvmrc` Node24 version from its official archive after verifying its signed checksums; keep it under `/opt/workforce/node` with a root-owned `/usr/local/bin/node` link. Docker-group membership is root-equivalent; do not grant it to application users.
+Install Docker Engine, Buildx and Compose plugin through the [official Ubuntu apt repository instructions](https://docs.docker.com/engine/install/ubuntu/), verifying the repository key and selected package versions. Do not use an unaudited curl-to-shell installer. Confirm `docker version` and `docker compose version`. Build on GitHub/off-host, not on the serving 12 GB machine. Install the repository's exact `.nvmrc` Node24 version from its official archive after verifying its signed checksums; keep it under `/opt/workforce/node` with a root-owned `/usr/local/bin/node` link. Docker-group membership is root-equivalent; do not grant it to application users.
 
 ### Docker installation on the new Ubuntu 24.04 host
 
@@ -97,15 +97,15 @@ systemctl restart systemd-journald
 
 If configuration exists, merge it deliberately instead of overwriting. Compose also imposes per-container log bounds. Do not run builds on this VPS. Copy a reviewed exact-revision source checkout to `/opt/workforce/releases/<SHA>` as root, verifying SHA and a clean tracked tree before using any scripts. Scripts cannot create a server, invent a release SHA or approve a release.
 
-### Domain, TLS and private-demo access
+### Domain, TLS and public access
 
 Fill `APP_HOST`, `AUTH_HOST` and `TLS_CONFIG` only after selecting a domain/contact. Create two A records to the approved VPS IPv4. Add AAAA only after IPv6 routing/firewall is verified. Check authoritative resolution with `dig +short A YOUR_APP_HOST` and `dig +short A YOUR_AUTH_HOST`.
 
-Attach the Contabo provider firewall **before** first service startup: TCP22 from operator addresses only; TCP443 from approved tester, operator and independent monitor addresses only; TCP80 publicly reachable for ACME HTTP validation and HTTPS redirects. Allow necessary ICMP/IPv6 control traffic per provider guidance, but no extra application/admin ports. The local host monitor may reach the server through its public address; include the VPS egress address if required and verify rather than disabling its check. Docker port publication bypasses ordinary UFW forwarding rules, so the provider firewall is mandatory for a private demo. Do not open443 to everyone just to simplify testing. Caddy uses HTTP-01 when TLS-ALPN validation is unavailable to the CA; verify actual issuance with this policy. If provider behavior prevents it, stop and review a DNS challenge strategy instead of making the app public.
+Attach the Contabo provider firewall **before** first service startup: TCP22 from operator addresses only; TCP80/443 publicly reachable for HTTPS, ACME and redirects. No visitor allowlist or VPN. Allow necessary ICMP/IPv6 control traffic per provider guidance, but no additional application/admin ports. Docker port publication can bypass ordinary UFW forwarding rules; verify provider and host policies externally for IPv4 and IPv6. Caddy must serve both hosts with valid certificates, never a production test CA. The repository ingress guard supplies bounded request/concurrency limits; it is not upstream DDoS protection.
 
 Caddy stores certificates/renewal state in persistent `caddy_data` and `caddy_config`. Public HTTP redirects to HTTPS. Expected issuer is exactly `https://YOUR_AUTH_HOST/realms/workforce`; callbacks are `https://YOUR_APP_HOST/api/auth/callback/keycloak` and `/api/auth/callback/keycloak-register`; logout returns `/login`. The production realm already uses these two exact callbacks, no wildcard. Keycloak trusts only the fixed Caddy ingress address, and Caddy overwrites untrusted forwarding headers. Backend and management ports have no published mapping.
 
-After authorized startup, from an allowlisted workstation:
+After authorized startup, from an external workstation:
 
 ```sh
 curl --fail --show-error --silent --head http://YOUR_APP_HOST/login
@@ -139,7 +139,7 @@ Before public registration: test real-provider registration verification, passwo
 
 ## 4. Release images and manual approvals
 
-`production-publish.yml` is manual-only, main-only and requires typed `PUBLISH` plus the `production-publish` environment. It checks exact-revision CI/E2E, builds six AMD64 images, scans them and pinned PostgreSQL, then pushes only after the scan gate passes. All high/critical findings currently block publication, including documented vendor-qualified findings; no blanket ignore list is installed. Review fixes or any future narrowly justified scan policy in a separate change. Scanner errors also fail. A partially failed push is not deployable: deployment requires a successful publishing run and its complete manifest.
+`production-publish.yml` is manual-only, main-only and requires typed `PUBLISH` plus the `production-publish` environment. It checks exact-revision CI/E2E, builds and scans all seven AMD64 images, then pushes only after the scan gate passes. All UNKNOWN/high/critical findings currently block publication, including documented vendor-qualified findings; no blanket ignore list is installed. Review fixes or any future narrowly justified scan policy in a separate change. Scanner errors also fail. A partially failed push is not deployable: deployment requires a successful publishing run and its complete manifest.
 
 `production-deploy.yml` is manual-only, main-only, requires typed `DEPLOY`, a successful publishing run ID and the separate `production` environment. It revalidates source gates and release provenance and sends only the digest manifest through SSH. Neither workflow runs on pull requests or ordinary pushes. No production images have been published by this checkpoint.
 
@@ -185,9 +185,9 @@ The host validates the manifest, source, secret files and PostgreSQL pin, pulls 
 
 ## 5. Automated encrypted backups and independent monitoring
 
-Generate age recipient/identity pairs **off the VPS**. Put only public recipients in `/etc/workforce/backup-recipients.txt`; keep private keys and config recovery copies offline in two independently recoverable places. Configure an offsite SSH account confined to the backup directory; preserve independently verified host keys and a separate key under `/etc/workforce/offsite`0700. The destination must support SCP/SFTP and `sha256sum -c` over SSH; a storage service without that command is not compatible with this helper. Set its port in `BACKUP_SSH_PORT`.
+Generate age recipient/identity pairs **off the VPS**. Put only public recipients in `/etc/workforce/backup-recipients.txt`; keep private keys and config recovery copies offline in two independently recoverable places. Install the B2 rclone template under `/etc/workforce/offsite`0700 with file mode0600. Use a private bucket, bucket/prefix-scoped read/write/list key and actual regional HTTPS endpoint. No remote-delete permission or age private key is required on the application host. Set `BACKUP_TRANSPORT=b2` and the destination in operations.env. Existing SSH offsite transport remains an alternative, not the selected provider.
 
-`scheduled-backup.sh` serializes against deployment, invokes existing quiesced backups, then copies the encrypted archive/checksum. `offsite.sh` verifies local **and remote** checksums before updating its success timestamp. Local retention defaults to14days. Configure remote retention independently (at least30days subject to capacity/cost), preferably with protection against deletion using the upload key. Remote retention is an operator/storage-policy requirement, not an automatic destructive cleanup script here.
+`scheduled-backup.sh` serializes against deployment, invokes existing quiesced backups, then copies the encrypted archive/checksum. `offsite-b2.sh` verifies the local checksum, uploads ciphertext immutably, downloads ciphertext and verifies SHA256 before updating success. Local retention defaults to14days. Apply the reviewed B2 lifecycle template separately: retain30days, hide, then delete one day later. Size all object versions and extra upgrade backups against the provider allowance; do not assume free storage is unlimited. No destructive remote cleanup runs on the VPS.
 
 ```sh
 install -m 0644 infra/production/systemd/workforce-* /etc/systemd/system/
@@ -208,7 +208,26 @@ Download a real encrypted offsite copy to an **empty isolated recovery host** an
 
 ## 6. Startup acceptance, resource use and rollback
 
-Keep existing service ceilings: proxy256MiB, PostgreSQL1536MiB, Keycloak1280MiB, backend1536MiB, frontend768MiB, Mock SAP256MiB = **5632MiB/5.5GiB**. Backup512MiB runs while writers are stopped. An advertised8GB may not mean8GiB; inspect actual MemTotal. Leave at least OS/cache/headroom and measure peak usage. CPU ceilings total6vCPU but are not reservations. Do not run builds/tests on the serving host or assume user capacity. Avoid unrestricted swap holding decrypted backup data; if needed, review encrypted swap separately.
+### October 30 readiness gate and October 31–November 1 plan
+
+The dates are targets, not authorization or a security exception. **Do not purchase or deploy while `public-production-readiness.md` remains NO-GO.**
+
+1. **Friday, October 30 — repository only:** close the exact image findings, obtain independent review of any not-affected package evidence, review the final commit, and obtain separate authorization to push. Require exact-revision CI/E2E and strict scans of all seven final images. No private-demo approvals apply. Configure independent GitHub environment reviewers; authorize publication separately. Retain reports and immutable digests. Stop if any required gate fails.
+2. **Saturday, October 31 — only after clearance and purchase authorization:** obtain the selected 12 GB AMD64 host and domain, verify console SSH fingerprints, then follow sections 1–4 for Ubuntu, SSH, Docker, secret files and public network setup. Use a clean database and realm. Set `/etc/workforce/release-policy.json` to `{"mode":"public-saas"}`. Install reviewed, root-owned configuration; do not copy local QA credentials or databases. Configure Namecheap A records; add AAAA only after IPv6 exposure checks. Verify Resend's exact DNS records and private B2 credentials/lifecycle using provider interfaces.
+3. **Clean-host SMTP preflight:** no local Avast CA and no TLS bypass. Before using credentials, check both certificate chains from the VPS:
+
+   ```sh
+   timeout 20 openssl s_client -starttls smtp -connect smtp.resend.com:587 -servername smtp.resend.com -verify_hostname smtp.resend.com -verify_return_error </dev/null
+   timeout 20 openssl s_client -connect smtp.resend.com:465 -servername smtp.resend.com -verify_hostname smtp.resend.com -verify_return_error </dev/null
+   ```
+
+   Production uses port 587 STARTTLS. OpenSSL success is necessary but does not replace actual Java-runtime delivery checks. Verify account registration/recovery through Keycloak and invitations/notifications through Workforce with consenting synthetic recipients. A chain containing `Avast Web/Mail Shield Root` indicates interception; investigate the environment without importing that CA or disabling verification.
+4. **Authorized deployment:** use the reviewed publication manifest and workflow described above. SSH must remain operator-restricted; resolve the GitHub runner ingress decision before triggering deployment. Verify all six services, both public HTTPS hosts, exact OIDC issuer/callbacks, secure cookies, tenant isolation, registration rate limits and IPv4/IPv6 port isolation. Mock SAP remains a simulator. Registration is not publicly accepted until these checks pass.
+5. **Sunday, November 1 — acceptance:** run the first encrypted B2 backup, read-back and isolated offsite restore, check both database manifests and history, enable timers and test missed-heartbeat alerts. Record actual disk/RAM, SMTP quota consumption and recovery time. Rehearse reboot and rollback as described below. Finish with a written public-launch decision; defer launch if TLS, mail, backups, alerts, security or authorization checks fail.
+
+If the Friday security gate remains blocked, postpone purchasing/deployment instead of spending the weekend weakening gates. No step above has been executed against a real host or provider account.
+
+Keep existing service ceilings: proxy256MiB, PostgreSQL1536MiB, Keycloak1280MiB, backend1536MiB, frontend768MiB, Mock SAP256MiB = **5632MiB/5.5GiB**. Backup512MiB runs while writers are stopped. An advertised12GB may not mean12GiB; inspect actual MemTotal. Leave at least OS/cache/headroom and measure peak usage. CPU ceilings total6vCPU but are not reservations. Do not run builds/tests on the serving host or assume user capacity. Avoid unrestricted swap holding decrypted backup data; if needed, review encrypted swap separately.
 
 Acceptance after deployment: verify all six healthy, actual RAM/disk/OOM/restarts, only intended public ports from an external host, valid certificates for both domains, exact OIDC issuer/callback/logout, registration/email verification, organization isolation, employee→manager→finance flow, downloads, local/offsite backup success and independent alert delivery. Mock SAP remains simulated. Test reboot recovery once authorized. Never expose plaintext backup, database, Keycloak admin or container-management endpoints.
 

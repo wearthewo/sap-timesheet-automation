@@ -102,6 +102,15 @@ try{
    const req=client.request({':path':'/http2'});let status;req.on('response',h=>status=h[':status']);req.on('data',()=>{});req.on('error',reject);req.on('end',()=>{client.close();try{assert.equal(status,200);resolve();}catch(e){reject(e);}});req.end();
   });
   pass('HTTP/2 with certificate verification');
+  for(let n=0;n<13;n++){
+   const limited=await request('auth.security.test','/realms/workforce/login-actions/registration',{
+    headers:{'X-Forwarded-For':`198.51.100.${n+1}`}
+   });
+   assert.equal(limited.status,n<12?200:429);
+   if(n===12){assert.equal(limited.headers['retry-after'],'60');assert.equal(limited.headers['cache-control'],'no-store');}
+  }
+  assert.equal((await request('app.security.test','/api/health')).status,200);
+  pass('anonymous registration throttles spoofed forwarding addresses without blocking app health');
  }
  compose(['stop','-t','15',kind]);
  const stopped=JSON.parse(docker(['inspect',id]))[0];assert.equal(stopped.State.ExitCode,0);assert.equal(stopped.State.OOMKilled,false);

@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 export const secretNames=['PG_ADMIN_PASSWORD','DATABASE_PASSWORD','KEYCLOAK_DB_PASSWORD','KEYCLOAK_ADMIN_PASSWORD','KEYCLOAK_CLIENT_SECRET','NEXTAUTH_SECRET','SAP_API_TOKEN','INVITATION_SIGNING_KEY','SMTP_PASSWORD'];
 export function parseEnv(text){
- const env={};for(const line of text.split(/\r?\n/)){if(!line.trim()||line.startsWith('#'))continue;const match=line.match(/^([A-Z_]+)=(.*)$/);if(!match||Object.hasOwn(env,match[1]))throw Error('Invalid or duplicate environment line');env[match[1]]=match[2];}return env;
+ const env={};for(const line of text.split(/\r?\n/)){if(!line.trim()||line.startsWith('#'))continue;const match=line.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);if(!match||Object.hasOwn(env,match[1]))throw Error('Invalid or duplicate environment line');env[match[1]]=match[2];}return env;
 }
 export function validate(env,{local=false,files=true}={}){
  const required=['APP_HOST','AUTH_HOST','TLS_CONFIG','SECRET_DIR','BACKUP_DIR','AGE_RECIPIENTS_FILE','SMTP_HOST','SMTP_USERNAME','MAIL_FROM','KEYCLOAK_ADMIN_USERNAME','RELEASE_TAG','PLATFORM'];

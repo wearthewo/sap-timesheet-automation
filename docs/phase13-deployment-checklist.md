@@ -1,5 +1,7 @@
 # Phase 13 launch prerequisites
 
+**28 October 2026: target superseded.** Use [public-production readiness](public-production-readiness.md) for the current Contabo VPS 6 / 12 GB, Namecheap, Resend and B2 checklist. No visitor allowlist is required. Entries below preserve the earlier private-demo decisions; they do not authorize public launch or waive current scanner findings.
+
 **25 October 2026:** selected target is Contabo Cloud VPS 4, 4 shared vCPU / 8 GB / 100 GB SSD, AMD64 Ubuntu 24.04 LTS, EU, one-month billing. No server exists yet. See [current evidence and blockers](phase13-contabo-readiness.md) and the [operator runbook](contabo-deployment.md). Initial scope is an IP-restricted private demo using synthetic records and Mock SAP.
 
 - [x] Confirm remote CI/E2E on `444f4b4` succeeded, including exact Mailpit acceptance. This does **not** cover local Phase 12F commit `77c665e` or later infrastructure changes.

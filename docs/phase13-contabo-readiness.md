@@ -1,5 +1,9 @@
 # Phase 13 - Contabo preparation and evidence
 
+## Public target update — 28 October 2026
+
+Selected target is now Contabo VPS 6, 12 GB, Ubuntu 24.04 with public registration, Namecheap DNS, Resend SMTP and encrypted B2 backups. See [the current public-production report](public-production-readiness.md) for changes, verification and remaining blockers. Earlier private-demo decisions below are historical and do not authorize public deployment. The strict public gate is retained and now explicitly rejects UNKNOWN; no private exception applies.
+
 ## Runtime blocker correction — 27 October 2026
 
 The verified curl/musl proxy fix and fingerprint-checked backend CA mitigation

@@ -54,7 +54,7 @@ import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 import {parseEnv} from './infra/production/validate-env.mjs';
 const settings=parseEnv(readFileSync('/etc/workforce/operations.env','utf8'));
-const allowed=['BACKUP_DIR','BACKUP_DESTINATION','BACKUP_SSH_IDENTITY','BACKUP_KNOWN_HOSTS','BACKUP_SSH_PORT','MONITOR_CURL_CONFIG'];
+const allowed=['BACKUP_DIR','BACKUP_TRANSPORT','B2_RCLONE_CONFIG','B2_DESTINATION','BACKUP_DESTINATION','BACKUP_SSH_IDENTITY','BACKUP_KNOWN_HOSTS','BACKUP_SSH_PORT','MONITOR_CURL_CONFIG'];
 if(Object.keys(settings).some(k=>!allowed.includes(k))) throw Error('Unexpected operations setting');
 const result=spawnSync('bash',['infra/production/scheduled-backup.sh','--lock-held'],{stdio:'inherit',env:{...process.env,...settings}});
 process.exit(result.status??1);

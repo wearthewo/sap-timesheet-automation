@@ -13,6 +13,6 @@ Caddyfile text eol=lf
 *.conf text eol=lf
 *.cmd text eol=crlf
 # Preserve reviewed Go source/checksum bytes in reproducible runtime builds.
-infra/production/caddy/* text eol=lf
+infra/production/caddy/** text eol=lf
 infra/production/gosu/* text eol=lf
 infra/production/keycloak-theme/** text eol=lf

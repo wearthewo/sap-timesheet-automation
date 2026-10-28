@@ -16,6 +16,7 @@ frontend/test-results/
 frontend/playwright-report/
 
 secrets/
+rclone.conf
 backups/
 *.dump
 *.age

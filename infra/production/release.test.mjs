@@ -33,8 +33,8 @@ test('missing independent reviewer protection fails closed',()=>{
 });
 const scan=v=>({SchemaVersion:2,ArtifactType:'container_image',Metadata:{OS:{Family:'debian'}},Results:[{Class:'os-pkgs',Type:'debian',Target:'image',Vulnerabilities:v}]});
 test('scan accepts complete reports without high/critical findings',()=>assertScan(scan([{Severity:'LOW'}])));
-test('scan fails on high/critical findings without suppressing vendor-qualified entries',()=>{
- for(const Severity of ['HIGH','CRITICAL'])assert.throws(()=>assertScan(scan([{Severity}])));
+test('scan fails on unknown/high/critical findings without suppressing vendor-qualified entries',()=>{
+ for(const Severity of ['UNKNOWN','HIGH','CRITICAL'])assert.throws(()=>assertScan(scan([{Severity}])));
 });
 test('scan cannot pass on missing or malformed evidence',()=>{
  for(const value of [{},{SchemaVersion:2,Results:[]},{SchemaVersion:2,Results:[{}]},{SchemaVersion:2,Results:[{Type:'debian',Target:'image',Vulnerabilities:'invalid'}]}])assert.throws(()=>assertScan(value));

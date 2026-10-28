@@ -1,0 +1,13 @@
+# Install as /etc/workforce/offsite/rclone.conf, root:root mode 0600.
+# Use a private bucket and a key restricted to that bucket and workforce/ prefix.
+# No age private key belongs on the running application host.
+[workforce-b2]
+type = s3
+provider = Other
+env_auth = false
+access_key_id = REPLACE_WITH_B2_APPLICATION_KEY_ID
+secret_access_key = REPLACE_WITH_B2_APPLICATION_KEY
+endpoint = https://s3.REPLACE_WITH_B2_REGION.backblazeb2.com
+acl = private
+# B2 does not support all AWS checksum extensions. SHA256 is independently
+# verified by downloading ciphertext after upload; do not disable TLS checks.

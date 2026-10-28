@@ -4,10 +4,25 @@ import {readFileSync} from 'node:fs';
 import {parseEnv,validate} from './validate-env.mjs';
 const source=name=>readFileSync(new URL(name,import.meta.url),'utf8');
 const sample=parseEnv(source('./production.env.example'));
-const valid={...sample,APP_HOST:'app.example.org',AUTH_HOST:'auth.example.org',SMTP_HOST:'smtp.example.org',SMTP_USERNAME:'sender',MAIL_FROM:'sender@example.org',TLS_CONFIG:'operator@example.org',KEYCLOAK_ADMIN_USERNAME:'private-operator'};
+const valid={...sample,RELEASE_TAG:'reviewed-test',APP_HOST:'app.example.org',AUTH_HOST:'auth.example.org',SMTP_HOST:'smtp.example.org',SMTP_USERNAME:'sender',MAIL_FROM:'sender@example.org',TLS_CONFIG:'operator@example.org',KEYCLOAK_ADMIN_USERNAME:'private-operator'};
 test('production preflight rejects placeholders and absent settings',()=>{assert.throws(()=>validate(sample,{files:false}));assert.throws(()=>validate({...valid,APP_HOST:''},{files:false}));assert.equal(validate(valid,{files:false}),true);});
 test('production preflight rejects origin/host injection, HTTP and local CA',()=>{for(const host of ['https://app.example.org','app.example.org/path','evil.example.org\nadmin off','localhost','app.test'])assert.throws(()=>validate({...valid,APP_HOST:host},{files:false}));assert.throws(()=>validate({...valid,TLS_CONFIG:'internal'},{files:false}));assert.throws(()=>validate({...valid,AUTH_HOST:valid.APP_HOST},{files:false}));});
 test('preflight rejects malformed input and ambiguous platforms',()=>{assert.throws(()=>parseEnv('A=1\nA=2'));assert.throws(()=>validate({...valid,PLATFORM:'linux/386'},{files:false}));assert.throws(()=>validate({...valid,RELEASE_TAG:'bad tag'},{files:false}));});
+
+test('B2 operations keys parse without executing shell values',()=>{
+ const ops=parseEnv(source('./operations.env.example'));
+ assert.equal(ops.BACKUP_TRANSPORT,'b2');assert.equal(ops.B2_RCLONE_CONFIG,'/etc/workforce/offsite/rclone.conf');
+ assert.throws(()=>parseEnv('2BAD=value'));
+ assert.equal(parseEnv('B2_DESTINATION=$(untrusted)').B2_DESTINATION,'$(untrusted)');
+});
+
+test('public ingress applies abuse protection to both public hosts without exposing internal services',()=>{
+ const config=source('./Caddyfile');
+ assert.match(config,/workforce_guard application/);assert.match(config,/workforce_guard authentication/);
+ assert.match(config,/order workforce_guard before request_body/);
+ assert.match(source('./compose.yaml'),/pids_limit: 512/);
+ assert.match(source('./compose.yaml'),/API_SENSITIVE_REQUESTS_PER_MINUTE: "5"/);
+});
 test('production realm preserves auth flow and narrows transport and scopes',()=>{const r=JSON.parse(source('./workforce-realm.json'));const c=r.clients[0];assert.equal(r.sslRequired,'all');assert.equal(r.verifyEmail,true);assert.equal(r.bruteForceProtected,true);assert.equal(c.publicClient,false);assert.equal(c.fullScopeAllowed,false);assert.equal(c.directAccessGrantsEnabled,false);assert.equal(c.attributes['pkce.code.challenge.method'],'S256');assert.equal(c.redirectUris.length,2);assert.ok(c.redirectUris.every(v=>!v.includes('*')));});
 test('deployment publishes only proxy and keeps legacy confirmation false',()=>{const s=source('./compose.yaml');assert.equal((s.match(/^\s+ports:/gm)||[]).length,1);assert.match(s,/LEGACY_TENANT_CONFIRMED: "false"/);assert.doesNotMatch(s,/start-dev|mailpit:/);assert.doesNotMatch(s,/^ {6}(POSTGRES_PASSWORD|NEXTAUTH_SECRET):/m);assert.match(s,/no-new-privileges/);assert.match(s,/STARTTLS_REQUIRED: "true"/);});
 test('backup private key is restore-only and target is non-destructive',()=>{assert.doesNotMatch(source('./backup.compose.yaml'),/identity.txt/);assert.match(source('./restore.compose.yaml'),/identity.txt:ro/);const s=source('./backup.sh');assert.match(s,/Refusing non-empty database/);assert.match(s,/Refusing existing Mock SAP state/);assert.match(s,/pipefail/);assert.match(s,/age -R/);assert.match(s,/cmp "\$db.manifest" "\$db.restored"/);assert.doesNotMatch(s,/DROP DATABASE|dropdb|TRUNCATE/);});
@@ -63,7 +78,8 @@ test('patched Caddy build pins compiler, modules and Brotli without a security b
  assert.match(build,/go mod download && go mod verify/);
  assert.doesNotMatch(build,/go get|go mod tidy|GOSUMDB=off/);
  assert.match(build,/brotli-libs=1\.2\.1-r0/);
- assert.match(source('./caddy/go.mod'),/golang\.org\/x\/net v0\.60\.0/);
+ assert.match(source('./caddy/go.mod'),/golang\.org\/x\/net v0\.62\.0/);
+ assert.match(source('./caddy/go.mod'),/github\.com\/go-jose\/go-jose\/v4 v4\.1\.6/);
  assert.match(source('./caddy/go.sum'),/github\.com\/caddyserver\/caddy\/v2 v2\.11\.7 h1:/);
 });
 test('backup may read private mock state but the normal mount is read-only',()=>{const s=source('./backup.compose.yaml');assert.match(s,/DAC_READ_SEARCH/);assert.match(s,/mock_sap_data:\/mock:ro/);});

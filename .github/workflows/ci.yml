@@ -127,5 +127,6 @@ jobs:
       - run: python3 infra/production/oci-inventory.test.py
       - run: bash infra/production/backup-guards.test.sh
       - run: bash infra/production/offsite.test.sh
+      - run: bash infra/production/offsite-b2.test.sh
       - run: node infra/ci/stack.mjs prepare
       - run: node infra/ci/stack.mjs config

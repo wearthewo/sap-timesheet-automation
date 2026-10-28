@@ -4,6 +4,7 @@ x-runtime: &runtime
   init: true
   security_opt: ["no-new-privileges:true"]
   cap_drop: ["ALL"]
+  pids_limit: 512
   logging: {driver: local, options: {max-size: "10m", max-file: "3"}}
   stop_grace_period: 45s
 services:
@@ -141,6 +142,8 @@ services:
       SERVER_SHUTDOWN: graceful
       SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 30s
       SERVER_FORWARD_HEADERS_STRATEGY: none
+      API_MAX_REQUEST_BYTES: "131072"
+      API_SENSITIVE_REQUESTS_PER_MINUTE: "5"
     secrets: [DATABASE_PASSWORD, SAP_API_TOKEN, INVITATION_SIGNING_KEY, SMTP_PASSWORD]
     networks: [services, outbound]
     depends_on: {postgres: {condition: service_healthy}, keycloak: {condition: service_healthy}}

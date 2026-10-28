@@ -13,7 +13,7 @@ export function assertScan(report) {
   assert.ok(result.Type&&result.Target,'Incomplete scan target');
   assert.ok(result.Vulnerabilities===undefined||Array.isArray(result.Vulnerabilities),'Malformed findings');
   for(const finding of result.Vulnerabilities??[])assert.ok(['UNKNOWN','LOW','MEDIUM','HIGH','CRITICAL'].includes(finding.Severity),'Missing finding severity');
-  assert.ok(!result.Vulnerabilities?.some(v=>['HIGH','CRITICAL'].includes(v.Severity)),'Unresolved high/critical findings; review report without blanket suppression');
+  assert.ok(!result.Vulnerabilities?.some(v=>['UNKNOWN','HIGH','CRITICAL'].includes(v.Severity)),'Unresolved unknown/high/critical findings; review report without blanket suppression');
  }
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))assertScan(JSON.parse(readFileSync(process.argv[2],'utf8')));

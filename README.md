@@ -17,7 +17,7 @@ Phase 7 adds durable email notifications, scheduled reminders and owner-only not
 
 Dependency maintenance: [Phase 13B.1 assessment and verification](docs/phase13b1-dependency-security.md) records the Node 24.22.1 pins, Boot 4 migration, targeted tests and unresolved container security findings. This dependency checkpoint is not public-launch clearance.
 
-Deployment target is now **Contabo Cloud VPS 4, AMD64, 8 GB**, subject to the EUR15/month total budget. See the [Contabo operator runbook](docs/contabo-deployment.md) and [Phase 13 readiness checkpoints](docs/phase13-contabo-readiness.md) for manual release gates, encrypted backups, SMTP, rollback, local browser testing and remaining launch blockers. No server or production infrastructure has been provisioned.
+Deployment target is **Contabo Cloud VPS 6, AMD64, 12 GB, Ubuntu 24.04**, with public registration, Namecheap DNS, Resend SMTP and encrypted Backblaze B2 backups. See [public-production readiness](docs/public-production-readiness.md) for READY BEFORE PURCHASE / REQUIRES REAL HOST OR SERVICE / BLOCKED status, and the [Contabo runbook](docs/contabo-deployment.md). Security gates remain blocking; no server or production infrastructure has been provisioned.
 
 ## Architecture and stack
 
