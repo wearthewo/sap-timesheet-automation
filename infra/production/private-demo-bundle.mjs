@@ -13,7 +13,8 @@ if(command==='create') {
  assert.match(revision,/^[a-f0-9]{40}$/);
  const metadata=JSON.parse(readFileSync(resolve(dir,'scanner.json')));
  assert.equal(metadata.Version,'0.76.0');
- const bundle={schema:1,revision,platform:'linux/amd64',scanner:'trivy:0.76.0',dbUpdatedAt:new Date(metadata.VulnerabilityDB.UpdatedAt).toISOString().replace(/\.\d{3}Z$/,'.000Z'),images:{}};
+ const utc=value=>new Date(value).toISOString().replace(/\.\d{3}Z$/,'.000Z');
+ const bundle={schema:2,revision,platform:'linux/amd64',scanner:'trivy:0.76.0',dbUpdatedAt:utc(metadata.VulnerabilityDB.UpdatedAt),javaDbUpdatedAt:utc(metadata.JavaDB.UpdatedAt),javaDbNextUpdate:utc(metadata.JavaDB.NextUpdate),images:{}};
  for(const service of services) {
   const path=resolve(dir,`${service}.tar`);
   const image=JSON.parse(execFileSync(process.env.PYTHON??'python3',['infra/production/oci-inventory.py',path],{encoding:'utf8',timeout:300000}));

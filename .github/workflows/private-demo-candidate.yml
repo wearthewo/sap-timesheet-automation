@@ -1,6 +1,13 @@
-name: Prepare private demo review artifacts
+name: Prepare immutable release review artifacts
 on:
   workflow_dispatch:
+    inputs:
+      policy:
+        description: Candidate contains no approvals; select the intended review environment
+        type: choice
+        required: true
+        default: public-saas
+        options: [public-saas, private-demo]
 permissions:
   contents: read
   actions: read
@@ -14,13 +21,14 @@ jobs:
     timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
+      REVIEW_ENVIRONMENT: ${{ inputs.policy == 'public-saas' && 'production-publish' || 'private-demo-publish' }}
       TRIVY: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with: {persist-credentials: false}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with: {node-version-file: .nvmrc}
-      - run: node infra/production/release-gates.mjs "$GITHUB_SHA" private-demo-publish
+      - run: node infra/production/release-gates.mjs "$GITHUB_SHA" "$REVIEW_ENVIRONMENT"
       - name: Build once and retain full unfiltered evidence without publishing
         shell: bash
         run: |
@@ -30,6 +38,7 @@ jobs:
           trap 'docker buildx rm private-demo-builder' EXIT
           mkdir -p "$directory/scans" "$directory/sboms" "$directory/cache"
           docker run --rm -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image --download-db-only
+          docker run --rm -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image --download-java-db-only --timeout 5m
           docker run --rm -v "$directory/cache:/root/.cache/trivy" "$TRIVY" --version --format json > "$directory/scanner.json"
           for service in proxy backend frontend keycloak mock-sap backup postgres; do
             dockerfile="$service"
@@ -40,10 +49,10 @@ jobs:
             # Trivy accepts OCI layouts, not OCI tar archives. Verify before safe extraction.
             python3 infra/production/oci-inventory.py "$directory/$service.tar" "$directory/$service-layout" > "$directory/$service-oci.json"
             docker run --rm --memory=1g -v "$directory:/evidence" -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image \
-              --input "/evidence/$service-layout" --skip-db-update --timeout 5m --scanners vuln \
+              --input "/evidence/$service-layout" --skip-db-update --skip-java-db-update --timeout 5m --scanners vuln --list-all-pkgs \
               --format json --output "/evidence/scans/$service.json"
             docker run --rm --memory=1g -v "$directory:/evidence" -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image \
-              --input "/evidence/$service-layout" --skip-db-update --timeout 5m --format cyclonedx \
+              --input "/evidence/$service-layout" --skip-db-update --skip-java-db-update --timeout 5m --format cyclonedx \
               --output "/evidence/sboms/$service.json"
             df -h / | tail -n 1
           done

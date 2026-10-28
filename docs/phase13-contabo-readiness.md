@@ -1,5 +1,9 @@
 # Phase 13 - Contabo preparation and evidence
 
+## Signed public assessment implementation - 28 October 2026
+
+The interrupted policy implementation is completed locally; see [public-production-release-policy.md](public-production-release-policy.md) for the exact schema, shared GitHub/host verifier, signed LOW/MEDIUM baseline and operator sequence. No real finding is approved. The strict raw scanner and all historical evidence remain intact. Public publication/deployment still require independent review and fresh exact-revision evidence. The current five severe/unknown records and remaining real-host checks are listed in [public-production-readiness.md](public-production-readiness.md); older counts and private-only guidance below are historical.
+
 ## Public target update — 28 October 2026
 
 Selected target is now Contabo VPS 6, 12 GB, Ubuntu 24.04 with public registration, Namecheap DNS, Resend SMTP and encrypted B2 backups. See [the current public-production report](public-production-readiness.md) for changes, verification and remaining blockers. Earlier private-demo decisions below are historical and do not authorize public deployment. The strict public gate is retained and now explicitly rejects UNKNOWN; no private exception applies.

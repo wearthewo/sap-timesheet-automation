@@ -57,6 +57,7 @@ jobs:
       PUBLISH_RUN: ${{ inputs.publish_run_id }}
       RELEASE_POLICY: ${{ inputs.policy }}
       TRUST_JSON: ${{ vars.PRIVATE_DEMO_TRUST_JSON }}
+      PUBLIC_TRUST_JSON: ${{ vars.PUBLIC_PRODUCTION_TRUST_JSON }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -75,12 +76,8 @@ jobs:
             printf '%s' "$TRUST_JSON" > "$RUNNER_TEMP/demo-trust.json"
             node infra/production/private-demo-policy.mjs .verification/release .verification/release/approval.json "$RUNNER_TEMP/demo-trust.json" .verification/release/release.json
           else
-            node -e 'if(JSON.parse(require("fs").readFileSync(".verification/release/release.json")).privateDemo)throw Error("Private policy cannot authorize public SaaS")'
-            # Recheck every retained report under the exact revision's public policy.
-            # Missing reports, UNKNOWN and HIGH/CRITICAL cannot pass via private approvals.
-            for service in proxy backend frontend keycloak mock-sap backup postgres; do
-              node infra/production/scan-verification.mjs ".verification/release/scans/$service.json"
-            done
+            printf '%s' "$PUBLIC_TRUST_JSON" > "$RUNNER_TEMP/public-trust.json"
+            node infra/production/public-production-policy.mjs .verification/release .verification/release/approval.json "$RUNNER_TEMP/public-trust.json" .verification/release/release.json
           fi
       - name: Request deployment through restricted SSH key
         shell: bash
