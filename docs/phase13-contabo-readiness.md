@@ -2,6 +2,8 @@
 
 ## Signed public assessment implementation - 28 October 2026
 
+Final continuation and per-finding disposition proposals: [weekend clearance report](phase13-weekend-clearance.md). Local policy commit `260e1766e9db5b426cef4f1a1e8559bf3606e602`; public launch remains NO-GO, with no approved vulnerabilities.
+
 The interrupted policy implementation is completed locally; see [public-production-release-policy.md](public-production-release-policy.md) for the exact schema, shared GitHub/host verifier, signed LOW/MEDIUM baseline and operator sequence. No real finding is approved. The strict raw scanner and all historical evidence remain intact. Public publication/deployment still require independent review and fresh exact-revision evidence. The current five severe/unknown records and remaining real-host checks are listed in [public-production-readiness.md](public-production-readiness.md); older counts and private-only guidance below are historical.
 
 ## Public target update — 28 October 2026

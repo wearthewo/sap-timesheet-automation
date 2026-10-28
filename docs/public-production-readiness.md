@@ -4,6 +4,8 @@ Target selected by the operator: **Contabo Cloud VPS 6, 12 GB RAM, AMD64 Ubuntu 
 
 **Decision: BLOCKED / NO-GO before purchase.** Public registration is the target, but unresolved runtime findings must not be accepted through private-demo exceptions. No images have been published and no data has been migrated.
 
+Latest continuation: [weekend clearance report](phase13-weekend-clearance.md). Policy committed at `260e1766e9db5b426cef4f1a1e8559bf3606e602`; 143 policy/configuration tests, 7 OCI tests, 2 LF tests and four isolated runtime evidence checks passed. Official Keycloak manifest remains unchanged. Two findings have strong technical classification evidence awaiting independent review; three still require supported fixes or complete reachability review. No findings are approved and final seven-image exact-revision evidence is pending.
+
 ## READY BEFORE PURCHASE
 
 Policy implementation update: [the public assessment operator guide](public-production-release-policy.md) documents the authorized signed assessment mechanism, shared publication/host verification and enumerated LOW/MEDIUM baseline. This supersedes earlier descriptions below of an absolute scanner-only publication rule. The raw scanner gate still rejects HIGH/CRITICAL/UNKNOWN; the public assessment route requires independently signed, exact-digest technical determinations or eligible limited risk acceptance. **None of the five current findings has been approved.** Historical scan/test results below are unchanged. Final source CI and fresh seven-image evidence remain pending authorization.
