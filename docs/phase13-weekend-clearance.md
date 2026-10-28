@@ -2,6 +2,8 @@
 
 **PUBLIC-PRODUCTION NO-GO.** Policy implementation is complete locally at `260e1766e9db5b426cef4f1a1e8559bf3606e602`. This is not approval of the five outstanding findings. No production images were published, infrastructure purchased, DNS changed or application deployed.
 
+October 29 continuation: [source-level input-path assessment](phase13-input-path-assessment.md). The optional Go JOSE path is now traced and proposed as configuration-specific not affected; Java2D and Guava remain blocked. Five benign exact-image Java probes and proxy adaptation checks passed. No security approvals were issued. Results below are the preserved October 28 checkpoint, not reruns.
+
 ## Completed repository work
 
 - Reviewed and finished the interrupted changes, committed 18 explicit policy/workflow/documentation files. Reused the existing Ed25519 and OCI verifier. Publication and the deployment host enforce the same public assessment; private approvals are rejected. The strict raw scanner still rejects HIGH/CRITICAL/UNKNOWN.

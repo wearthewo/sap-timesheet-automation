@@ -4,7 +4,7 @@ Target selected by the operator: **Contabo Cloud VPS 6, 12 GB RAM, AMD64 Ubuntu 
 
 **Decision: BLOCKED / NO-GO before purchase.** Public registration is the target, but unresolved runtime findings must not be accepted through private-demo exceptions. No images have been published and no data has been migrated.
 
-Latest continuation: [weekend clearance report](phase13-weekend-clearance.md). Policy committed at `260e1766e9db5b426cef4f1a1e8559bf3606e602`; 143 policy/configuration tests, 7 OCI tests, 2 LF tests and four isolated runtime evidence checks passed. Official Keycloak manifest remains unchanged. Two findings have strong technical classification evidence awaiting independent review; three still require supported fixes or complete reachability review. No findings are approved and final seven-image exact-revision evidence is pending.
+Latest continuation: [October 29 input-path assessment](phase13-input-path-assessment.md), following the [weekend clearance report](phase13-weekend-clearance.md). Policy committed at `260e1766e9db5b426cef4f1a1e8559bf3606e602`; its historical 143 policy/configuration tests, 7 OCI tests and 2 LF tests were not repeated. New exact-image configuration checks and five benign Java probes passed. OpenPGP and configuration-specific Go JOSE are candidate not-affected determinations; Java certificate-store remediation is verified but unapproved. Java2D and Guava remain blocked on supported fixes or complete independent applicability review. No findings are approved and final seven-image exact-revision evidence is pending. No production image changed in this continuation.
 
 ## READY BEFORE PURCHASE
 
