@@ -39,7 +39,7 @@ jobs:
       CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
       ASSESSMENT_URL: ${{ inputs.assessment_url }}
       ASSESSMENT_SHA256: ${{ inputs.assessment_sha256 }}
-      TRUST_JSON: ${{ vars.PUBLIC_PRODUCTION_TRUST_JSON }}
+      PUBLIC_PRODUCTION_TRUST_JSON: ${{ vars.PUBLIC_PRODUCTION_TRUST_JSON }}
       SKOPEO: quay.io/skopeo/stable:v1.20.0@sha256:47853bb9fb24202af9110531ebd6e43c5f97701254ca290596640290d17942f4
       REGISTRY: ghcr.io/wearthewo/sap-timesheet-automation
     steps:
@@ -71,7 +71,7 @@ jobs:
           gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" --name private-demo-candidate --dir .verification/public-production
           node infra/production/public-assessment-input.mjs .verification/public-production "$ASSESSMENT_URL" "$ASSESSMENT_SHA256"
           umask 077
-          printf '%s' "$TRUST_JSON" > "$RUNNER_TEMP/public-trust.json"
+          printf '%s' "$PUBLIC_PRODUCTION_TRUST_JSON" > "$RUNNER_TEMP/public-trust.json"
           node infra/production/private-demo-release.mjs .verification/public-production .verification/public-production/approval.json "$RUNNER_TEMP/public-trust.json" "$REVISION" public-saas
           node infra/production/private-demo-bundle.mjs archives .verification/public-production
       - name: Publish identical OCI bytes and verify registry manifests

@@ -63,9 +63,31 @@ export function inspectBundle(bundleBytes,read,now=Date.now(),{publicProduction=
  return {bundle,findings,release:validateRelease({schema:1,revision:bundle.revision,platform:bundle.platform,images}),bundleHash:hash(bundleBytes)};
 }
 
+// Trust comes from operator configuration, never from the candidate bundle.
+// Schema 1 remains independent; schema 2 is explicitly public-production only.
+export function approvalTrustMode(trust,environment) {
+ assert.ok([1,2].includes(trust.schema),'Unsupported trust schema');
+ keys(trust,`schema environment reviewers revokedApprovalIds${trust.schema===2?' approvalMode':''}`);
+ assert.equal(trust.environment,environment);
+ let mode='independent';
+ if(trust.schema===2) {
+  assert.equal(environment,'public-production','Versioned approval mode is public-only');
+  assert.ok(['independent','solo-maintainer'].includes(trust.approvalMode),'Unknown approval mode');
+  mode=trust.approvalMode;
+ }
+ assert.ok(Array.isArray(trust.reviewers)&&trust.reviewers.length>0,'Trusted signatory required');
+ assert.ok(Array.isArray(trust.revokedApprovalIds));
+ const ids=new Set();
+ for(const reviewer of trust.reviewers) {
+  keys(reviewer,'id publicKey');
+  assert.ok(typeof reviewer.id==='string'&&reviewer.id.trim().length>=3&&!ids.has(reviewer.id),'Invalid/duplicate trusted signatory');
+  ids.add(reviewer.id);
+  assert.equal(createPublicKey(reviewer.publicKey).asymmetricKeyType,'ed25519');
+ }
+ return mode;
+}
 export function verifySignedApproval(envelope,trust,environment) {
- keys(trust,'schema environment reviewers revokedApprovalIds');assert.equal(trust.schema,1);assert.equal(trust.environment,environment);
- assert.ok(Array.isArray(trust.reviewers)&&Array.isArray(trust.revokedApprovalIds));
+ const mode=approvalTrustMode(trust,environment);
  keys(envelope,'keyId payload signature');
  const reviewers=trust.reviewers.filter(k=>k.id===envelope.keyId);assert.equal(reviewers.length,1,'Missing/ambiguous trusted reviewer');
  const reviewer=reviewers[0];keys(reviewer,'id publicKey');
@@ -74,9 +96,13 @@ export function verifySignedApproval(envelope,trust,environment) {
  assert.equal(payload.toString('base64'),envelope.payload);assert.equal(signature.toString('base64'),envelope.signature);
  assert.ok(verify(null,payload,key,signature),'Approval signature missing/invalid or modified');
  const approval=JSON.parse(payload);
+ assert.equal(approval.schema,trust.schema,'Assessment/trust schema mismatch');
+ if(trust.schema===2)assert.equal(approval.approvalMode,mode,'Assessment/trust approval mode mismatch');
  assert.match(approval.id,/^[a-f0-9-]{36}$/);assert.ok(!trust.revokedApprovalIds.includes(approval.id),'Revoked approval');
  assert.equal(approval.environment,environment);assert.equal(approval.reviewer,reviewer.id);
- assert.ok(typeof approval.owner==='string'&&approval.owner.length>=3&&approval.owner!==approval.reviewer,'Independent reviewer required');
+ assert.ok(typeof approval.owner==='string'&&approval.owner.trim().length>=3,'Named assessment owner required');
+ if(mode==='solo-maintainer')assert.equal(approval.owner,approval.reviewer,'Solo signatory must be the named owner');
+ else assert.notEqual(approval.owner,approval.reviewer,'Independent reviewer required');
  return approval;
 }
 export function verifyEvidence(e,read) {

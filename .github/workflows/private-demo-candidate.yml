@@ -17,10 +17,12 @@ concurrency:
 jobs:
   candidate:
     if: github.ref == 'refs/heads/main'
+    environment: ${{ inputs.policy == 'public-saas' && 'production-publish' || 'private-demo-publish' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
       GH_TOKEN: ${{ github.token }}
+      PUBLIC_PRODUCTION_TRUST_JSON: ${{ vars.PUBLIC_PRODUCTION_TRUST_JSON }}
       REVIEW_ENVIRONMENT: ${{ inputs.policy == 'public-saas' && 'production-publish' || 'private-demo-publish' }}
       TRIVY: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
     steps:

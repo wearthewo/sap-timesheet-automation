@@ -57,7 +57,7 @@ jobs:
       PUBLISH_RUN: ${{ inputs.publish_run_id }}
       RELEASE_POLICY: ${{ inputs.policy }}
       TRUST_JSON: ${{ vars.PRIVATE_DEMO_TRUST_JSON }}
-      PUBLIC_TRUST_JSON: ${{ vars.PUBLIC_PRODUCTION_TRUST_JSON }}
+      PUBLIC_PRODUCTION_TRUST_JSON: ${{ vars.PUBLIC_PRODUCTION_TRUST_JSON }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -76,7 +76,7 @@ jobs:
             printf '%s' "$TRUST_JSON" > "$RUNNER_TEMP/demo-trust.json"
             node infra/production/private-demo-policy.mjs .verification/release .verification/release/approval.json "$RUNNER_TEMP/demo-trust.json" .verification/release/release.json
           else
-            printf '%s' "$PUBLIC_TRUST_JSON" > "$RUNNER_TEMP/public-trust.json"
+            printf '%s' "$PUBLIC_PRODUCTION_TRUST_JSON" > "$RUNNER_TEMP/public-trust.json"
             node infra/production/public-production-policy.mjs .verification/release .verification/release/approval.json "$RUNNER_TEMP/public-trust.json" .verification/release/release.json
           fi
       - name: Request deployment through restricted SSH key

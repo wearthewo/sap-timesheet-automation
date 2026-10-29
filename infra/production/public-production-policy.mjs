@@ -10,8 +10,8 @@ import {validateRelease} from './release.mjs';
 export function authorizePublicProduction(bundleBytes,read,envelope,trust,{now=Date.now(),release}={}) {
  const inspected=inspectBundle(bundleBytes,read,now,{publicProduction:true});
  const approval=verifySignedApproval(envelope,trust,'public-production');
- keys(approval,'schema id environment bundleHash owner reviewer issuedAt expiresAt controls decisions baselines');
- assert.equal(approval.schema,1);assert.equal(approval.bundleHash,inspected.bundleHash,'Approval does not cover this bundle');
+ keys(approval,`schema id environment bundleHash owner reviewer issuedAt expiresAt controls decisions baselines${approval.schema===2?' approvalMode':''}`);
+ assert.equal(approval.bundleHash,inspected.bundleHash,'Approval does not cover this bundle');
  const issued=timestamp(approval.issuedAt),expires=timestamp(approval.expiresAt);
  assert.ok(issued<=now&&expires>now&&expires>issued&&expires-issued<=30*86400000,'Invalid or over-30-day assessment');
  const required=['public-ingress','identity-authorization','tls-outbound','backups-recovery','expiry-response','runtime-configuration'];
@@ -46,6 +46,7 @@ export function authorizePublicProduction(bundleBytes,read,envelope,trust,{now=D
   assert.ok(['none','limited-availability','authentication-bypass','tenant-disclosure','code-execution','memory-corruption','service-exhaustion'].includes(decision.impact),'Unknown impact');
   assert.ok(['absent','mitigated','restricted','reachable'].includes(decision.exposure),'Unknown exposure');
   const severity=decision.finding.severity;
+  if(approval.approvalMode==='solo-maintainer')assert.notEqual(decision.disposition,'RISK_ACCEPTED','Solo mode permits technical determinations and LOW/MEDIUM baselines only');
   switch(decision.disposition) {
    case 'NOT_AFFECTED':
     assert.equal(decision.exposure,'absent');assert.equal(decision.impact,'none');break;
