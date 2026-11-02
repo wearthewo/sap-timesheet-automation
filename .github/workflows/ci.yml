@@ -41,7 +41,7 @@ jobs:
           docker ps -a > ../.verification/backend-reports/docker-state.txt
       - name: Production package
         run: ./mvnw -B -ntp clean package -DskipTests
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: backend-reports
@@ -89,7 +89,7 @@ jobs:
             echo '::warning::Full dependency audit needs review; see frontend-reports/dependency-audit.txt. Production vulnerabilities are gated separately.'
           fi
           cat ../.verification/frontend-reports/dependency-audit.txt
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: frontend-reports
