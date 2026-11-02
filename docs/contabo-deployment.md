@@ -236,4 +236,6 @@ Record release.json, source SHA, migration level, Keycloak version and archive I
 
 ## 7. Local browser acceptance (existing preserved QA)
 
+Keycloak now uses the reviewed AMD64 source-build definition described in [Keycloak adoption](phase13-keycloak-adoption.md), with pinned Corretto and Guava inputs. Build it in release CI, not on the VPS. Budget for upstream compilation and retain final image/authentication evidence; the old official-image or experimental-image scan cannot authorize this new image. Do not apply the obsolete UBI trust-store paths to the Corretto runtime. The production realm, secret files, health checks and data ownership contract remain the same. No additional hosting service or runtime configuration is required by this adoption.
+
 The preserved app is **http://localhost:33000**, with Mailpit **http://localhost:38025**. Use [the GUI manual](local-browser-testing-guide.md) and [Phase 12F evidence](phase12f-browser-acceptance.md). Roles belong to organization memberships. No acceptance rerun, environment recreation, data reset or external email was performed here.

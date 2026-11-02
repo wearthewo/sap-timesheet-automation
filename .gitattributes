@@ -16,3 +16,4 @@ Caddyfile text eol=lf
 infra/production/caddy/** text eol=lf
 infra/production/gosu/* text eol=lf
 infra/production/keycloak-theme/** text eol=lf
+infra/production/keycloak/** text eol=lf

@@ -26,7 +26,35 @@ test('public ingress applies abuse protection to both public hosts without expos
 test('production realm preserves auth flow and narrows transport and scopes',()=>{const r=JSON.parse(source('./workforce-realm.json'));const c=r.clients[0];assert.equal(r.sslRequired,'all');assert.equal(r.verifyEmail,true);assert.equal(r.bruteForceProtected,true);assert.equal(c.publicClient,false);assert.equal(c.fullScopeAllowed,false);assert.equal(c.directAccessGrantsEnabled,false);assert.equal(c.attributes['pkce.code.challenge.method'],'S256');assert.equal(c.redirectUris.length,2);assert.ok(c.redirectUris.every(v=>!v.includes('*')));});
 test('deployment publishes only proxy and keeps legacy confirmation false',()=>{const s=source('./compose.yaml');assert.equal((s.match(/^\s+ports:/gm)||[]).length,1);assert.match(s,/LEGACY_TENANT_CONFIRMED: "false"/);assert.doesNotMatch(s,/start-dev|mailpit:/);assert.doesNotMatch(s,/^ {6}(POSTGRES_PASSWORD|NEXTAUTH_SECRET):/m);assert.match(s,/no-new-privileges/);assert.match(s,/STARTTLS_REQUIRED: "true"/);});
 test('backup private key is restore-only and target is non-destructive',()=>{assert.doesNotMatch(source('./backup.compose.yaml'),/identity.txt/);assert.match(source('./restore.compose.yaml'),/identity.txt:ro/);const s=source('./backup.sh');assert.match(s,/Refusing non-empty database/);assert.match(s,/Refusing existing Mock SAP state/);assert.match(s,/pipefail/);assert.match(s,/age -R/);assert.match(s,/cmp "\$db.manifest" "\$db.restored"/);assert.doesNotMatch(s,/DROP DATABASE|dropdb|TRUNCATE/);});
-test('all production image roots pin reviewed multiarch digests',()=>{const lock=JSON.parse(source('./images.lock.json'));for(const image of Object.values(lock)){assert.match(image.reference,/@sha256:[a-f0-9]{64}$/);assert.deepEqual(image.platforms,['linux/amd64','linux/arm64']);}for(const name of ['backend','frontend','mock-sap','caddy','keycloak','backup','postgres'])for(const line of source('./'+name+'.Dockerfile').split('\n').filter(v=>v.startsWith('FROM ')))assert.match(line,/@sha256:[a-f0-9]{64}/);});
+test('all production image roots pin reviewed multiarch digests',()=>{
+ const lock=JSON.parse(source('./images.lock.json'));
+ for(const image of Object.values(lock)){assert.match(image.reference,/@sha256:[a-f0-9]{64}$/);assert.deepEqual(image.platforms,['linux/amd64','linux/arm64']);}
+ for(const name of ['backend','frontend','mock-sap','caddy','keycloak','backup','postgres']){
+  const stages=new Set();
+  for(const line of source('./'+name+'.Dockerfile').split('\n').filter(v=>v.startsWith('FROM '))){
+   const [,base,,alias]=line.trim().split(/\s+/).filter(token=>!token.startsWith('--platform='));
+   if(!stages.has(base))assert.match(base,/@sha256:[a-f0-9]{64}$/);
+   if(alias)stages.add(alias);
+  }
+ }
+});
+
+test('Keycloak builds reviewed source with integrity, patched Java and private writable data',()=>{
+ const build=source('./keycloak.Dockerfile'),inputs=JSON.parse(source('./keycloak/inputs.json'));
+ assert.ok(build.includes('FROM '+JSON.parse(source('./images.lock.json')).keycloak.reference));
+ for(const input of [inputs.source,inputs.java]){
+  assert.match(input.sha256,/^[a-f0-9]{64}$/);
+  assert.ok(build.includes(`ADD --checksum=sha256:${input.sha256} ${input.url}`));
+ }
+ assert.ok(build.includes(inputs.rpmSnapshot));assert.match(build,/reviewed.gpgcheck=1/);
+ assert.match(build,/test "\$TARGETARCH" = amd64/);
+ assert.match(build,/libicu-67\.1-7\.amzn2023\.0\.4/);
+ assert.match(build,/USER 1000:1000/);assert.match(build,/chmod 0750 \/opt\/keycloak\/data/);
+ assert.match(build,/COPY --chown=1000:1000 infra\/production\/workforce-realm.json/);
+ assert.match(build,/KC_DB=postgres KC_HEALTH_ENABLED=true/);
+ assert.match(build,/verify-distribution.py \/assembled/);
+ assert.doesNotMatch(build,/workforce-keycloak:|--nogpgcheck|curl.*-k |keycloak-trust-mitigation/);
+});
 
 test('Node build runtime remains consistent across development, CI and production images',()=>{
  const version=source('../../.nvmrc').trim();

@@ -32,7 +32,7 @@
     ]
   },
   "keycloak": {
-    "reference": "quay.io/keycloak/keycloak:26.8.1@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b",
+    "reference": "amazonlinux:2023@sha256:b156298161e9ab6392cda59081d016866601f7213a28ec21270d3a75c72f2170",
     "platforms": [
       "linux/amd64",
       "linux/arm64"

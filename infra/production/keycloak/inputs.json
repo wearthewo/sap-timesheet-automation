@@ -1,0 +1,23 @@
+{
+  "upstream": "Keycloak 26.8.1",
+  "platform": "linux/amd64",
+  "source": {
+    "url": "https://codeload.github.com/keycloak/keycloak/tar.gz/refs/tags/26.8.1",
+    "sha256": "f7763d73c33a2d345227522aa51a5ead3b7f0fde2a807704933174b8a3628b5c"
+  },
+  "java": {
+    "vendor": "Amazon Corretto",
+    "version": "21.0.13.0.11",
+    "runtimeVersion": "21.0.13+11-LTS",
+    "url": "https://corretto.aws/downloads/resources/21.0.13.0.11/amazon-corretto-21.0.13.0.11-linux-x64.tar.gz",
+    "sha256": "f3330bf440b8f4514b7b279b6145d4b4493dea9dda5f3a702b49c53c41bec1e4",
+    "vendorEvidence": "https://github.com/corretto/corretto-21/releases/tag/21.0.13.0.11"
+  },
+  "guava": {
+    "version": "33.7.2-jre",
+    "sha256": "b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c",
+    "failureaccess": "1.0.3"
+  },
+  "rpmSnapshot": "https://cdn.amazonlinux.com/al2023/core/guids/0d08b70774897c2bb6edd688009cb160ffc4e4afb06ced01555d6eee2ee221d7/x86_64/",
+  "maintenance": "Operator-maintained source build, not an official Keycloak image. Every release requires full-image scans and authentication verification."
+}

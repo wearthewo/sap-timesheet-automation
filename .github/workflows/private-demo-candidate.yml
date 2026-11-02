@@ -19,7 +19,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     environment: ${{ inputs.policy == 'public-saas' && 'production-publish' || 'private-demo-publish' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # Includes the maintained Keycloak source build, bounded to 40 minutes itself.
+    timeout-minutes: 90
     env:
       GH_TOKEN: ${{ github.token }}
       PUBLIC_PRODUCTION_TRUST_JSON: ${{ vars.PUBLIC_PRODUCTION_TRUST_JSON }}
@@ -36,16 +37,19 @@ jobs:
         run: |
           set -euo pipefail
           directory="$PWD/.verification/private-demo"
-          docker buildx create --name private-demo-builder --driver docker-container --use
+          docker buildx create --name private-demo-builder --driver docker-container \
+            --driver-opt memory=3g --driver-opt cpu-period=100000 --driver-opt cpu-quota=200000 --use
           trap 'docker buildx rm private-demo-builder' EXIT
           mkdir -p "$directory/scans" "$directory/sboms" "$directory/cache"
           docker run --rm -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image --download-db-only
           docker run --rm -v "$directory/cache:/root/.cache/trivy" "$TRIVY" image --download-java-db-only --timeout 5m
           docker run --rm -v "$directory/cache:/root/.cache/trivy" "$TRIVY" --version --format json > "$directory/scanner.json"
+          export BUILDX_METADATA_PROVENANCE=max
           for service in proxy backend frontend keycloak mock-sap backup postgres; do
             dockerfile="$service"
             if [ "$service" = proxy ]; then dockerfile=caddy; fi
             docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
+              --metadata-file "$directory/$service-build.json" \
               --label "org.opencontainers.image.revision=$GITHUB_SHA" \
               --output "type=oci,dest=$directory/$service.tar" -f "infra/production/$dockerfile.Dockerfile" .
             # Trivy accepts OCI layouts, not OCI tar archives. Verify before safe extraction.

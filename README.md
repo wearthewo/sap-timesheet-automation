@@ -19,6 +19,8 @@ Dependency maintenance: [Phase 13B.1 assessment and verification](docs/phase13b1
 
 Deployment target is **Contabo Cloud VPS 6, AMD64, 12 GB, Ubuntu 24.04**, with public registration, Namecheap DNS, Resend SMTP and encrypted Backblaze B2 backups. See [public-production readiness](docs/public-production-readiness.md) for READY BEFORE PURCHASE / REQUIRES REAL HOST OR SERVICE / BLOCKED status, and the [Contabo runbook](docs/contabo-deployment.md). Security gates remain blocking; no server or production infrastructure has been provisioned.
 
+Production Keycloak uses an operator-maintained, checksum-pinned source build with Corretto Java 21 and Guava 33.7.2-jre. See [adoption and release verification](docs/phase13-keycloak-adoption.md) for the AMD64 scope, maintenance obligations and outstanding release gates.
+
 ## Architecture and stack
 
 Checkpoint 12B adds a role-aware Overview: ADMIN gets organization setup counts/actions; MANAGER gets direct-report approvals and recent decisions; FINANCE gets SAP operational counts and reporting shortcuts. Linked active employees see their current month and recent rejected months. Empty organizations show real zero counts and setup guidance.
