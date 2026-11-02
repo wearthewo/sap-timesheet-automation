@@ -1,7 +1,8 @@
+import { eventTime, label } from "@/lib/display";
 import Link from "next/link";
 import { BackendError, backendRequest, currentUser } from "@/lib/backend";
 import WorklistRefresh from "./worklist-refresh";
-import { utc } from "@/lib/sap-view";
+
 import type { ExportPage } from "@/lib/sap-view";
 import { monthLabel } from "@/lib/timesheet-view";
 export default async function SapPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
@@ -14,16 +15,16 @@ export default async function SapPage({ searchParams }: { searchParams: Promise<
  catch (e) { if (e instanceof BackendError) return <p role="alert">{e.message}</p>; throw e; }
  return <>
   <WorklistRefresh active={data.content.some(item => item.export?.job.status === "PENDING" || item.export?.job.status === "PROCESSING")} />
-  <h1 className="text-3xl font-bold">SAP exports</h1>
+  <h1 className="text-3xl font-bold">SAP exports</h1><p className="simulation-label mt-3">Simulated · Mock SAP</p>
   <p className="mt-3 text-slate-600">Queue approved timesheets for export. The worker processes requests and reconciles uncertain outcomes.</p>
   <div className="mt-7 grid gap-4">
    {data.content.map(item => <Link key={item.timesheet.id} href={`/app/sap/${item.timesheet.id}`} className="rounded-xl border border-slate-200 bg-white p-5 hover:border-blue-500">
     <p className="font-semibold">{item.employee.displayName} · {item.employee.employeeNumber}</p>
     <p className="mt-2">{monthLabel(item.timesheet.year, item.timesheet.month)} · {item.timesheet.totalHours} hours</p>
-    <p className="mt-2 text-sm font-semibold text-blue-800">{item.export?.status ?? "Not exported"}</p>
-    {item.export && <div className="mt-2 text-sm"><p>Attempts: {item.export.job.attemptCount}</p>{item.export.job.lastAttemptAt && <p>Last: {utc(item.export.job.lastAttemptAt)}</p>}{item.export.job.nextAttemptAt && <p>Next {item.export.job.operation.toLowerCase()}: {utc(item.export.job.nextAttemptAt)}</p>}{item.export.externalReference && <p className="break-all">{item.export.externalReference}</p>}{item.export.failureMessage && <p>{item.export.failureMessage}</p>}</div>}
+    <p className="mt-2 text-sm font-semibold text-blue-800">{item.export ? label(item.export.status) : "Awaiting export"}</p>
+    {item.export && <div className="mt-2 text-sm"><p>Attempts: {item.export.job.attemptCount}</p>{item.export.job.lastAttemptAt && <p>Last: {eventTime(item.export.job.lastAttemptAt)}</p>}{item.export.job.nextAttemptAt && <p>Next {item.export.job.operation.toLowerCase()}: {eventTime(item.export.job.nextAttemptAt)}</p>}{item.export.externalReference && <p className="break-all">{item.export.externalReference}</p>}{item.export.failureMessage && <p>{item.export.failureMessage}</p>}</div>}
    </Link>)}
-   {!data.content.length && <p>No approved timesheets are available.</p>}
+   {!data.content.length && <p>No approved timesheets are available. Employees submit their time and their direct manager approves it before Finance can export.</p>}
   </div>
   <nav aria-label="Export pages" className="mt-6 flex gap-5">
    {page > 0 && <Link href={`/app/sap?page=${page - 1}`}>Previous</Link>}

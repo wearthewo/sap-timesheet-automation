@@ -1,9 +1,11 @@
+import { fixture } from "./fixtures";
 import { readFile } from "node:fs/promises";
 import { workbookXml } from "./workbook";
 import { test, expect, type Page } from "@playwright/test";
+const env = fixture("sap");
 async function login(page: Page, kind: "FINANCE" | "ADMIN" | "EMPLOYEE" | "MANAGER") {
- const username = process.env[kind === "EMPLOYEE" ? "TEST_USERNAME" : `TEST_${kind}_USERNAME`];
- const password = process.env[kind === "EMPLOYEE" ? "TEST_PASSWORD" : `TEST_${kind}_PASSWORD`];
+ const username = env[kind === "EMPLOYEE" ? "TEST_USERNAME" : `TEST_${kind}_USERNAME`];
+ const password = env[kind === "EMPLOYEE" ? "TEST_PASSWORD" : `TEST_${kind}_PASSWORD`];
  if (!username || !password) throw new Error("Set Phase 4 role fixture credentials before browser tests.");
  await page.goto("/login");
  await page.getByRole("button", { name: "Sign in with your work account" }).click();
@@ -17,7 +19,7 @@ async function logout(page: Page) {
 }
 test("finance exports once, admin sees safe validation failure, employee and manager have read-only state", async ({ page }) => {
  test.setTimeout(180000);
- const success = process.env.TEST_SAP_SUCCESS_ID; const failure = process.env.TEST_SAP_FAILURE_ID;
+ const success = env.TEST_SAP_SUCCESS_ID; const failure = env.TEST_SAP_FAILURE_ID;
  if (!success || !failure) throw new Error("Prepare two unexported APPROVED fixtures: normal and MOCK-INVALID project. Set TEST_SAP_SUCCESS_ID and TEST_SAP_FAILURE_ID.");
  await login(page, "FINANCE");
  await page.getByRole("link", { name: "SAP exports", exact: true }).click();
@@ -47,12 +49,12 @@ test("finance exports once, admin sees safe validation failure, employee and man
  expect(strings).toMatch(/SAP-TS-[A-F0-9]+/);
  expect(xml.get("xl/worksheets/sheet2.xml")).toContain("<v>6.25</v>");
  expect([...xml.values()].join("")).not.toContain("<f>");
- await download.saveAs("test-results/sap-export.xlsx");
+ await download.saveAs(test.info().outputPath("sap-export.xlsx"));
  await page.route("**/api/sap/timesheets/*/export.xlsx", route => route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ message: "The successful export snapshot is unavailable." }) }));
  await region.getByRole("button", { name: "Download SAP Excel", exact: true }).click();
  await expect(region.getByRole("alert")).toHaveText("The successful export snapshot is unavailable.");
  await page.unroute("**/api/sap/timesheets/*/export.xlsx");
- await page.screenshot({ path: "test-results/sap-success-desktop.png", fullPage: true });
+ await page.screenshot({ path: test.info().outputPath("sap-success-desktop.png"), fullPage: true });
  await logout(page);
  await page.setViewportSize({ width: 375, height: 812 });
  await login(page, "ADMIN");
@@ -66,7 +68,7 @@ test("finance exports once, admin sees safe validation failure, employee and man
  await expect(region.getByRole("button", { name: "Export to SAP", exact: true })).toHaveCount(0);
  await expect(region.getByRole("button", { name: "Retry export", exact: true })).toHaveCount(0);
  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
- await page.screenshot({ path: "test-results/sap-failure-mobile.png", fullPage: true });
+ await page.screenshot({ path: test.info().outputPath("sap-failure-mobile.png"), fullPage: true });
  await logout(page);
  await login(page, "EMPLOYEE");
  await expect(page.getByRole("link", { name: "SAP exports", exact: true })).toHaveCount(0);

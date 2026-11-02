@@ -5,4 +5,3 @@ export type SapAttempt = { id: string; attemptNumber: number; operation: string;
 export type SapExport = { exportId: string; timesheetId: string; status: "QUEUED" | "PROCESSING" | "SUCCEEDED" | "FAILED" | "UNKNOWN"; externalReference: string | null; failureCode: string | null; failureMessage: string | null; exportedAt: string | null; idempotencyKey: string; job: SapJob; attempts: SapAttempt[] };
 export type ExportDetail = { employee: EmployeeView; timesheet: Timesheet; export: SapExport | null };
 export type ExportPage = { content: { employee: EmployeeView; timesheet: TimesheetSummary; export: SapExport | null }[]; page: number; totalPages: number };
-export function utc(value: string) { return new Date(value).toISOString().replace("T", " ").replace("Z", " UTC"); }

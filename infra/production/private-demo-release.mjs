@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {readFileSync,writeFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+import {authorizePrivateDemo,hash} from './private-demo-policy.mjs';
+import {authorizePublicProduction} from './public-production-policy.mjs';
+const [dir,approvalPath,trustPath,revision,policy='private-demo']=process.argv.slice(2);
+assert.ok(['private-demo','public-saas'].includes(policy));
+const read=path=>readFileSync(resolve(dir,path));
+const envelope=JSON.parse(readFileSync(approvalPath));
+const authorize=policy==='public-saas'?authorizePublicProduction:authorizePrivateDemo;
+const result=authorize(read('bundle.json'),read,envelope,JSON.parse(readFileSync(trustPath)));
+assert.equal(result.release.revision,revision,'Wrong source revision');
+const binding={bundleHash:result.bundleHash,approvalHash:hash(JSON.stringify(envelope))};
+const release={...result.release,...(policy==='public-saas'?{publicAssessment:binding}:{privateDemo:{...binding,approval:envelope}})};
+assert.ok(Buffer.byteLength(JSON.stringify(release,null,2)+'\n')<=65536,'Approval exceeds bounded host input size');
+writeFileSync(resolve(dir,'release.json'),JSON.stringify(release,null,2)+'\n');
+console.log(`Approved evidence bundle ${result.bundleHash}; no publication performed by this command.`);

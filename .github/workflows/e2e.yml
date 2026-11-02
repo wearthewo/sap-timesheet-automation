@@ -19,6 +19,8 @@ jobs:
       NEXT_TELEMETRY_DISABLED: '1'
       NODE_OPTIONS: --max-old-space-size=2048
       COMPOSE_PARALLEL_LIMIT: '1'
+      # Keep assertions/timeouts intact while 12E initial-page-load reliability is investigated.
+      PLAYWRIGHT_WORKERS: '1'
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -36,7 +38,7 @@ jobs:
       - run: node infra/ci/stack.mjs config
       - name: Build and wait for all six services
         run: node infra/ci/stack.mjs start
-      - name: Synthetic OIDC users and database fixtures
+      - name: Isolated per-spec OIDC users and database fixtures
         run: node infra/ci/stack.mjs seed
       - name: Full smoke and browser suite
         run: node infra/ci/stack.mjs test
@@ -52,6 +54,7 @@ jobs:
           name: e2e-diagnostics
           path: |
             .verification/ci/diagnostics/
+            .verification/ci/browser-results/
             frontend/test-results/
             frontend/playwright-report/
           include-hidden-files: true

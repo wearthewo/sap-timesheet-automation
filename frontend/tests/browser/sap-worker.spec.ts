@@ -1,6 +1,8 @@
+import { fixture } from "./fixtures";
 import { test, expect, type Page } from "@playwright/test";
+const env = fixture("sap-worker");
 async function login(page: Page, kind: "FINANCE" | "ADMIN") {
- const username = process.env[`TEST_${kind}_USERNAME`]; const password = process.env[`TEST_${kind}_PASSWORD`];
+ const username = env[`TEST_${kind}_USERNAME`]; const password = env[`TEST_${kind}_PASSWORD`];
  if (!username || !password) throw new Error("Set local FINANCE/ADMIN fixture credentials.");
  await page.goto("/login"); await page.getByRole("button", { name: "Sign in with your work account" }).click();
  await page.locator("#username").fill(username); await page.locator("#password").fill(password); await page.locator("#kc-login").click();
@@ -12,7 +14,7 @@ async function logout(page: Page) {
 }
 test("durable worker reconciles transient failures, retries, and recovers timeout-after-create", async ({ page }) => {
  test.setTimeout(240000);
- const transient = process.env.TEST_SAP_TRANSIENT_ID; const unknown = process.env.TEST_SAP_UNKNOWN_ID;
+ const transient = env.TEST_SAP_TRANSIENT_ID; const unknown = env.TEST_SAP_UNKNOWN_ID;
  if (!transient || !unknown) throw new Error("Prepare fresh approved MOCK-TRANSIENT-503 and MOCK-TIMEOUT fixtures.");
  await login(page, "FINANCE");
  await page.goto(`/app/sap/${transient}`);
@@ -36,12 +38,12 @@ test("durable worker reconciles transient failures, retries, and recovers timeou
  await expect(panel.getByRole("status")).toHaveText("SUCCEEDED", { timeout: 30000 });
  await expect(panel.getByTestId("export-attempt-count")).toHaveText("1");
  await expect(panel).toContainText(/SAP-TS-[A-F0-9]+/);
- await page.screenshot({ path: "test-results/sap-reconciled-desktop.png", fullPage: true });
+ await page.screenshot({ path: test.info().outputPath("sap-reconciled-desktop.png"), fullPage: true });
  await logout(page);
 });
 test("admin manually requeues exhausted transient export and preserves history on mobile", async ({ page }) => {
  test.setTimeout(240000);
- const id = process.env.TEST_SAP_RETRY_ID; if (!id) throw new Error("Prepare a fresh approved MOCK-RETRY fixture with max attempts 4.");
+ const id = env.TEST_SAP_RETRY_ID; if (!id) throw new Error("Prepare a fresh approved MOCK-RETRY fixture with max attempts 4.");
  await page.setViewportSize({ width: 375, height: 812 });
  await login(page, "ADMIN"); await page.goto(`/app/sap/${id}`);
  const panel = page.getByRole("region", { name: "SAP export", exact: true });
@@ -49,7 +51,7 @@ test("admin manually requeues exhausted transient export and preserves history o
  await expect(panel.getByRole("status")).toHaveText("FAILED", { timeout: 160000 });
  await expect(panel.getByTestId("export-attempt-count")).toHaveText("4");
  await expect(panel.getByRole("alert")).toContainText("Retry limit reached");
- await page.screenshot({ path: "test-results/sap-retry-mobile.png", fullPage: true });
+ await page.screenshot({ path: test.info().outputPath("sap-retry-mobile.png"), fullPage: true });
  await panel.getByRole("button", { name: "Retry export", exact: true }).click();
  await expect(panel.getByRole("status")).toHaveText("SUCCEEDED", { timeout: 30000 });
  await expect(panel.getByTestId("export-attempt-count")).toHaveText("5");

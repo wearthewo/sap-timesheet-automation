@@ -5,22 +5,38 @@
 
 CI checks pull requests to `main` and pushes to `main`. Full six-service browser verification runs on main pushes, weekly and manually. Badges reflect GitHub results only after the workflows are pushed and run; local verification is separate. See [Phase 8.5 CI verification](docs/phase8-5-ci-verification.md) for commands, diagnostics, synthetic fixtures and required repository settings.
 
+Checkpoint [12A audit and test reliability](docs/phase12-progress.md) replaces shared browser credentials with isolated per-spec fixture manifests. Onboarding creates its own duplicate-address prerequisite; the mobile timesheet test owns a separately seeded submitted month. The suite preserves zero retries and per-test artifacts. The 12E registration follow-up fixed an auth-button hydration race and added a delayed-script regression. Full-stack CI conservatively uses one browser worker while separate initial-page-load reliability remains under investigation; two-worker execution remains available.
+
+For a fresh disposable run, use `node infra/ci/stack.mjs prepare`, `config`, `start`, `seed`, then `test`. `diagnostics` captures redacted evidence and `stop` removes only that run's guarded disposable Compose project and volumes. Never use these commands to reset a development database. `CI_RUN_ID` selects an independent ignored `.verification/<run-id>` directory (default `ci`); simultaneous local runs also need different `CI_FRONTEND_PORT`, `CI_BACKEND_PORT`, `CI_KEYCLOAK_PORT`, `CI_POSTGRES_PORT`, `CI_MAILPIT_WEB_PORT` and `CI_MAILPIT_SMTP_PORT`. Credentials and `browser-fixtures.json` must remain ignored. Each mutable suite run requires fresh fixtures; do not rerun it against previously consumed monthly/export records.
+
+The helper passes `BROWSER_FIXTURES_PATH` and an isolated `PLAYWRIGHT_OUTPUT_DIR`. For focused debugging, supply that manifest plus the matching `BROWSER_BASE_URL`/`MAILPIT_API_URL` to `pnpm test:browser <spec>`. The onboarding spec needs only the URLs and can run before seeding. `PLAYWRIGHT_WORKERS` overrides the default of two; local Docker browser execution uses the existing `CI_BROWSER_CONTAINER` option. GitHub uploads `.verification/ci/browser-results/`, never the credential manifest.
+
 Phase 7 adds durable email notifications, scheduled reminders and owner-only notification history. Phase 6 provides FINANCE/ADMIN monthly operational reporting, approved-hours and SAP-exported-hours projections, and CSV/Excel downloads. Phase 5 durable asynchronous SAP export remains in place: export of approved timesheets for ADMIN and FINANCE through a dedicated gateway and a realistic local mock HTTP service. The existing manager workflow is preserved. Employees record decimal hours, submit for review, see rejection reasons, reopen rejected drafts and resubmit. Managers approve or reject only their direct reports, with immutable decision history.
 
 **Exports now run in the existing backend worker with PostgreSQL jobs, bounded retries and reconciliation. No production SAP/email provider, additional channels, payroll or deployment is included.**
 
+Dependency maintenance: [Phase 13B.1 assessment and verification](docs/phase13b1-dependency-security.md) records the Node 24.22.1 pins, Boot 4 migration, targeted tests and unresolved container security findings. This dependency checkpoint is not public-launch clearance.
+
+Deployment target is **Contabo Cloud VPS 6, AMD64, 12 GB, Ubuntu 24.04**, with public registration, Namecheap DNS, Resend SMTP and encrypted Backblaze B2 backups. See [public-production readiness](docs/public-production-readiness.md) for READY BEFORE PURCHASE / REQUIRES REAL HOST OR SERVICE / BLOCKED status, and the [Contabo runbook](docs/contabo-deployment.md). Security gates remain blocking; no server or production infrastructure has been provisioned.
+
+Production Keycloak uses an operator-maintained, checksum-pinned source build with Corretto Java 21 and Guava 33.7.2-jre. See [adoption and release verification](docs/phase13-keycloak-adoption.md) for the AMD64 scope, maintenance obligations and outstanding release gates.
+
 ## Architecture and stack
 
-Browser → Render Next.js service / BFF → Render Spring Boot service → Render PostgreSQL
+Checkpoint 12B adds a role-aware Overview: ADMIN gets organization setup counts/actions; MANAGER gets direct-report approvals and recent decisions; FINANCE gets SAP operational counts and reporting shortcuts. Linked active employees see their current month and recent rejected months. Empty organizations show real zero counts and setup guidance.
+
+Use the desktop sidebar or wrapping mobile navigation; Log out stays available. Open a project/employee name under Administration, then use the assignment shortcuts. Save project changes details; Archive project stops new time entry and preserves history. SAP is explicitly labelled Simulated · Mock SAP. UNKNOWN requires reconciliation, not blind resending. UI event times are labelled Athens; work dates and download contracts remain unchanged. See [checkpoint progress](docs/phase12-progress.md) for verification and remaining work.
+
+Browser → HTTPS proxy → Next.js Node BFF → Spring Boot → PostgreSQL
 
 Local mock now, real SAP adapter later: Spring Boot → SapTimesheetGateway → SAP S/4HANA
 
 See [architecture](docs/architecture.md) for the diagram, authentication boundaries and future modules.
 
-- Java 21, Spring Boot 3.5.16 (stable 3.5 line), Maven Wrapper 3.9.11.
-- Spring Web, Security/JWT, Data JPA, Bean Validation, Flyway, PostgreSQL, springdoc 2.8.17.
-- Next.js 16.3.8 App Router, React, strict TypeScript, Tailwind, Node 24, pnpm 12.8.1.
-- Keycloak 26.8.0 with NextAuth 4.24.15 OIDC; JUnit 5 and Testcontainers PostgreSQL.
+- Java 21, Spring Boot 4.1.2, Maven Wrapper 3.9.11.
+- Spring Web, Security/JWT, Data JPA, Bean Validation, Flyway, PostgreSQL, springdoc 3.1.1.
+- Next.js 16.4.1 App Router, React, strict TypeScript, Tailwind, Node 24, pnpm 12.8.1.
+- Keycloak 26.8.1 with NextAuth 4.24.15 OIDC; JUnit Jupiter and Testcontainers PostgreSQL.
 - Node server/standalone output, not static export; no Vercel services.
 
 ```text
@@ -262,3 +278,7 @@ Select **Organization** in the authenticated navigation to switch active members
 Before starting an upgraded backend against populated Phase 8.5 data, review its ownership and explicitly set `LEGACY_TENANT_CONFIRMED=true` only if all records belong to one organization. V15 otherwise stops. Existing records are preserved under the legacy organization, including roles, approvals, snapshots and notification history. Do not use this acknowledgement for a database mixing unrelated organizations. New installations need explicit memberships using the trusted onboarding SQL above.
 
 See [Phase 9 isolation and verification](docs/phase9-multitenancy-verification.md) for migration decisions, API/BFF contracts, worker isolation, current test results and remaining risks. Organization onboarding and administration UI remain out of scope.
+
+## Production infrastructure preparation (12D)
+
+A separate six-service VPS template is available in [the deployment guide](docs/production-deployment.md): Caddy, Next.js, Spring Boot with workers, production-mode Keycloak, PostgreSQL and private Mock SAP. The local/CI Compose stack still includes Mailpit and is unchanged. Runtime file secrets, pinned multiarchitecture images, encrypted backups, empty-target restoration and operational checks are prepared. No cloud resources, production credentials or public deployment were created. The [12E release assessment](docs/phase12-production-readiness-verification.md) records passing backend/static checks and local AMD64/restore evidence, but **Phase 12 acceptance remains incomplete** because the full browser suite has not passed and launch gates remain unresolved. See [checkpoint history](docs/phase12-progress.md) and [Phase 13 prerequisites](docs/phase13-deployment-checklist.md); no deployment is authorized.

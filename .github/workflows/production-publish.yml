@@ -1,0 +1,109 @@
+name: Publish reviewed AMD64 images
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_run_id:
+        description: Successful shared candidate run on main
+        required: true
+        type: string
+      assessment_url:
+        description: Immutable GitHub raw commit URL for non-secret signed assessment and evidence JSON
+        required: true
+        type: string
+      assessment_sha256:
+        description: Exact sha256 digest of that assessment document (sha256:...)
+        required: true
+        type: string
+      confirmation:
+        description: Type PUBLISH PUBLIC PRODUCTION
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'PUBLISH PUBLIC PRODUCTION'
+    environment: production-publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CANDIDATE_RUN: ${{ inputs.candidate_run_id }}
+      ASSESSMENT_URL: ${{ inputs.assessment_url }}
+      ASSESSMENT_SHA256: ${{ inputs.assessment_sha256 }}
+      PUBLIC_PRODUCTION_TRUST_JSON: ${{ vars.PUBLIC_PRODUCTION_TRUST_JSON }}
+      SKOPEO: quay.io/skopeo/stable:v1.20.0@sha256:47853bb9fb24202af9110531ebd6e43c5f97701254ca290596640290d17942f4
+      REGISTRY: ghcr.io/wearthewo/sap-timesheet-automation
+    steps:
+      - name: Verify candidate provenance
+        id: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CANDIDATE_RUN" > candidate-run.json
+          node <<'NODE'
+          const fs=require('fs'),r=JSON.parse(fs.readFileSync('candidate-run.json'));
+          if(r.path!=='.github/workflows/private-demo-candidate.yml'||r.head_branch!=='main'||r.event!=='workflow_dispatch'||r.conclusion!=='success'||r.status!=='completed'||r.head_sha!==process.env.GITHUB_SHA||!/^[a-f0-9]{40}$/.test(r.head_sha)) throw Error('Untrusted candidate or changed source revision');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`revision=${r.head_sha}\n`);
+          NODE
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ steps.candidate.outputs.revision }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with: {node-version-file: .nvmrc}
+      - name: Verify approved evidence and exact archives
+        env:
+          REVISION: ${{ steps.candidate.outputs.revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node infra/production/release-gates.mjs "$REVISION" production-publish
+          gh run download "$CANDIDATE_RUN" --repo "$GITHUB_REPOSITORY" --name private-demo-candidate --dir .verification/public-production
+          node infra/production/public-assessment-input.mjs .verification/public-production "$ASSESSMENT_URL" "$ASSESSMENT_SHA256"
+          umask 077
+          printf '%s' "$PUBLIC_PRODUCTION_TRUST_JSON" > "$RUNNER_TEMP/public-trust.json"
+          node infra/production/private-demo-release.mjs .verification/public-production .verification/public-production/approval.json "$RUNNER_TEMP/public-trust.json" "$REVISION" public-saas
+          node infra/production/private-demo-bundle.mjs archives .verification/public-production
+      - name: Publish identical OCI bytes and verify registry manifests
+        env:
+          REVISION: ${{ steps.candidate.outputs.revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          trap 'docker logout ghcr.io' EXIT
+          for service in proxy backend frontend keycloak mock-sap backup postgres; do
+            node infra/production/public-production-policy.mjs .verification/public-production .verification/public-production/approval.json "$RUNNER_TEMP/public-trust.json" .verification/public-production/release.json
+            tag="$REGISTRY/$service:public-$REVISION-$GITHUB_RUN_ID"
+            docker run --rm -v "$HOME/.docker/config.json:/auth.json:ro" -v "$PWD/.verification/public-production:/evidence:ro" "$SKOPEO" \
+              copy --authfile /auth.json --preserve-digests "oci-archive:/evidence/$service.tar" "docker://$tag"
+            docker run --rm -v "$HOME/.docker/config.json:/auth.json:ro" "$SKOPEO" inspect --authfile /auth.json --raw "docker://$tag" > "$RUNNER_TEMP/remote-manifest.json"
+            SERVICE="$service" node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import assert from 'node:assert/strict';
+          import {hash} from './infra/production/private-demo-policy.mjs';
+          const release=JSON.parse(readFileSync('.verification/public-production/release.json'));
+          assert.equal(hash(readFileSync(process.env.RUNNER_TEMP+'/remote-manifest.json')),release.images[process.env.SERVICE].split('@')[1]);
+          NODE
+          done
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        if: always()
+        with:
+          name: production-release
+          include-hidden-files: true
+          retention-days: 30
+          path: |
+            .verification/public-production/*.json
+            .verification/public-production/scans/
+            .verification/public-production/sboms/
+            .verification/public-production/evidence/

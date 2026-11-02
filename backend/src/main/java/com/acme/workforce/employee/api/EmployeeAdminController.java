@@ -18,4 +18,6 @@ public class EmployeeAdminController {
  @PutMapping("/{id}") public View edit(@PathVariable UUID id,@Valid @RequestBody Edit r){return employees.edit(id,r);}
  @PostMapping("/{id}/status") public View state(@PathVariable UUID id,@Valid @RequestBody State r){return employees.state(id,r);}
  @PostMapping("/{id}/link") public View link(@PathVariable UUID id,@Valid @RequestBody Link r){return employees.link(id,r);}
+ @DeleteMapping("/{id}") @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+ public void delete(@PathVariable UUID id,@Valid @RequestBody Delete r){employees.delete(id,r.version());}
 }

@@ -19,7 +19,8 @@ public class ProjectService {
  private final ProjectRepository projects; private final AssignmentRepository assignments; private final EmployeeRepository employees;
  private final com.acme.workforce.organization.application.AdministrationAccess access;
  private final org.springframework.jdbc.core.JdbcTemplate sql;
- public ProjectService(ProjectRepository projects,AssignmentRepository assignments,EmployeeRepository employees, com.acme.workforce.organization.application.OrganizationAccess organization,com.acme.workforce.organization.application.AdministrationAccess access,org.springframework.jdbc.core.JdbcTemplate sql) { this.organization=organization; this.projects=projects; this.assignments=assignments; this.employees=employees;this.access=access;this.sql=sql; }
+ private final Clock clock; private final ZoneId businessZone;
+ public ProjectService(ProjectRepository projects,AssignmentRepository assignments,EmployeeRepository employees, com.acme.workforce.organization.application.OrganizationAccess organization,com.acme.workforce.organization.application.AdministrationAccess access,org.springframework.jdbc.core.JdbcTemplate sql, @org.springframework.beans.factory.annotation.Qualifier("notificationClock") Clock clock, @org.springframework.beans.factory.annotation.Value("${app.notifications.business-timezone}") String businessZone) { this.clock=clock;this.businessZone=ZoneId.of(businessZone); this.organization=organization; this.projects=projects; this.assignments=assignments; this.employees=employees;this.access=access;this.sql=sql; }
  public Page<ProjectView> list(Pageable page) { return projects.findByOrganizationId(organization.id(),page).map(ProjectView::from); }
  public ProjectView get(UUID id) { return ProjectView.from(requireProject(id)); }
  private Project requireProject(UUID id) { return projects.findByIdAndOrganizationId(id,organization.id()).orElseThrow(()->DomainException.notFound("Project")); }
@@ -48,7 +49,7 @@ public class ProjectService {
  }
  public Page<ProjectView> assigned(UUID userId,Pageable page) {
   return employees.findByUserIdAndOrganizationId(userId,organization.id()).filter(e->e.isActive())
-   .map(e->projects.assigned(e.getId(),LocalDate.now(ZoneOffset.UTC),page).map(ProjectView::from))
+   .map(e->projects.assigned(e.getId(),LocalDate.now(clock.withZone(businessZone)),page).map(ProjectView::from))
    .orElseGet(()->Page.empty(page));
  }
  @Transactional public ProjectView state(UUID id,boolean active){var org=access.write();var p=requireProject(id);p.update(p.getCode(),p.getName(),p.getDescription(),active);projects.flush();access.audit(org,active?"PROJECT_ACTIVATED":"PROJECT_ARCHIVED",id,"{}");return ProjectView.from(p);}
@@ -70,6 +71,6 @@ public class ProjectService {
   if(employee!=null&&!employees.existsByIdAndOrganizationId(employee,org))throw DomainException.notFound("Employee");if(project!=null)requireProject(project);
   String where=" WHERE a.organization_id=?"+(employee==null?"":" AND a.employee_id=?")+(project==null?"":" AND a.project_id=?");var args=new java.util.ArrayList<Object>();args.add(org);if(employee!=null)args.add(employee);if(project!=null)args.add(project);
   long count=sql.queryForObject("SELECT count(*) FROM project_assignments a"+where,Long.class,args.toArray());args.add(page.getPageSize());args.add(page.getOffset());
-  var rows=sql.query("SELECT a.*,e.employee_number,coalesce(e.display_name,u.display_name,'Unlinked employee') employee_name,p.code,p.name FROM project_assignments a JOIN employees e ON e.id=a.employee_id LEFT JOIN app_users u ON u.id=e.user_id JOIN projects p ON p.id=a.project_id"+where+" ORDER BY a.valid_from DESC,a.id LIMIT ? OFFSET ?",(r,n)->new AdminAssignment(r.getObject("id",UUID.class),r.getObject("employee_id",UUID.class),r.getString("employee_number"),r.getString("employee_name"),r.getObject("project_id",UUID.class),r.getString("code"),r.getString("name"),r.getDate("valid_from").toLocalDate(),r.getDate("valid_to")==null?null:r.getDate("valid_to").toLocalDate(),r.getBoolean("active")),args.toArray());return new PageImpl<>(rows,page,count);
+  var rows=sql.query("SELECT a.*,e.employee_number,coalesce(e.display_name,u.display_name,'Unlinked employee') employee_name,p.code,p.name FROM project_assignments a JOIN employees e ON e.id=a.employee_id LEFT JOIN app_users u ON u.id=e.user_id JOIN projects p ON p.id=a.project_id"+where+" ORDER BY a.valid_from DESC,a.id LIMIT ? OFFSET ?",(r,n)->new AdminAssignment(r.getObject("id",UUID.class),r.getObject("employee_id",UUID.class),r.getString("employee_number"),r.getString("employee_name"),r.getObject("project_id",UUID.class),r.getString("code"),r.getString("name"),r.getObject("valid_from",LocalDate.class),r.getObject("valid_to",LocalDate.class),r.getBoolean("active")),args.toArray());return new PageImpl<>(rows,page,count);
  }
 }

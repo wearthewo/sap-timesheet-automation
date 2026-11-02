@@ -15,7 +15,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.*;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.*;
@@ -25,7 +25,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.*;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -37,7 +37,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
 class PhaseNineIsolationTest {
- @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
+ @Container static final PostgreSQLContainer postgres=new PostgreSQLContainer("postgres:17-alpine");
  @DynamicPropertySource static void database(DynamicPropertyRegistry p) {
   p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
  }
@@ -73,6 +73,86 @@ class PhaseNineIsolationTest {
   request(get("/api/v1/auth/me"),b,"shared").andExpect(jsonPath("$.role").value("EMPLOYEE"));
   request(post("/api/v1/projects").contentType("application/json").content("{\"code\":\"NEW\",\"name\":\"New\",\"active\":true}"),b,"shared").andExpect(status().isForbidden());
   assertThat(sql.queryForObject("SELECT role FROM app_users WHERE id=?",String.class,shared)).isEqualTo("EMPLOYEE");
+ }
+ @Test void dashboardAdminMetricsStayWithinOrganization() throws Exception {
+  sql.update("UPDATE projects SET active=false WHERE id=?",projectB);
+  request(get("/api/v1/dashboard"),a,"shared").andExpect(status().isOk())
+   .andExpect(jsonPath("$.administration.activeEmployees").value(2))
+   .andExpect(jsonPath("$.administration.activeProjects").value(1))
+   .andExpect(jsonPath("$.administration.pendingInvitations").value(0))
+   .andExpect(jsonPath("$.finance.awaitingExport").value(1)).andExpect(jsonPath("$.management").doesNotExist());
+  request(get("/api/v1/dashboard"),b,"shared").andExpect(status().isOk())
+   .andExpect(jsonPath("$.role").value("EMPLOYEE")).andExpect(jsonPath("$.administration").doesNotExist())
+   .andExpect(jsonPath("$.finance").doesNotExist()).andExpect(jsonPath("$.management").doesNotExist());
+ }
+ @Test void dashboardFinanceCannotSeeAdministrationOrOtherTenantExports() throws Exception {
+  enqueue(b,sheetB,"finance-b");
+  request(get("/api/v1/dashboard"),a,"finance-a").andExpect(status().isOk())
+   .andExpect(jsonPath("$.finance.awaitingExport").value(1)).andExpect(jsonPath("$.finance.queued").value(0))
+   .andExpect(jsonPath("$.administration").doesNotExist()).andExpect(jsonPath("$.management").doesNotExist());
+  request(get("/api/v1/dashboard"),b,"finance-b").andExpect(jsonPath("$.finance.queued").value(1));
+ }
+ @Test void dashboardManagerSeesOnlyCurrentDirectReports() throws Exception {
+  sql.update("UPDATE timesheets SET status='PENDING_APPROVAL'");
+  request(get("/api/v1/dashboard"),a,"manager-a").andExpect(jsonPath("$.management.pendingApprovals").value(1))
+   .andExpect(jsonPath("$.finance").doesNotExist()).andExpect(jsonPath("$.administration").doesNotExist());
+  request(post("/api/v1/approvals/timesheets/"+sheetA+"/approve").header("X-Timesheet-Version",0).contentType("application/json").content("{}"),a,"manager-a").andExpect(status().isOk());
+  request(get("/api/v1/dashboard"),a,"manager-a").andExpect(jsonPath("$.management.pendingApprovals").value(0))
+   .andExpect(jsonPath("$.management.recentDecisions[0].timesheetId").value(sheetA.toString()));
+  sql.update("UPDATE employees SET manager_id=NULL WHERE id=?",employeeA);
+  request(get("/api/v1/dashboard"),a,"manager-a").andExpect(jsonPath("$.management.recentDecisions").isEmpty());
+ }
+ @Test void dashboardInactiveManagerCannotReadTeamMetrics() throws Exception {
+  sql.update("UPDATE employees SET active=false WHERE id=?",managerA);
+  request(get("/api/v1/dashboard"),a,"manager-a").andExpect(status().isOk()).andExpect(jsonPath("$.management").doesNotExist());
+ }
+ @Test void dashboardRejectedMonthsAreOwnedAndBounded() throws Exception {
+  sql.update("UPDATE timesheets SET status='REJECTED'");
+  for(int month=1;month<=6;month++) sql.update("INSERT INTO timesheets(id,employee_id,year,month,status,total_hours,submitted_at) VALUES (?,?,2025,?,'REJECTED',0,now())",UUID.randomUUID(),employeeB,month);
+  request(get("/api/v1/dashboard"),b,"shared").andExpect(jsonPath("$.rejectedMonths.length()").value(5))
+   .andExpect(jsonPath("$.rejectedMonths[0].year").value(2026)).andExpect(jsonPath("$.rejectedMonths[1].month").value(6));
+  request(get("/api/v1/dashboard"),a,"shared").andExpect(jsonPath("$.rejectedMonths.length()").value(1));
+ }
+ @Test void dashboardRejectsMissingForeignAndSuspendedMembership() throws Exception {
+  mvc.perform(get("/api/v1/dashboard")).andExpect(status().isUnauthorized());
+  mvc.perform(get("/api/v1/dashboard").with(jwt().jwt(j->j.subject("shared").claim("email_verified",true)))).andExpect(status().isBadRequest());
+  request(get("/api/v1/dashboard"),b,"finance-a").andExpect(status().isForbidden());
+  sql.update("UPDATE organization_memberships SET status='SUSPENDED' WHERE organization_id=? AND user_id=?",a,financeA);
+  request(get("/api/v1/dashboard"),a,"finance-a").andExpect(status().isForbidden());
+ }
+ @Test void dashboardEmptyOrganizationHasRealZeroCounts() throws Exception {
+  var empty=organization("empty");membership(empty,shared,"ADMIN");
+  request(get("/api/v1/dashboard"),empty,"shared").andExpect(jsonPath("$.administration.activeEmployees").value(0))
+   .andExpect(jsonPath("$.administration.activeProjects").value(0)).andExpect(jsonPath("$.finance.awaitingExport").value(0))
+   .andExpect(jsonPath("$.rejectedMonths").isEmpty());
+ }
+ @Test void dashboardRoleChangeRemovesFinanceProjectionImmediately() throws Exception {
+  request(get("/api/v1/dashboard"),a,"finance-a").andExpect(jsonPath("$.finance").exists());
+  sql.update("UPDATE organization_memberships SET role='EMPLOYEE' WHERE organization_id=? AND user_id=?",a,financeA);
+  request(get("/api/v1/dashboard"),a,"finance-a").andExpect(jsonPath("$.finance").doesNotExist());
+ }
+ @Test void dashboardCountsAllSapStatesWithoutMixingUnapprovedSheets() throws Exception {
+  int month=1;
+  for(var state:List.of("QUEUED","PROCESSING","SUCCEEDED","FAILED","UNKNOWN")) {
+   var id=UUID.randomUUID();
+   sql.update("INSERT INTO timesheets(id,employee_id,year,month,status,total_hours,submitted_at) VALUES (?,?,2027,?,'APPROVED',0,now())",id,employeeA,month++);
+   boolean succeeded=state.equals("SUCCEEDED"), failed=Set.of("FAILED","UNKNOWN").contains(state);
+   sql.update("INSERT INTO sap_timesheet_exports(id,timesheet_id,status,external_reference,exported_at,failure_code,failure_message,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+    UUID.randomUUID(),id,state,succeeded?"SAP-DASHBOARD":null,succeeded?java.sql.Timestamp.from(java.time.Instant.now()):null,
+    failed?"SAFE_CODE":null,failed?"Safe message":null,java.sql.Timestamp.from(java.time.Instant.now()),java.sql.Timestamp.from(java.time.Instant.now()));
+  }
+  sql.update("INSERT INTO timesheets(id,employee_id,year,month,status,total_hours) VALUES (?,?,2027,12,'DRAFT',0)",UUID.randomUUID(),employeeA);
+  request(get("/api/v1/dashboard"),a,"finance-a").andExpect(jsonPath("$.finance.awaitingExport").value(1))
+   .andExpect(jsonPath("$.finance.queued").value(1)).andExpect(jsonPath("$.finance.processing").value(1))
+   .andExpect(jsonPath("$.finance.succeeded").value(1)).andExpect(jsonPath("$.finance.failed").value(1)).andExpect(jsonPath("$.finance.unknown").value(1));
+ }
+ @Test void dashboardCalendarUsesConfiguredAthensClockAtUtcMonthBoundary() {
+  var access=mock(com.acme.workforce.organization.application.OrganizationAccess.class);
+  when(access.id()).thenReturn(a);when(access.role(shared)).thenReturn(com.acme.workforce.identity.domain.UserRole.ADMIN);
+  var service=new com.acme.workforce.dashboard.application.DashboardService(sql,access,
+   java.time.Clock.fixed(java.time.Instant.parse("2028-02-29T22:30:00Z"),java.time.ZoneOffset.UTC),"Europe/Athens");
+  assertThat(service.summary(shared).businessDate()).isEqualTo("2028-03-01");
+  assertThat(service.summary(shared).timezone()).isEqualTo("Europe/Athens");
  }
  @Test void membershipListingDoesNotExposeOtherOrganizations() throws Exception {
   mvc.perform(get("/api/v1/auth/organizations").with(jwt().jwt(j->j.claim("email_verified",true).subject("finance-a")))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].id").value(a.toString()));

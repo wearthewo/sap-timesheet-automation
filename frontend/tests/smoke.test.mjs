@@ -97,3 +97,17 @@ test("invitation context rejects cross-origin requests", async () => {
  assert.equal(response.status, 403);
  assert.equal(response.headers.get("set-cookie"), null);
 });
+
+test("security headers constrain framing, object embedding and device permissions", async () => {
+ const response = await fetch(base + "/login");
+ assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+ assert.equal(response.headers.get("x-frame-options"), "DENY");
+ assert.match(response.headers.get("content-security-policy"), /frame-ancestors 'none'/);
+ assert.match(response.headers.get("permissions-policy"), /camera=\(\)/);
+});
+test("invitation handoff rejects oversized streamed JSON", async () => {
+ const response = await fetch(base + "/api/invitations/context", { method: "POST", headers: { Origin: new URL(base).origin, "Content-Type": "application/json" }, body: JSON.stringify({ token: "x".repeat(2048) }) });
+ assert.equal(response.status, 413);
+ assert.equal(response.headers.get("set-cookie"), null);
+ assert.match((await response.json()).message, /too large/);
+});

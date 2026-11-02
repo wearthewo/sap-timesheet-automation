@@ -1,13 +1,15 @@
+import { fixture } from "./fixtures";
 import { readFile } from "node:fs/promises";
 import { workbookXml } from "./workbook";
 import { test,expect,type Page } from "@playwright/test";
-const employee=process.env.TEST_USERNAME;
-const employeePassword=process.env.TEST_PASSWORD;
-const manager=process.env.TEST_MANAGER_USERNAME;
-const managerPassword=process.env.TEST_MANAGER_PASSWORD;
-const period=process.env.TEST_APPROVAL_MONTH;
+const env = fixture("approvals");
+const employee=env.TEST_USERNAME;
+const employeePassword=env.TEST_PASSWORD;
+const manager=env.TEST_MANAGER_USERNAME;
+const managerPassword=env.TEST_MANAGER_PASSWORD;
+const period=env.TEST_APPROVAL_MONTH;
 test.beforeAll(()=>{
- if(!employee || !employeePassword || !manager || !managerPassword || !period || !process.env.TEST_PROJECT_ONE) throw new Error("Set employee/manager test credentials, TEST_APPROVAL_MONTH (unstarted YYYY-MM), and TEST_PROJECT_ONE. The employee must directly report to this manager.");
+ if(!employee || !employeePassword || !manager || !managerPassword || !period || !env.TEST_PROJECT_ONE) throw new Error("Set employee/manager test credentials, TEST_APPROVAL_MONTH (unstarted YYYY-MM), and TEST_PROJECT_ONE. The employee must directly report to this manager.");
 });
 async function login(page:Page,username:string,password:string) {
  await page.goto("/login");await page.getByRole("button",{name:"Sign in with your work account"}).click();
@@ -32,18 +34,18 @@ test("employee submits, manager rejects, employee reopens and resubmits, manager
  await page.getByRole("button",{name:"Create draft",exact:true}).click();
  await page.getByLabel("Work date").fill(period+"-05");
  const select=page.getByRole("combobox",{name:"Project",exact:true});
- const option=select.locator("option").filter({hasText:process.env.TEST_PROJECT_ONE!});
+ const option=select.locator("option").filter({hasText:env.TEST_PROJECT_ONE!});
  await expect(option).toHaveCount(1);await select.selectOption((await option.getAttribute("value"))!);
  await page.getByLabel("Hours",{exact:true}).fill("6.50");await page.getByLabel("Description").fill("Approval workflow verification");
  await page.getByRole("button",{name:"Save entry",exact:true}).click();
  await expect(page.getByTestId("monthly-total")).toContainText("6.50");
- await expect(page.getByRole("heading",{name:period+"-05",exact:true})).toBeVisible();
+ await expect(page.getByRole("heading", { level: 3 }).locator(`time[datetime="${period}-05"]`)).toBeVisible();
  await page.getByRole("button",{name:"Submit month",exact:true}).click();await page.getByRole("button",{name:"Confirm submission"}).click();
  await expect(page.getByText("PENDING_APPROVAL",{exact:true})).toBeVisible();await expect(page.getByRole("region",{name:"Entry editor"})).toHaveCount(0);
  await logout(page);
  await page.setViewportSize({width:375,height:812});
  await login(page,manager!,managerPassword!);
- await expect(page.getByRole("heading",{name:"Pending approvals",exact:true})).toBeVisible();
+ await expect(page.getByRole("region", { name: "Manager overview" })).toContainText("Pending approvals from your direct reports.");
  await page.getByRole("link",{name:"Approvals",exact:true}).click();
  const queue=page.getByRole("region",{name:"Pending timesheets"});
  await expect(queue).toContainText("6.50 hours");
@@ -62,7 +64,7 @@ test("employee submits, manager rejects, employee reopens and resubmits, manager
  await page.getByRole("button",{name:"Confirm rejection"}).click();
  await expect(page.getByText("REJECTED",{exact:true})).toBeVisible();
  await expect(page.getByRole("region",{name:"Decision history"})).toContainText("Please correct the hours to 7.25.");
- await page.screenshot({path:"test-results/manager-rejected-mobile.png",fullPage:true});
+ await page.screenshot({path:test.info().outputPath("manager-rejected-mobile.png"),fullPage:true});
  await logout(page);
  await login(page,employee!,employeePassword!);await openMonth(page);
  await expect(page.getByRole("region",{name:"Rejection reason"})).toContainText("Please correct the hours to 7.25.");
@@ -80,7 +82,7 @@ test("employee submits, manager rejects, employee reopens and resubmits, manager
  await page.getByRole("button",{name:"Confirm approval"}).click();
  await expect(page.getByText("APPROVED",{exact:true})).toBeVisible();
  await expect(page.getByRole("region",{name:"Decision history"}).getByRole("listitem")).toHaveCount(2);
- await page.screenshot({path:"test-results/manager-approved-desktop.png",fullPage:true});
+ await page.screenshot({path:test.info().outputPath("manager-approved-desktop.png"),fullPage:true});
  await logout(page);
  await login(page,employee!,employeePassword!);await openMonth(page);
  await expect(page.getByText("APPROVED",{exact:true})).toBeVisible();
@@ -88,9 +90,9 @@ test("employee submits, manager rejects, employee reopens and resubmits, manager
  await expect(page.getByRole("button",{name:"Reopen draft",exact:true})).toHaveCount(0);
  await expect(page.getByRole("button",{name:/^Edit /})).toHaveCount(0);
  await expect(page.getByRole("region",{name:"Decision history"}).getByRole("listitem")).toHaveCount(2);
- await page.screenshot({path:"test-results/employee-approved-desktop.png",fullPage:true});
+ await page.screenshot({path:test.info().outputPath("employee-approved-desktop.png"),fullPage:true});
  await logout(page);
- await login(page,process.env.TEST_FINANCE_USERNAME!,process.env.TEST_FINANCE_PASSWORD!);
+ await login(page,env.TEST_FINANCE_USERNAME!,env.TEST_FINANCE_PASSWORD!);
  const id=reviewUrl.split("/").at(-1)!;
  await page.goto(`/app/sap/${id}`);
  const exportPanel=page.getByRole("region",{name:"SAP export",exact:true});
@@ -114,7 +116,7 @@ test("employee submits, manager rejects, employee reopens and resubmits, manager
   expect(await (await next).failure()).toBeNull();
  }
  await logout(page);
- await login(page,process.env.TEST_ADMIN_USERNAME!,process.env.TEST_ADMIN_PASSWORD!);
+ await login(page,env.TEST_ADMIN_USERNAME!,env.TEST_ADMIN_PASSWORD!);
  await page.goto(`/app/sap/${id}`);await expect(page.getByRole("button",{name:"Download SAP Excel"})).toBeVisible();
  await logout(page);
 });

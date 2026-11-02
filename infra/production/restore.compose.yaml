@@ -1,0 +1,6 @@
+# Add only for an approved restore; private decryption key is never mounted by backups.
+services:
+  backup:
+    volumes:
+      - mock_sap_data:/mock
+      - ${AGE_IDENTITY_FILE:?Set offline restore key path}:/run/backup/identity.txt:ro

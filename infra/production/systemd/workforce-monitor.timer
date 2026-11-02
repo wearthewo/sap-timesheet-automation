@@ -1,0 +1,10 @@
+[Unit]
+Description=Workforce health and recovery readiness every five minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=workforce-monitor.service
+
+[Install]
+WantedBy=timers.target

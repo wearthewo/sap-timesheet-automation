@@ -37,7 +37,7 @@ Each feature uses api/application/domain/infrastructure where needed. There are 
 
 ## Responsibilities and trust boundaries
 
-Phase 9 adds organization ownership throughout the business schema. `X-Organization-Id` is an untrusted selector until the backend checks the authenticated identity's active membership. Membership roles replace global identity roles for authorization. The BFF passes the selected organization from its HttpOnly cookie, checks current active memberships and offers `/organizations` selection without onboarding UI. Background processing carries persisted organization IDs explicitly and never uses request context. See [Phase 9 isolation](phase9-multitenancy-verification.md) for the schema, legacy-data acknowledgement and complete security contract.
+Phase 9 adds organization ownership throughout the business schema. `X-Organization-Id` is an untrusted selector until the backend checks the authenticated identity's active membership. Membership roles replace global identity roles for authorization. The BFF passes the selected organization from its HttpOnly cookie, checks current active memberships and offers `/organizations` selection. Phases 10 and 11 add self-service onboarding and audited organization administration. Background processing carries persisted organization IDs explicitly and never uses request context. See [Phase 9 isolation](phase9-multitenancy-verification.md) for the schema, legacy-data acknowledgement and complete security contract.
 
 Browser → Next.js Node BFF → Spring Boot → PostgreSQL.
 
@@ -57,7 +57,7 @@ Spring Boot exclusively owns the workforce database. Keycloak uses a separate ke
 
 Write service methods are transactional; read methods use read-only transactions. Provisioning is a short separate transaction. Database constraints handle races for unique subjects, employee numbers, project codes and active assignments; errors map to stable API codes.
 
-One application user has at most one employee per organization. Employee.manager_id references an employee in the same organization and may be null. Employee onboarding/manager changes and membership role promotion remain trusted operator actions, with SQL examples in the README. No administration API is introduced.
+One application user has at most one employee per organization. Employee.manager_id references an employee in the same organization and may be null. Organization ADMIN members manage profiles, manager links and membership roles through Phase 11's audited administration APIs. The backend preserves the final active administrator, immutable account links and direct-report review restrictions.
 
 Project codes are trimmed and case-sensitive. An active assignment blocks a second active assignment for that employee/project even if validity dates do not overlap. Expired rows remain active until explicitly deactivated by an operator. Current project access requires an active employee, active project, active assignment and inclusive validity dates evaluated using the UTC calendar. No employee record returns an empty page. Catalog access includes inactive projects; the employee-specific view filters them.
 
@@ -138,3 +138,15 @@ SAP download remains inside the SAP feature. A read-only repeatable-read transac
 V14 protects the existing job payload, export identity association and timesheet association against updates/deletes. Execution state remains mutable. This closes the previous "immutable in practice" gap without changing the queue architecture. Approval history and SAP/notification attempt histories retain their existing database guards.
 
 Notification templates now include authoritative manager names, stable SAP identities and separate monthly missing/DRAFT/pending/rejected counts. Business decision times use explicit Europe/Athens offsets; durable timestamps remain UTC.
+
+## Checkpoint 12B presentation and dashboard
+
+The BFF renders role-specific sections from read-only `/api/v1/dashboard` and existing authorized personal APIs. The backend resolves active membership and returns only relevant role sections. Every aggregate is tenant-scoped; rejected months are owner-only, and manager activity requires current direct-report ownership and that manager's decisions. Lists are capped at five; SQL aggregates avoid loading complete datasets. A repeatable-read transaction provides a consistent projection.
+
+No dashboard writes, new schema or approval overrides. Finance operational counts span all approved months; monthly reports retain their period/filter semantics. Event timestamps use explicit en-GB/Europe/Athens; calendar dates do not shift. Persisted instants and downloaded reports retain UTC. Desktop sidebar and mobile navigation expose the same authorized routes and direct logout.
+
+## Single-VPS runtime preparation (12D)
+
+The application architecture and database schema are unchanged. A separate production Compose definition places a nonroot Caddy HTTPS proxy in front of the Node BFF and production Keycloak. Spring Boot and its PostgreSQL-backed workers share one artifact. Separate database logins own Workforce and Keycloak databases; only the proxy publishes ports. Mock SAP remains private with persistent idempotency state. Runtime file secrets stay outside images and Git.
+
+The operator backup profile quiesces writers, encrypts both database dumps and Mock SAP state, and restores only into an empty target with per-table integrity checks. Generated report/SAP spreadsheets are still on demand and are not stored. Public TLS, native cloud sizing, offsite recovery and real SMTP require later approved verification. See [production deployment](production-deployment.md) and [backup runbook](backup-restore.md). No new migration or service boundary was introduced.

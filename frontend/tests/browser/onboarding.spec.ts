@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 
 const mailpit = process.env.MAILPIT_API_URL ?? "http://localhost:8025";
@@ -20,10 +20,8 @@ async function logout(page: Page) {
  await page.getByRole("button", { name: /logout/i }).click();
  await expect(page).toHaveURL(/\/login$/);
 }
-test("self-registration verifies email, creates isolated workspace, handles slug conflicts and recovers account", async ({ page, context }) => {
- test.setTimeout(240000);
- const suffix = randomBytes(8).toString("hex"), username = "onboard-" + suffix, email = username + "@example.test";
- const password = randomBytes(24).toString("hex"), slug = "workspace-" + suffix;
+async function register(page: Page, context: BrowserContext, username: string, password: string) {
+ const email = username + "@example.test";
  await page.goto("/login");
  await page.getByRole("button", { name: "Create an account", exact: true }).click();
  await page.locator("#firstName").fill("Zoë"); await page.locator("#lastName").fill("Onboarding");
@@ -38,15 +36,61 @@ test("self-registration verifies email, creates isolated workspace, handles slug
  await page.locator("#password-new").fill(password); await page.locator("#password-confirm").fill(password);
  await page.getByRole("button", { name: /submit/i }).click();
  await expect(page.getByRole("heading", { name: "Create your organization" })).toBeVisible();
+}
+test("self-registration verifies email, creates isolated workspace, handles slug conflicts and recovers account", async ({ page, context, browser }) => {
+ test.setTimeout(240000);
+ const suffix = randomBytes(8).toString("hex"), username = "onboard-" + suffix, email = username + "@example.test";
+ const password = randomBytes(24).toString("hex"), slug = "workspace-" + suffix, takenSlug = "taken-" + suffix;
+ // This test creates its own collision target through the real UI. It runs
+ // independently on an empty realm and never depends on CI seed names/order.
+ const ownerContext = await browser.newContext();
+ try {
+  const owner = await ownerContext.newPage();
+  await register(owner, ownerContext, "slug-owner-" + suffix, randomBytes(24).toString("hex"));
+  // A customer can type into SSR inputs while application scripts are still
+  // downloading. Preserve that name when hydration finishes and they edit slug.
+  const scripts = "**/_next/static/**/*.js";
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  await owner.route(scripts, async route => { await held; await route.continue(); });
+  try {
+   await owner.reload({ waitUntil: "commit" });
+   await owner.getByLabel("Organization name", { exact: true }).fill("Collision fixture");
+   await expect(owner.getByLabel("Organization name", { exact: true })).toHaveValue("Collision fixture");
+  } finally { release(); }
+  await owner.waitForLoadState("load");
+  await owner.unroute(scripts);
+  await owner.getByLabel("Organization address", { exact: true }).fill(takenSlug);
+  await expect(owner.getByLabel("Organization name", { exact: true })).toHaveValue("Collision fixture");
+  await owner.getByRole("button", { name: "Create organization", exact: true }).click();
+  await expect(owner.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
+  await logout(owner);
+ } finally { await ownerContext.close(); }
+ await register(page, context, username, password);
+ // A server-rendered form can be submitted before hydration. Exercise that path
+ // deterministically using the real verified session, without storing credentials.
+ const scripts = "**/_next/static/**/*.js";
+ await page.route(scripts, route => route.abort());
+ try {
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByLabel("Organization name", { exact: true }).fill("Zoë & Team");
+  await page.getByLabel("Organization address", { exact: true }).fill(takenSlug);
+  await page.getByRole("button", { name: "Create organization", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "already in use" })).toBeVisible();
+  await expect(page.getByLabel("Organization name", { exact: true })).toHaveValue("Zoë & Team");
+  await expect(page.getByLabel("Organization address", { exact: true })).toHaveValue(takenSlug);
+ } finally { await page.unroute(scripts); }
+ await page.reload();
  await page.getByLabel("Organization name", { exact: true }).fill("Zoë & Team");
- await page.getByLabel("Organization address", { exact: true }).fill("ci-alpha");
+ await page.getByLabel("Organization address", { exact: true }).fill(takenSlug);
  await page.getByRole("button", { name: "Create organization", exact: true }).click();
  await expect(page.getByRole("alert").filter({ hasText: "already in use" })).toBeVisible();
  await expect(page.getByLabel("Organization name", { exact: true })).toHaveValue("Zoë & Team");
  await page.getByLabel("Organization address", { exact: true }).fill(slug);
  await page.getByRole("button", { name: "Create organization", exact: true }).click();
  await expect(page.getByText("ADMIN · Zoë & Team", { exact: true })).toBeVisible();
- await expect(page.getByRole("heading", { name: "Your organization workspace is ready" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Organization setup" })).toContainText("Set your team up for success");
+  await expect(page.getByRole("region", { name: "Organization overview" }).getByText("Active employees", { exact: true }).locator("..")).toContainText("0");
  await expect(page.locator("body")).not.toContainText("QA3-E-");
  const selected = (await context.cookies()).find(c => c.name === "workforce-organization");
  expect(selected?.httpOnly).toBe(true);

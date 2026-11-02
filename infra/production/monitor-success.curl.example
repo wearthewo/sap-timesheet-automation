@@ -1,0 +1,4 @@
+# Private /etc/workforce/monitor-success.curl, mode 0600, root-owned.
+# An operator-selected free dead-man service must alert through a channel independent of this VPS.
+# No account is created and no request is sent by this template.
+url = "https://monitor.example.invalid/REPLACE_WITH_PRIVATE_SUCCESS_ENDPOINT"

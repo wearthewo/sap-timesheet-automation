@@ -9,7 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.test.context.*;
@@ -17,9 +17,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.*;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
-import com.fasterxml.jackson.databind.*;
+import tools.jackson.databind.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,7 +31,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 
 @SpringBootTest(properties="app.invitations.signing-key=isolated-test-key-at-least-32-characters") @AutoConfigureMockMvc @Testcontainers
 class PhaseElevenAdministrationTest {
- @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
+ @Container static final PostgreSQLContainer postgres=new PostgreSQLContainer("postgres:17-alpine");
  @DynamicPropertySource static void database(DynamicPropertyRegistry p){p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);}
  @Autowired MockMvc mvc;@Autowired JdbcTemplate sql;@Autowired ObjectMapper json;@Autowired IdentityService identity;@Autowired InvitationTokens tokens;@Autowired NotificationWorker worker;
  @MockitoBean JwtDecoder decoder;@MockitoBean EmailGateway mail;
@@ -56,6 +56,29 @@ class PhaseElevenAdministrationTest {
   call(post("/api/v1/admin/employees/"+id+"/status"),"owner",org,Map.of("active",false,"version",1)).andExpect(status().isOk()).andExpect(jsonPath("$.active").value(false));
   call(post("/api/v1/admin/employees/"+id+"/status"),"owner",org,Map.of("active",true,"version",2)).andExpect(status().isOk());
   assertThat(sql.queryForObject("SELECT count(*) FROM organization_admin_audit WHERE organization_id=?",Integer.class,org)).isEqualTo(4);
+ }
+ @Test void unusedProfileDeletionIsVersionedScopedAndAudited()throws Exception{
+  UUID e=id(employee("UNUSED",null,null));
+  call(delete("/api/v1/admin/employees/"+e),"other",other,Map.of("version",0)).andExpect(status().isNotFound());
+  member("ordinary","EMPLOYEE");call(delete("/api/v1/admin/employees/"+e),"ordinary",org,Map.of("version",0)).andExpect(status().isForbidden());
+  call(delete("/api/v1/admin/employees/"+e),"owner",org,Map.of("version",1)).andExpect(status().isConflict());
+  call(delete("/api/v1/admin/employees/"+e),"owner",org,Map.of("version",0)).andExpect(status().isNoContent());
+  call(get("/api/v1/admin/employees/"+e),"owner",org,null).andExpect(status().isNotFound());
+  assertThat(sql.queryForObject("SELECT count(*) FROM organization_admin_audit WHERE resource_id=?",Integer.class,e)).isEqualTo(2);
+ }
+ @Test void deletionPreservesLinkedProfilesAndHistoricalDependencies()throws Exception{
+  member("linked","EMPLOYEE");var linked=employee("LINKED",null,user("linked"));
+  UUID manager=id(employee("MANAGER",null,null));employee("REPORT",manager,null);
+  UUID assigned=id(employee("ASSIGNED",null,null));UUID p=id(project("HISTORY"));
+  call(post("/api/v1/project-assignments"),"owner",org,Map.of("employeeId",assigned,"projectId",p,"validFrom","2026-01-01","active",false)).andExpect(status().isCreated());
+  UUID invited=id(employee("INVITED",null,null));var invitation=invite("unused@example.test",invited,"EMPLOYEE");
+  call(post("/api/v1/admin/invitations/"+id(invitation)+"/revoke"),"owner",org,null).andExpect(status().isNoContent());
+  UUID historical=id(employee("HISTORICAL",null,null));sql.update("INSERT INTO timesheets(id,organization_id,employee_id,year,month,status,total_hours,version) VALUES (?,?,?,2026,10,'DRAFT',0,0)",UUID.randomUUID(),org,historical);
+  for(UUID id:List.of(id(linked),manager,assigned,invited,historical)){
+   call(delete("/api/v1/admin/employees/"+id),"owner",org,Map.of("version",0)).andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("EMPLOYEE_IN_USE"));
+   call(get("/api/v1/admin/employees/"+id),"owner",org,null).andExpect(status().isOk());
+  }
+  assertThat(sql.queryForObject("SELECT count(*) FROM organization_admin_audit WHERE action='EMPLOYEE_DELETED'",Integer.class)).isZero();
  }
  @Test void scopedNumbersSearchAndPagination()throws Exception{employee("E001",null,null);employee("E002",null,null);call(post("/api/v1/admin/employees"),"owner",org,Map.of("employeeNumber","E001","displayName","duplicate","active",true)).andExpect(status().isConflict());
   call(post("/api/v1/admin/employees"),"other",other,Map.of("employeeNumber","E001","displayName","Other","active",true)).andExpect(status().isCreated());
@@ -89,7 +112,11 @@ class PhaseElevenAdministrationTest {
  @Test void existingMembershipCannotBeElevatedByInvitationAndRevocationIsExplicit()throws Exception{UUID m=member("existing","EMPLOYEE");var i=invite("existing@example.test",null,"ADMIN");call(post("/api/v1/invitations/accept"),"existing",null,Map.of("token",tokens.token(id(i)))).andExpect(status().isConflict());assertThat(sql.queryForObject("SELECT role FROM organization_memberships WHERE id=?",String.class,m)).isEqualTo("EMPLOYEE");
   call(post("/api/v1/admin/invitations/"+id(i)+"/revoke"),"owner",org,null).andExpect(status().isNoContent());call(post("/api/v1/invitations/accept"),"existing",null,Map.of("token",tokens.token(id(i)))).andExpect(status().isConflict());}
  @Test void pendingDuplicateAndExpiredInvitationAreHandledSafely()throws Exception{var i=invite("new@example.test",null,"EMPLOYEE");call(post("/api/v1/admin/invitations"),"owner",org,Map.of("email","NEW@example.test","role","EMPLOYEE")).andExpect(status().isConflict());sql.update("UPDATE organization_invitations SET created_at=now()-interval '8 days',expires_at=now()-interval '1 day' WHERE id=?",id(i));call(post("/api/v1/invitations/accept"),"new",null,Map.of("token",tokens.token(id(i)))).andExpect(status().isConflict());call(get("/api/v1/admin/invitations"),"owner",org,null).andExpect(jsonPath("$.content[0].status").value("EXPIRED"));invite("new@example.test",null,"EMPLOYEE");}
- @Test void concurrentAcceptanceConsumesOnce()throws Exception{var i=invite("join@example.test",null,"MANAGER");String token=tokens.token(id(i));user("join");var start=new CountDownLatch(1);try(var pool=Executors.newFixedThreadPool(2)){Callable<Integer> accept=()->{start.await();return call(post("/api/v1/invitations/accept"),"join",null,Map.of("token",token)).andReturn().getResponse().getStatus();};var a=pool.submit(accept);var b=pool.submit(accept);start.countDown();assertThat(a.get(30,TimeUnit.SECONDS)).isEqualTo(200);assertThat(b.get(30,TimeUnit.SECONDS)).isEqualTo(200);}assertThat(sql.queryForObject("SELECT count(*) FROM organization_memberships WHERE user_id=?",Integer.class,user("join"))).isEqualTo(1);}
+ @Test void concurrentAcceptanceConsumesOnce()throws Exception{var profile=employee("JOIN",null,null);var i=invite("join@example.test",id(profile),"MANAGER");String token=tokens.token(id(i));user("join");var start=new CountDownLatch(1);try(var pool=Executors.newFixedThreadPool(2)){Callable<Integer> accept=()->{start.await();return call(post("/api/v1/invitations/accept"),"join",null,Map.of("token",token)).andReturn().getResponse().getStatus();};var a=pool.submit(accept);var b=pool.submit(accept);start.countDown();assertThat(a.get(30,TimeUnit.SECONDS)).isEqualTo(200);assertThat(b.get(30,TimeUnit.SECONDS)).isEqualTo(200);}assertThat(sql.queryForObject("SELECT count(*) FROM organization_memberships WHERE user_id=?",Integer.class,user("join"))).isEqualTo(1);
+ assertThat(sql.queryForObject("SELECT user_id FROM employees WHERE id=?",UUID.class,id(profile))).isEqualTo(user("join"));
+ assertThat(sql.queryForObject("SELECT version FROM employees WHERE id=?",Long.class,id(profile))).isEqualTo(1);
+ assertThat(sql.queryForObject("SELECT count(*) FROM organization_admin_audit WHERE resource_id=? AND action='INVITATION_ACCEPTED'",Integer.class,id(i))).isEqualTo(1);
+ }
  @Test void emailUsesDurableWorkerWithoutPersistingTokenOrHoldingTransaction()throws Exception{var i=invite("recipient@example.test",null,"EMPLOYEE");String token=tokens.token(id(i));assertThat(sql.queryForObject("SELECT token_hash FROM organization_invitations WHERE id=?",String.class,id(i))).isEqualTo(tokens.hash(token));assertThat(sql.queryForObject("SELECT body FROM notifications WHERE invitation_id=?",String.class,id(i))).doesNotContain(token);
   var message=new AtomicReference<EmailMessage>();when(mail.send(any())).thenAnswer(a->{assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();message.set(a.getArgument(0));return new EmailDeliveryResult(true);});worker.runOnce();assertThat(message.get().recipient()).isEqualTo("recipient@example.test");assertThat(message.get().body()).contains("Alpha","#token="+token,"EMPLOYEE");worker.runOnce();verify(mail,times(1)).send(any());assertThat(sql.queryForObject("SELECT count(*) FROM notification_attempts",Integer.class)).isEqualTo(1);}
  @Test void revokedInvitationIsCancelledBeforeDelivery()throws Exception{var i=invite("recipient@example.test",null,"EMPLOYEE");call(post("/api/v1/admin/invitations/"+id(i)+"/revoke"),"owner",org,null).andExpect(status().isNoContent());worker.runOnce();verifyNoInteractions(mail);assertThat(sql.queryForObject("SELECT status FROM notifications WHERE invitation_id=?",String.class,id(i))).isEqualTo("CANCELLED");}

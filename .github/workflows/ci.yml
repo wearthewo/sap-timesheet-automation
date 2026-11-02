@@ -122,5 +122,13 @@ jobs:
       - run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
       - run: '"$(go env GOPATH)/bin/actionlint"'
       - run: node --test infra/ci/ci.test.mjs
+      - run: node --test infra/production/production.test.mjs infra/production/line-endings.test.mjs infra/production/release.test.mjs infra/production/monitor.test.mjs infra/production/frontend-entrypoint.test.mjs
+      - run: node --test infra/production/private-demo-policy.test.mjs infra/production/mock-entrypoint.test.mjs infra/production/keycloak-theme.test.mjs
+      - run: node --test infra/production/public-production-policy.test.mjs infra/production/public-assessment-input.test.mjs
+      - run: python3 infra/production/keycloak/build-inputs.test.py
+      - run: python3 infra/production/oci-inventory.test.py
+      - run: bash infra/production/backup-guards.test.sh
+      - run: bash infra/production/offsite.test.sh
+      - run: bash infra/production/offsite-b2.test.sh
       - run: node infra/ci/stack.mjs prepare
       - run: node infra/ci/stack.mjs config

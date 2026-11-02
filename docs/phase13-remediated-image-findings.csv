@@ -1,0 +1,14 @@
+image,local_image_id,advisory,severity,package,installed_version,fixed_version,advisory_url
+caddy,sha256:ee561df617e2793fbdf100be66b4a04fdcbfb1aab976d800cd5be0b065964ace,CVE-2026-107891,UNKNOWN,musl,1.2.5-r23,1.2.5-r24,
+caddy,sha256:ee561df617e2793fbdf100be66b4a04fdcbfb1aab976d800cd5be0b065964ace,CVE-2026-107891,UNKNOWN,musl-utils,1.2.5-r23,1.2.5-r24,
+caddy,sha256:ee561df617e2793fbdf100be66b4a04fdcbfb1aab976d800cd5be0b065964ace,CVE-2026-85091,MEDIUM,zlib,1.3.2-r0,1.3.2-r1,https://avd.aquasec.com/nvd/cve-2026-85091
+caddy,sha256:ee561df617e2793fbdf100be66b4a04fdcbfb1aab976d800cd5be0b065964ace,CVE-2026-114437,MEDIUM,github.com/go-chi/chi/v5,v5.3.2,5.4.0,https://avd.aquasec.com/nvd/cve-2026-114437
+caddy,sha256:ee561df617e2793fbdf100be66b4a04fdcbfb1aab976d800cd5be0b065964ace,GO-2026-5932,UNKNOWN,golang.org/x/crypto,v0.57.0,,
+postgres,sha256:5ff8df7ee1408b8efa14381bf88b6370a2c5e6a2d117b467e2c39ff7061e4a5b,CVE-2026-107891,UNKNOWN,musl,1.2.6-r2,1.2.6-r3,
+postgres,sha256:5ff8df7ee1408b8efa14381bf88b6370a2c5e6a2d117b467e2c39ff7061e4a5b,CVE-2026-107891,UNKNOWN,musl-utils,1.2.6-r2,1.2.6-r3,
+postgres,sha256:5ff8df7ee1408b8efa14381bf88b6370a2c5e6a2d117b467e2c39ff7061e4a5b,CVE-2026-85091,MEDIUM,zlib,1.3.2-r0,1.3.2-r1,https://avd.aquasec.com/nvd/cve-2026-85091
+postgres,sha256:5ff8df7ee1408b8efa14381bf88b6370a2c5e6a2d117b467e2c39ff7061e4a5b,CVE-2026-39824,UNKNOWN,golang.org/x/sys,v0.1.0,0.44.0,https://avd.aquasec.com/nvd/cve-2026-39824
+backup,sha256:2a9fab20f16280fe3fe4f01637a835f2027cb14b3562040d98b029ab6007aa73,CVE-2026-107891,UNKNOWN,musl,1.2.6-r2,1.2.6-r3,
+backup,sha256:2a9fab20f16280fe3fe4f01637a835f2027cb14b3562040d98b029ab6007aa73,CVE-2026-107891,UNKNOWN,musl-utils,1.2.6-r2,1.2.6-r3,
+backup,sha256:2a9fab20f16280fe3fe4f01637a835f2027cb14b3562040d98b029ab6007aa73,CVE-2026-85091,MEDIUM,zlib,1.3.2-r0,1.3.2-r1,https://avd.aquasec.com/nvd/cve-2026-85091
+backup,sha256:2a9fab20f16280fe3fe4f01637a835f2027cb14b3562040d98b029ab6007aa73,CVE-2026-39824,UNKNOWN,golang.org/x/sys,v0.1.0,0.44.0,https://avd.aquasec.com/nvd/cve-2026-39824

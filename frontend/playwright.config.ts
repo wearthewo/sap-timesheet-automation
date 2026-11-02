@@ -1,12 +1,15 @@
 import { defineConfig } from "@playwright/test";
+import { join } from "node:path";
+const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR ?? "test-results";
 export default defineConfig({
  testDir: "./tests/browser",
- fullyParallel: false,
- workers: 1,
+ fullyParallel: true,
+ workers: Number(process.env.PLAYWRIGHT_WORKERS ?? "2"),
+ outputDir,
  retries: 0,
  timeout: 90000,
  expect: { timeout: 15000 },
- reporter: process.env.CI ? [["list"], ["junit", { outputFile: "test-results/browser.xml" }]] : "list",
+ reporter: process.env.CI ? [["list"], ["junit", { outputFile: join(outputDir, "browser.xml") }]] : "list",
  use: {
   baseURL: process.env.BROWSER_BASE_URL ?? "http://localhost:3000",
   viewport: { width: 1280, height: 900 },

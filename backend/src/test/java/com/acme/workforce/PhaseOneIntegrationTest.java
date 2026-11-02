@@ -5,12 +5,13 @@ import com.acme.workforce.identity.infrastructure.UserRepository;
 import com.acme.workforce.employee.domain.Employee;
 import com.acme.workforce.employee.infrastructure.EmployeeRepository;
 import com.acme.workforce.common.api.ExceptionHandlerAdvice;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -19,7 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import java.util.*;
 import java.time.*;
@@ -34,7 +35,7 @@ import static org.mockito.Mockito.when;
 @AutoConfigureMockMvc
 @Testcontainers
 class PhaseOneIntegrationTest extends TenantFixtures {
- @Container static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine");
+ @Container static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
  @DynamicPropertySource static void database(DynamicPropertyRegistry properties) {
   properties.add("spring.datasource.url",postgres::getJdbcUrl);
   properties.add("spring.datasource.username",postgres::getUsername);
@@ -47,9 +48,17 @@ class PhaseOneIntegrationTest extends TenantFixtures {
  @Autowired UserRepository users;
  @Autowired EmployeeRepository employees;
  @MockitoBean JwtDecoder decoder;
+ @MockitoBean(name="notificationClock") Clock clock;
  @Autowired org.springframework.security.oauth2.core.OAuth2TokenValidator<Jwt> tokenValidator;
  @BeforeEach void clean() {
   sql.execute("TRUNCATE project_assignments, employees, projects, app_users CASCADE");
+  at("2026-10-20T15:55:00Z");
+ }
+ void at(String instant) {
+  var fixed=Clock.fixed(Instant.parse(instant),ZoneOffset.UTC);
+  when(clock.instant()).thenReturn(fixed.instant());
+  when(clock.getZone()).thenReturn(ZoneOffset.UTC);
+  org.mockito.Mockito.doAnswer(a->fixed.withZone(a.getArgument(0))).when(clock).withZone(org.mockito.ArgumentMatchers.any());
  }
  Jwt token(String subject) {
   return Jwt.withTokenValue("test-only").header("alg","RS256").claim("email_verified",true).subject(subject).claim("email",subject+"@example.test").claim("name","Test "+subject).build();
@@ -157,9 +166,12 @@ class PhaseOneIntegrationTest extends TenantFixtures {
   mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json").content(assignment(UUID.randomUUID(),p,LocalDate.now(),null,true)))
    .andExpect(status().isNotFound());
  }
- @Test void assignedProjectsRespectOwnerDatesAndActiveFlags() throws Exception {
+ @ParameterizedTest @CsvSource({"2026-10-20T15:55:00Z,2026-10-20", "2026-10-20T23:11:48Z,2026-10-21"})
+ void assignedProjectsRespectOwnerDatesAndActiveFlags(String instant,String businessDate) throws Exception {
+  at(instant);
   user("admin","ADMIN"); UUID alice=employee("alice","E001"); UUID bob=employee("bob","E002");
-  LocalDate today=LocalDate.now(ZoneOffset.UTC);
+  // Fixture dates follow the explicit Athens calendar, even when UTC is still yesterday.
+  LocalDate today=LocalDate.parse(businessDate);
   for(int i=0;i<6;i++) {
    UUID p=project("P"+i);
    mvc.perform(post("/api/v1/project-assignments").with(jwt().jwt(j->j.claim("email_verified",true).subject("admin"))).contentType("application/json")

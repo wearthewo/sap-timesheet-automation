@@ -3,7 +3,7 @@ package com.acme.workforce.sap.infrastructure;
 import com.acme.workforce.sap.application.SapWorkerPolicy;
 import com.acme.workforce.sap.domain.*;
 import com.acme.workforce.common.application.DomainException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.*;
@@ -18,12 +18,12 @@ public class SapJobStore {
  public record Claim(UUID organizationId,UUID id,UUID exportId,UUID timesheetId,String operation,UUID token,int execution,int attempts,int cycleAttempts,int reconciliations,Instant started,ApprovedTimesheetPayload payload){}
  private Claim claimRow(ResultSet r,int row)throws SQLException {
   try{return new Claim(r.getObject("organization_id",UUID.class),r.getObject("id",UUID.class),r.getObject("export_id",UUID.class),r.getObject("timesheet_id",UUID.class),r.getString("operation"),r.getObject("claim_token",UUID.class),r.getInt("execution_count"),r.getInt("attempt_count"),r.getInt("cycle_attempts"),r.getInt("reconciliation_count"),r.getTimestamp("locked_at").toInstant(),json.readValue(r.getString("payload"),ApprovedTimesheetPayload.class));}
-  catch(com.fasterxml.jackson.core.JsonProcessingException ex){throw new IllegalStateException("Invalid stored SAP payload");}
+  catch(tools.jackson.core.JacksonException ex){throw new IllegalStateException("Invalid stored SAP payload");}
  }
  @Transactional(propagation=Propagation.MANDATORY)
  public void create(UUID exportId,ApprovedTimesheetPayload payload){
   try{sql.update("INSERT INTO sap_export_jobs(id,export_id,timesheet_id,status,operation,payload,next_attempt_at) VALUES (?,?,?,'PENDING','EXPORT',?::jsonb,now())",UUID.randomUUID(),exportId,payload.timesheetId(),json.writeValueAsString(payload));}
-  catch(com.fasterxml.jackson.core.JsonProcessingException ex){throw new IllegalStateException("Cannot snapshot SAP payload");}
+  catch(tools.jackson.core.JacksonException ex){throw new IllegalStateException("Cannot snapshot SAP payload");}
  }
  @Transactional(propagation=Propagation.REQUIRES_NEW)
  public List<Claim> claim(String worker){

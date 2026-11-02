@@ -3,6 +3,8 @@ server:
   error:
     include-message: never
 spring:
+  jackson:
+    use-jackson2-defaults: true
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -54,6 +56,9 @@ management:
     health:
       show-details: never
 app:
+  security:
+    max-request-bytes: ${API_MAX_REQUEST_BYTES:65536}
+    sensitive-requests-per-minute: ${API_SENSITIVE_REQUESTS_PER_MINUTE:60}
   invitations:
     signing-key: ${INVITATION_SIGNING_KEY:}
     validity: ${INVITATION_VALIDITY:PT168H}

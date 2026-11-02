@@ -16,7 +16,7 @@ services:
       timeout: 5s
       retries: 20
   keycloak:
-    image: quay.io/keycloak/keycloak:26.8.0
+    image: quay.io/keycloak/keycloak:26.8.1
     command: ["start-dev", "--import-realm"]
     environment:
       KC_DB: postgres
@@ -80,6 +80,8 @@ services:
       LEGACY_TENANT_CONFIRMED: ${LEGACY_TENANT_CONFIRMED:-false}
       INVITATION_SIGNING_KEY: ${INVITATION_SIGNING_KEY:-}
       INVITATION_VALIDITY: ${INVITATION_VALIDITY:-PT168H}
+      API_MAX_REQUEST_BYTES: ${API_MAX_REQUEST_BYTES:-65536}
+      API_SENSITIVE_REQUESTS_PER_MINUTE: ${API_SENSITIVE_REQUESTS_PER_MINUTE:-60}
       DATABASE_USERNAME: ${DATABASE_USERNAME:-workforce}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD}
       KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI:-http://localhost:8180/realms/workforce}

@@ -5,7 +5,7 @@ import com.acme.workforce.employee.domain.Employee;
 import com.acme.workforce.employee.infrastructure.EmployeeRepository;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.*;
@@ -14,7 +14,7 @@ import org.springframework.security.oauth2.jwt.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.*;
 import java.time.*;
 import java.util.*;
@@ -24,7 +24,7 @@ import static org.mockito.ArgumentMatchers.*;
 
 @SpringBootTest @AutoConfigureMockMvc @Testcontainers
 class PhaseEightNotificationTest extends TenantFixtures {
- @Container static final PostgreSQLContainer<?> postgres=new PostgreSQLContainer<>("postgres:17-alpine");
+ @Container static final PostgreSQLContainer postgres=new PostgreSQLContainer("postgres:17-alpine");
  @DynamicPropertySource static void config(DynamicPropertyRegistry p){
   p.add("app.notifications.timesheet-reminder-day",()->"31");p.add("spring.datasource.url",postgres::getJdbcUrl);p.add("spring.datasource.username",postgres::getUsername);p.add("spring.datasource.password",postgres::getPassword);
  }

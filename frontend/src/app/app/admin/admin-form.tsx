@@ -2,11 +2,11 @@
 import { useActionState, useId, useState } from "react";
 import { administer } from "./actions";
 export type Field = { name: string; label: string; type?: "text" | "email" | "date" | "textarea" | "select" | "hidden"; value?: string; required?: boolean; maxLength?: number; options?: { value: string; label: string }[]; lookup?: "employees" | "members" | "projects" };
-export default function AdminForm({ operation, id = null, fields, submit, confirmation }: { operation: string; id?: string | null; fields: Field[]; submit: string; confirmation?: string }) {
+export default function AdminForm({ operation, id = null, fields, submit, confirmation, destructive }: { operation: string; id?: string | null; fields: Field[]; submit: string; confirmation?: string; destructive?: string }) {
  const [state, action, pending] = useActionState(administer.bind(null, operation, id), {});
  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map(f => [f.name, f.value ?? ""])));
  const formId = useId();
- return <form action={action} className="grid min-w-0 gap-4" aria-label={submit}>
+ return <form action={action} onSubmit={event => { const prompt = destructive ?? (operation === "member-change" && values.status === "REVOKED" ? "Remove this member from the organization? Access will be revoked; historical records are retained. Reassign any direct reports." : undefined); if (prompt && !window.confirm(prompt)) event.preventDefault(); }} className="grid min-w-0 gap-4" aria-label={submit}>
   {fields.map(f => f.type === "hidden" ? <input key={f.name} type="hidden" name={f.name} value={f.value ?? ""} /> : <div key={f.name} className="min-w-0">
    <label htmlFor={formId + f.name} className="block text-sm font-semibold">{f.label}</label>
    {f.lookup ? <Lookup field={f} id={formId + f.name} value={values[f.name]} change={value => setValues(v => ({ ...v, [f.name]: value }))} /> : f.type === "select" ?
@@ -15,7 +15,7 @@ export default function AdminForm({ operation, id = null, fields, submit, confir
     <input id={formId + f.name} name={f.name} type={f.type ?? "text"} required={f.required} maxLength={f.maxLength} value={values[f.name]} onChange={e => setValues(v => ({ ...v, [f.name]: e.target.value }))} className="mt-1 w-full rounded-lg border p-3" />}
   </div>)}
   {confirmation && <label className="flex items-start gap-3 rounded-lg bg-amber-50 p-3 text-sm"><input type="checkbox" required className="mt-1" />{confirmation}</label>}
-  {state.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{state.error}</p>}
+  {state.error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-red-800">{state.error}<button type="button" className="button-secondary mt-3 block" onClick={() => { if (window.confirm("Reload the saved record? Unsaved form values will be lost.")) window.location.reload(); }}>Reload saved record</button></p>}
   {state.success && <p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">{state.success}</p>}
   <button className="button w-fit max-w-full disabled:opacity-60" disabled={pending}>{pending ? "Saving…" : submit}</button>
  </form>;

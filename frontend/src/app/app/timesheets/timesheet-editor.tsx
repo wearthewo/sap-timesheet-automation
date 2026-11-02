@@ -2,6 +2,7 @@
 import { useEffect, useState, useTransition } from "react";
 
 import type { Entry, ProjectOption, Timesheet } from "@/lib/timesheet-view";
+import { businessDate, calendarDate, eventTime, label } from "@/lib/display";
 import ApprovalHistory from "./approval-history";
 import { availableProjects, changeTimesheet, createMonth } from "./actions";
 
@@ -13,7 +14,7 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
  const [pending,startTransition] = useTransition();
  const [editing,setEditing] = useState<string>();
  const prefix = `${String(year).padStart(4,"0")}-${String(month).padStart(2,"0")}`;
- const today = new Date().toISOString().slice(0,10);
+ const today = businessDate();
  const [date,setDate] = useState(today.startsWith(prefix) ? today : prefix+"-01");
  const [project,setProject] = useState("");
  const [hours,setHours] = useState("");
@@ -48,10 +49,10 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
    const result = await changeTimesheet(sheet.id,sheet.version,operation,{
     entryId: entry?.id ?? editing, projectId: project, workDate: date, hours, description,
    });
-   if (result.error !== undefined) { setError(result.error); return; }
+   if (result.error !== undefined) { setError(result.code === "CONCURRENT_MODIFICATION" ? result.error + " Your unsaved input is still here. Copy it before reloading, then review the latest values before trying again." : result.error); return; }
    setSheet(result.data); setConfirm(false);
    if (operation !== "delete" || entry?.id === editing) reset();
-   setNotice(operation === "submit" ? "Timesheet submitted for manager review. This month is now read-only." : "Draft saved.");
+   setNotice(operation === "submit" ? "Timesheet submitted for manager review. This month is now read-only." : operation === "delete" ? "Entry deleted. Totals updated." : operation === "reopen" ? "Draft reopened. You can now make corrections." : "Draft saved.");
   });
  }
  if (!sheet) return <section className="rounded-xl border border-slate-200 bg-white p-6">
@@ -66,15 +67,15 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
  </section>;
  return <div className="space-y-7">
   <section className="flex flex-wrap items-center justify-between gap-5 rounded-xl border border-slate-200 bg-white p-6">
-   <div><span className="status">{sheet.status}</span><p className="mt-3 text-sm text-slate-600">{editable ? "Each saved entry updates your draft." : `Read-only · Submitted ${new Date(sheet.submittedAt!).toLocaleString("en-GB",{timeZone:"UTC"})} UTC`}</p></div>
+   <div><span className="status" data-state={sheet.status}>{sheet.status}</span><p className="mt-2 font-semibold">{label(sheet.status)}</p><p className="mt-3 text-sm text-slate-600">{editable ? "Each saved entry updates your draft." : `Read-only · Submitted ${eventTime(sheet.submittedAt!)}`}</p></div>
    <div><p className="text-sm text-slate-500">Monthly total</p><p className="text-3xl font-bold" data-testid="monthly-total">{sheet.totalHours} <span className="text-lg font-normal">hours</span></p></div>
   </section>
-  {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-900">{error} <button className="ml-2 font-semibold underline" onClick={() => window.location.reload()}>Reload latest timesheet</button></div>}
+  {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-900">{error} <button className="ml-2 font-semibold underline" onClick={() => { if (window.confirm("Reload the latest saved timesheet? Unsaved form changes will be lost.")) window.location.reload(); }}>Reload latest timesheet</button></div>}
   {notice && <p role="status" className="text-green-800">{notice}</p>}
   {sheet.status === "REJECTED" && <section aria-label="Rejection reason" className="rounded-xl border border-red-200 bg-red-50 p-6">
    <h2 className="font-semibold text-red-900">Changes requested</h2>
    <p className="mt-3 whitespace-pre-wrap break-words">{sheet.approvalHistory.at(-1)?.comment}</p>
-   <p className="mt-2 text-sm text-slate-600">Rejected {new Date(sheet.approvalHistory.at(-1)!.decidedAt).toLocaleString("en-GB",{timeZone:"UTC"})} UTC</p>
+   <p className="mt-2 text-sm text-slate-600">Rejected {eventTime(sheet.approvalHistory.at(-1)!.decidedAt)}</p>
    <button className="button mt-4" disabled={pending} onClick={() => change("reopen")}>Reopen draft</button>
   </section>}
   {editable && <section className="rounded-xl border border-slate-200 bg-white p-6" aria-label="Entry editor">
@@ -86,10 +87,10 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
      {options.map(p => <option key={p.id} value={p.id}>{p.code} · {p.name}</option>)}
     </select></label>
     {projectError && <p role="alert" className="text-sm text-red-800 sm:col-span-2">{projectError}</p>}
-    {!loading && !projectError && options.length === 0 && <p className="text-sm text-slate-600 sm:col-span-2">No active projects are assigned for this date. Choose another date or contact your administrator.</p>}
+    {!loading && !projectError && options.length === 0 && <p className="text-sm text-slate-600 sm:col-span-2">No active projects are assigned for this date. Choose another date or ask your administrator to check the project status and your assignment dates.</p>}
     <label className="grid gap-2 text-sm font-semibold">Hours<input className="field" type="number" inputMode="decimal" min="0.01" step="0.01" required value={hours} onChange={e => setHours(e.target.value)} placeholder="e.g. 6.50" /></label>
     <label className="grid min-w-0 gap-2 text-sm font-semibold">Description <span className="sr-only">(optional)</span><input className="field" value={description} maxLength={2000} onChange={e => setDescription(e.target.value)} placeholder="Optional" /></label>
-    <div className="flex flex-wrap items-center gap-3 sm:col-span-2"><button className="button" disabled={pending || loading}>{pending ? "Saving…" : editing ? "Save changes" : "Save entry"}</button>
+    <div className="flex flex-wrap items-center gap-3 sm:col-span-2"><button className="button" disabled={pending || loading || options.length === 0}>{pending ? "Saving…" : editing ? "Save changes" : "Save entry"}</button>
      {editing && <button type="button" disabled={pending} onClick={reset} className="font-semibold text-slate-600">Cancel edit</button>}
      <p className="text-xs text-slate-500">Daily limit: {sheet.maxDailyHours} hours across all projects.</p>
     </div>
@@ -99,7 +100,7 @@ export default function TimesheetEditor({ initial, year, month }: { initial: Tim
    <h2 className="text-lg font-semibold">Time entries</h2>
    {!sheet.entries.length && <p className="text-slate-600">No entries yet.</p>}
    {sheet.dailyTotals.map(day => <section key={day.workDate} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-    <div className="flex flex-wrap justify-between gap-2 bg-slate-100 px-5 py-3 text-sm font-semibold"><h3>{day.workDate}</h3><p data-testid="daily-total">{day.hours} hours total</p></div>
+    <div className="flex flex-wrap justify-between gap-2 bg-slate-100 px-5 py-3 text-sm font-semibold"><h3><time dateTime={day.workDate}>{calendarDate(day.workDate)}</time></h3><p data-testid="daily-total">{day.hours} hours total</p></div>
     <ul className="divide-y divide-slate-100">{sheet.entries.filter(e => e.workDate === day.workDate).map(entry => <li key={entry.id} className="flex flex-wrap items-center gap-4 p-5">
      <div className="min-w-0 flex-1 basis-48"><p className="break-words font-semibold">{entry.project.code} · {entry.project.name}</p><p className="mt-1 break-words text-sm text-slate-600">{entry.description || "No description"}</p></div>
      <p className="font-semibold">{entry.hours} h</p>
