@@ -55,7 +55,7 @@ jobs:
           if(r.path!=='.github/workflows/private-demo-candidate.yml'||r.head_branch!=='main'||r.event!=='workflow_dispatch'||r.conclusion!=='success'||r.status!=='completed'||r.head_sha!==process.env.GITHUB_SHA||!/^[a-f0-9]{40}$/.test(r.head_sha)) throw Error('Untrusted candidate or changed source revision');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,`revision=${r.head_sha}\n`);
           NODE
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.candidate.outputs.revision }}
           persist-credentials: false
