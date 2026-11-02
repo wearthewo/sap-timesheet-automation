@@ -1,6 +1,6 @@
 # Keycloak production adoption — 2 November 2026
 
-Status: **verification in progress; publication and deployment remain NO-GO**.
+Status: **production image technically verified; publication and deployment remain NO-GO pending the release gates**. See [final image verification](phase13-final-image-verification.md).
 
 The reference experiment is documented in [the bounded remediation report](phase13-keycloak-bounded-remediation.md). Its corrected local Docker image ID is `sha256:ab5a6183a7bde972736ba8bd143954e83a641c76158f018fb97c907b0f236f3d`. That image passed eight browser checkpoints, effective Java/trust-store/HTTPS checks, and a full-image scan with 0 CRITICAL, 0 HIGH, 0 UNKNOWN, 7 MEDIUM and 1 LOW findings. These results belong to that experimental image, not automatically to a new production build.
 
@@ -37,6 +37,18 @@ The seven MEDIUM and one LOW records in the reference Keycloak scan remain visib
 - Java scanner index refresh succeeded through the official GHCR repository in 8m33s. Its UpdatedAt is 2026-11-02T01:21:00Z and NextUpdate is 2026-11-05T01:21:00Z. The previous stale index is not used to claim release freshness.
 
 No application container, database, volume, production credential or policy approval was changed. No push, publication or deployment occurred.
+
+## Completed production-image verification
+
+The revision-labelled production image at `1f7d8771fa5c7796b13a40d1eab28ce16b053a82` has local image ID `sha256:6adf9479f87dd53b293ba290c610cbdd47d1ec691e3a1bc8489287feafa2f0c8` and OCI manifest `sha256:243831ac3318b6824eddaf4a5ed85945872f97674fd625abe9467185ed91d48a`.
+
+- **8/8 actual browser checkpoints passed** on this production image: discovery/proxy issuer, registration/email verification/signed PKCE tokens, secure cookies, logout/fresh login, recovery, TOTP PNG/enrollment, fresh-interval TOTP login, and absence of JavaScript errors/rate-limit failures. Existing production quotas remained enabled. The disposable fixture used a callback endpoint, not the full Workforce business application.
+- **4/4 Java checks passed:** runtime version, certificate-store checker, trusted outbound HTTPS and wrong-hostname rejection. Local proxy CA/hostname validation also passed separately without disabling verification.
+- UID 1000, writable data directories, Corretto 21.0.13+11-LTS, Guava 33.7.2-jre and unchanged realm/entrypoint hashes were confirmed. No transaction-recovery permission errors were found.
+- Full scan on 2 November: **0 CRITICAL, 0 HIGH, 0 UNKNOWN, 7 MEDIUM, 1 LOW**. Raw findings, full package inventory, SBOM, archive and provenance are retained in ignored `.verification/release-1f7d877/`.
+- The initial fresh-database `compose up --wait --wait-timeout 180` check timed out during initialization. The same containers subsequently became healthy without restart or timeout changes; browser acceptance then passed. This is a disclosed cold-start limitation, not a successful three-minute readiness result.
+
+This closes the local production-adoption authentication check; it does not approve residual findings or attest a future GitHub-built manifest. A new source revision must retain its own labels/provenance, and the final signed release must use fresh Linux scanner evidence.
 
 ## Host-dependent launch checks
 
