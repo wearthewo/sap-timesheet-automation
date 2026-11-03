@@ -46,3 +46,14 @@ RUN test -w /opt/keycloak/data && test -w /opt/keycloak/data/tmp \
  && JAVA_OPTS_KC_HEAP="-Xms128m -Xmx512m -XX:ActiveProcessorCount=2" /opt/keycloak/bin/kc.sh build
 ENTRYPOINT ["/opt/keycloak/with-secrets.sh","/opt/keycloak/bin/kc.sh"]
 CMD ["start","--optimized","--import-realm"]
+
+# ALAS2023-2026-3306 / -3337: update only the OS CA package. This final stage
+# preserves the cached source build, Corretto store and Quarkus augmentation.
+# Immutable 2023.12.20261028 repository; RPM signature/TLS checks stay enabled.
+FROM runtime AS certificate-updated
+USER 0
+RUN dnf --disablerepo='*' --repofrompath=reviewed,https://cdn.amazonlinux.com/al2023/core/guids/c1cfa756448a0939866fa319a832c06360c801e9eda0464212e4e4359e3f3cc6/x86_64/ --setopt=reviewed.gpgcheck=1 --setopt=reviewed.gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-amazon-linux-2023 --setopt=install_weak_deps=False upgrade -y ca-certificates-2025.2.76-1.0.amzn2023.0.5.noarch \
+ && test "$(rpm -q --qf '%{VERSION}-%{RELEASE}' ca-certificates)" = '2025.2.76-1.0.amzn2023.0.5' \
+ && rpm -qa | sort > /opt/workforce-evidence/rpm-inventory.txt \
+ && dnf clean all
+USER 1000:1000
