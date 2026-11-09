@@ -1,0 +1,18 @@
+flowchart TD
+    Command["FINANCE / ADMIN export command"] --> Enqueue["Short transaction<br/>Approved snapshot + stable identity + durable job"]
+    Enqueue --> Accepted["202 Accepted / QUEUED"]
+    Enqueue --> Claim["Worker claim transaction<br/>SKIP LOCKED + lease + claim token"]
+    Claim --> HTTP["SapTimesheetGateway<br/>HTTP call outside database transaction"]
+    HTTP --> Result{"Outcome"}
+    Result -->|Confirmed success| Success["SUCCEEDED + external reference"]
+    Result -->|Permanent error| Failed["FAILED / safe diagnostic"]
+    Result -->|Retryable, within budget| Retry["Bounded exponential backoff<br/>Same snapshot and identity"]
+    Retry --> Claim
+    Result -->|Ambiguous acceptance| Unknown["UNKNOWN"]
+    Expired["Expired processing lease"] --> Unknown
+    Unknown --> Lookup["Reconcile by stable identity<br/>No blind resend"]
+    Lookup -->|Found| Success
+    Lookup -->|Definitive miss, eligible| Retry
+    Lookup -->|Still uncertain| Unknown
+    Success --> Persist["Fenced result transaction<br/>Export + job + immutable attempt history"]
+    Failed --> Persist

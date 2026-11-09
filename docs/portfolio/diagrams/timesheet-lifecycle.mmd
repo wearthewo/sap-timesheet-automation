@@ -1,0 +1,15 @@
+stateDiagram-v2
+    [*] --> DRAFT
+    DRAFT --> PENDING_APPROVAL: Employee submits current version
+    PENDING_APPROVAL --> REJECTED: Direct manager rejects with reason
+    REJECTED --> DRAFT: Employee explicitly reopens
+    PENDING_APPROVAL --> APPROVED: Direct manager approves
+    APPROVED --> [*]
+    note right of DRAFT
+        Entries and decimal totals update atomically.
+        Every mutation checks the aggregate version.
+    end note
+    note right of APPROVED
+        Read-only timesheet; immutable decision history.
+        Finance export is a separate operation.
+    end note

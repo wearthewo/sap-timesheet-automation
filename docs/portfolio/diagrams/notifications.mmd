@@ -1,0 +1,10 @@
+flowchart LR
+    Event["Approval / rejection / terminal SAP event"] --> Intent["Business transaction<br/>+ durable notification intent"]
+    Calendar["Scheduled evaluation<br/>Europe/Athens calendar"] --> Intent
+    Intent --> Unique["PostgreSQL deduplication key"]
+    Unique --> Claim["Worker claim<br/>SKIP LOCKED, lease and fencing"]
+    Claim --> Delivery["EmailGateway<br/>SMTP outside transaction"]
+    Delivery --> Mailpit["Local Mailpit"]
+    Delivery --> Result["Short result transaction<br/>Status + immutable attempt"]
+    Result --> History["Recipient-only delivery history"]
+    Stale["Business intent becomes obsolete"] --> Cancel["CANCELLED after state revalidation"]
