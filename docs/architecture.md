@@ -69,18 +69,9 @@ Future modules: production SAP/email adapters and broader audit logs.
 
 Phase 4 implements the application-owned SapTimesheetGateway port and a synchronous HTTP adapter targeting a local Node mock. SAP fields and protocol errors stay inside infrastructure. The sap module owns durable export records, deterministic identity, role authorization and safe outcomes. A future production S/4HANA adapter can replace the mock-facing adapter without changing timesheet or approval business logic. PostgreSQL-backed processing now runs within the same backend artifact.
 
-## Render target
+## Production topology
 
-```mermaid
-flowchart TD
- Browser --> Next["Render Next.js service / BFF"]
- Next --> Spring["Render Spring Boot service"]
- Spring --> DB["Render PostgreSQL"]
- Spring --> Gateway["SapTimesheetGateway"]
- Gateway -. future .-> SAP["SAP S/4HANA"]
-```
-
-The three application services also depend on a separately operated production Keycloak/OIDC service. Local Compose Keycloak start-dev is not a production identity deployment. Use HTTPS and deliberate issuer/client configuration before deploying. No Render resources have been created.
+The [production Compose architecture](production-deployment.md) places Caddy in front of the Next.js BFF and Keycloak. Spring Boot and its durable workers, PostgreSQL and Mock SAP remain on private networks. Only HTTPS ingress is public; Keycloak administration and database ports are not published. Local Keycloak `start-dev` and Mailpit are development facilities, not production identity or email services.
 
 ## Timesheet aggregate
 
@@ -98,7 +89,7 @@ Browser -> Next.js BFF -> API -> PostgreSQL export/job -> Worker -> SapTimesheet
 
 API commands commit jobs and return 202. The same Spring Boot artifact claims with PostgreSQL SKIP LOCKED and performs external calls outside transactions. Results, job state and immutable history commit together. Lease fencing, stable identity, payload snapshots and reconciliation protect ambiguous outcomes. Repeated enqueue is idempotent. The existing approval status remains APPROVED and is separate from export status.
 
-No Kafka, RabbitMQ, Redis, microservice or separate worker deployment is required. Future Render API instances may disable scheduling while worker-enabled instances use the same artifact and shared database. See [worker architecture](sap-export-worker.md) for status models, configuration, crash recovery and bounded retry policy.
+No Kafka, RabbitMQ, Redis, microservice or separate worker deployment is required. Separately operated API instances may disable scheduling while worker-enabled instances use the same artifact and shared database. See [worker architecture](sap-export-worker.md) for status models, configuration, crash recovery and bounded retry policy.
 
 ## Finance reporting boundary (Phase 6)
 

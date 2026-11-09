@@ -159,7 +159,7 @@ is not a claim that the complete application suite passed on this revision.
    executions are pending authorization. Local reports are not fresh release proofs.
 4. Real independent reviewers, external public-key trust, any individual exception
    approvals, host policy/evidence and expiry-response monitoring are not configured.
-5. Contabo host/IP allowlist (both hosts and IPv4/IPv6), TLS, secrets, reviewed SMTP,
+5. Deployment host/IP allowlist (both hosts and IPv4/IPv6), TLS, secrets, reviewed SMTP,
    encrypted offsite restore and operational smoke acceptance remain deployment
    prerequisites. No provisioning, purchase, publication, merge or deployment occurred.
 
@@ -222,7 +222,7 @@ Changed-file inventory:
 - Production Keycloak Dockerfile/realm, inherited theme override/license/README,
   deterministic vendor-template and handler regression tests.
 - Private policy operator guide, this implementation report, Mock scan inventory,
-  proposal status, Contabo readiness and deployment-guide updates.
+  proposal status, release readiness and deployment-guide updates.
 
 Generated scans, browser results, synthetic credentials and private verification
 files stay ignored. Tests use ephemeral signing keys; there is no real approval

@@ -1,6 +1,6 @@
-# Weekend public launch clearance — 28 October 2026
+# Public release-policy verification — 28 October 2026
 
-**PUBLIC-PRODUCTION NO-GO.** Policy implementation is complete locally at `260e1766e9db5b426cef4f1a1e8559bf3606e602`. This is not approval of the five outstanding findings. No production images were published, infrastructure purchased, DNS changed or application deployed.
+**Historical verification checkpoint, not current release status.** Policy implementation is complete locally at `260e1766e9db5b426cef4f1a1e8559bf3606e602`. This is not approval of the five outstanding findings. No publication or deployment was performed by this checkpoint.
 
 October 29 continuation: [source-level input-path assessment](phase13-input-path-assessment.md). The optional Go JOSE path is now traced and proposed as configuration-specific not affected; Java2D and Guava remain blocked. Five benign exact-image Java probes and proxy adaptation checks passed. No security approvals were issued. Results below are the preserved October 28 checkpoint, not reruns.
 
@@ -8,7 +8,7 @@ October 29 continuation: [source-level input-path assessment](phase13-input-path
 
 - Reviewed and finished the interrupted changes, committed 18 explicit policy/workflow/documentation files. Reused the existing Ed25519 and OCI verifier. Publication and the deployment host enforce the same public assessment; private approvals are rejected. The strict raw scanner still rejects HIGH/CRITICAL/UNKNOWN.
 - Signed baseline groups enumerate exact LOW/MEDIUM findings without individual approvals. New/unmatched findings, missing inventories, invalid signatures, modified evidence, expiry and digest mismatches fail closed. No live approval or signing key was created. See [the policy/operator guide](public-production-release-policy.md).
-- Publication consumes the reviewed seven-image archive set without rebuilding and checks registry manifests. Public deployment requires external reviewer trust and root-installed evidence, not merely a mode flag. The Contabo runbook is corrected accordingly.
+- Publication consumes the reviewed seven-image archive set without rebuilding and checks registry manifests. Public deployment requires external reviewer trust and root-installed evidence, not merely a mode flag. The operator procedures use the same policy verifier.
 - Existing public-registration limits, 12 GB configuration, Resend secret-file settings, B2 encrypted backup upload/read-back, restore guards and monitoring remain intact. No application business code, migrations, authentication rules or existing runtime containers changed.
 
 ## Five individual findings
@@ -63,12 +63,5 @@ Source/SBOM/report hashes and Docker configuration IDs are in [the public readin
 
 Four runtime checks used short-lived `--rm --pull=never --network=none --read-only` containers, caps dropped, 384 MiB/one CPU/64 PID caps. Java probes used a read-only test-class mount and temporary `/tmp`; no database/network volumes mounted. These checks required outside-sandbox Docker execution. The bounded official manifest/advisory lookup also ran outside sandbox. All 17 existing containers remained healthy at the initial inspection; no existing container or volume was changed. No full build, package upgrade or fresh scan was warranted by a supported replacement identified in this continuation.
 
-## Shortest legitimate path / weekend gate
 
-1. **BLOCKED:** independent security reviewer closes OpenPGP and Java CA determinations against final exact images; closes the three remaining reachability questions or requires supported fixes. Do not purchase on a promise that this will complete by Friday.
-2. **READY FOR AUTHORIZED CI:** review the local policy commit and this report. Separately authorize push and run required backend/frontend/Mock SAP/quality CI and full-stack E2E at the final source revision. Existing e500eb3 results do not verify the new revision. No additional local application test cycle is requested.
-3. **BLOCKED UNTIL REVIEW/CI:** after separately authorized merge/candidate run, build and scan all seven final AMD64 images once, retain all findings/inventories, obtain exact-digest signed decisions and LOW/MEDIUM baseline. Configure independent GitHub reviewer protections and trusted public keys. Reuse the reviewed OCI archives for separately authorized publication; no self-approval or private-demo substitution.
-4. **REQUIRES REAL HOST/SERVICE:** only after security clearance and spending authorization, follow the [October 31–November 1 runbook](contabo-deployment.md). Contabo VPS 6/Ubuntu 24.04, Namecheap app/auth DNS, real TLS, production secrets, clean database/realm, Resend domain verification/quotas, clean-host SMTP, private B2 key/bucket/lifecycle and actual encrypted restore, external heartbeat/alert delivery, firewall and reboot/rollback acceptance remain unverified. Local Avast interception is not a Resend defect and must not be imported into production trust.
-5. **PUBLIC OPENING NO-GO until acceptance:** verify production HTTPS/authentication/registration, tenant isolation, outbound mail, backups/restore, alerts and resource headroom on the actual host. Define operator response before assessment expiry; verifier expiry blocks releases, not an already-running site automatically.
-
-No extra development phase is proposed. The remaining work is specific technical/security review, exact-revision release evidence and unavoidable real-host acceptance. Weekend launch cannot honestly be guaranteed while the three applicability/fix questions remain open.
+Later runtime corrections are documented in [Keycloak adoption](phase13-keycloak-adoption.md) and [final-image verification](phase13-final-image-verification.md). Current release requirements are in [public-production readiness](public-production-readiness.md). Historical scan counts here do not approve a later image.

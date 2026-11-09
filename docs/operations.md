@@ -1,5 +1,5 @@
 # Single-VPS operations
-Phase 13 adds reviewed systemd timer templates, offsite freshness checks and success-only external monitoring pulses; see [Contabo operations setup](contabo-deployment.md). These are prepared files, not installed services. An external monitor and tested alert destination remain operator prerequisites. Published release deployments load `release.compose.json` so operations use the same immutable images as the serving release.
+Phase 13 adds reviewed systemd timer templates, offsite freshness checks and success-only external monitoring pulses; see [operations setup](deployment-runbook.md). These are prepared files, not installed services. An external monitor and tested alert destination remain operator prerequisites. Published release deployments load `release.compose.json` so operations use the same immutable images as the serving release.
 Use the explicit production project and environment file for every command. Never run generic teardown/reset against original development or QA stacks. Root/ Docker access is equivalent to secret access.
 
 ## Health, logs and resource signals

@@ -90,7 +90,7 @@ No remaining 12A blocker. The full backend suite was not rerun: this checkpoint 
 - Compose uses Keycloak `start-dev`, HTTP localhost configuration and a shared local PostgreSQL role for the application/identity databases. Production requires deliberate TLS/issuer/proxy and least-privilege database configuration.
 - Backups/restore drills, secret/signing-key rotation, production SMTP, monitoring/alerting and recovery/runbooks remain prerequisites. Real SAP company routing and tenant credentials are not designed or validated.
 - Original populated development DB remains V14; any real migration needs a reviewed current ownership mapping and backup. Never infer legacy membership or enable `LEGACY_TENANT_CONFIRMED` without that mapping.
-- Render remains an architectural target, not a deployed environment. No provider/infrastructure changes in 12A.
+- No deployment or infrastructure change was performed in 12A.
 
 ## Next checkpoint
 
@@ -448,9 +448,9 @@ Caddy fixes public hosts and forwarded headers, blocks administration/master/man
 | Shell syntax | bash -n backup.sh ops.sh offsite.sh monitor.sh | PASS in backup image; host timer/wrapper orchestration not installed |
 | ARM64 base manifests | All six pinned base indices list linux/amd64 and linux/arm64 | PASS for manifest availability only |
 | ARM64 backend | Image builds; Temurin Java21.0.12.1 executes under emulation | PASS for build/JVM startup; full ARM backend stack not exercised |
-| ARM64 Mock SAP | Image builds, Node24.18.0 reports arm64; final HTTP/persistence suite 7/7 | PASS under Docker emulation, not native Oracle |
+| ARM64 Mock SAP | Image builds, Node24.18.0 reports arm64; final HTTP/persistence suite 7/7 | PASS under Docker emulation, not native ARM64 |
 | ARM64 frontend | Dependency installation stalled with extremely slow npm downloads; stopped after >8h rather than claiming success | NOT VERIFIED; build-arm64-frontend.log. Native/bounded rerun required before ARM deployment |
-| Public TLS / cloud host | Local CA only; no real ACME, DNS, renewal or Oracle/Hetzner execution | NOT TESTED |
+| Public TLS / cloud host | Local CA only; no real ACME, DNS, renewal or cloud-host execution | NOT TESTED |
 | Offsite disaster recovery / alerts | SSH encrypted-transfer helper, retention and operator runbooks prepared; no remote destination, systemd timer or external alert delivery configured | NOT TESTED; local restore is not offsite DR |
 | Full business suite / full browser suite | Not rerun in 12D; prior 409-backend/16-browser Phase12C results remain historical | NOT CLAIMED as 12D results; checkpoint12E remains separate |
 
@@ -513,11 +513,11 @@ Browser command used `docker run --rm --init --ipc=host --network workforce-prod
 
 Backup keys were generated in the ignored directory using `workforce-backup:phase12d-qa` with `--entrypoint age-keygen -o /qa/restore-key.txt`, then public recipient extraction `age-keygen -y -o /qa/recipients.txt /qa/restore-key.txt`. verify-backup.mjs stopped/restarted only the disposable writers, used backup.compose.yaml, created a separate empty restore project, added restore.compose.yaml only for decryption and ran the populated-target refusal check. An additional explicit duplicate-check.mjs probe verified HTTP409 from restored Mock SAP. Shell scripts passed bash -n in the backup image. Actual host systemd/flock/offsite orchestration remains prepared, not installed/tested.
 
-### Resource sample, costs and remaining gates
+### Resource sample and remaining gates
 
-Final single post-restart sample: Caddy31.11MiB, Next52.48MiB, Spring/workers367.6MiB, Keycloak488.4MiB, PostgreSQL75.71MiB, Mock SAP20.69MiB; approximately1.01GiB combined. This is **not a load benchmark, peak-memory measurement or capacity guarantee**. Multiple untouched development stacks shared Docker Desktop's ~7.69GiB host. Cold startup and emulation were slow. Container ceilings total5.5GiB; the [deployment guide](production-deployment.md) gives preliminary8/12GiB budgets and provider caveats.
+Final single post-restart sample: Caddy31.11MiB, Next52.48MiB, Spring/workers367.6MiB, Keycloak488.4MiB, PostgreSQL75.71MiB, Mock SAP20.69MiB; approximately1.01GiB combined. This is **not a load benchmark, peak-memory measurement or capacity guarantee**. Multiple untouched development stacks shared Docker Desktop's ~7.69GiB host. Cold startup and emulation were slow. Container ceilings total5.5GiB; the [deployment guide](production-deployment.md) gives preliminary8/12GiB resource budgets and measurement limitations.
 
-Oracle Always Free capacity/availability and idle-reclamation rules must be checked at provisioning; no PAYG. Hetzner total must fit EUR15/month including tax/IP/domain/SMTP/offsite; no purchase or price guarantee. Neither cloud was accessed. Native ARM frontend/full-stack verification, maintained dependency/advisory strategy (including prior Spring findings), OS-image scanning, anonymous ingress abuse controls, public DNS/ACME renewal, real SMTP sender/DNS/delivery, installed backup/alert timers and independent offsite restore remain Phase13 gates. SMTP ambiguous acceptance can still duplicate physical delivery. No exactly-once claim.
+Native ARM frontend/full-stack verification, maintained dependency/advisory strategy (including prior Spring findings), OS-image scanning, anonymous ingress abuse controls, public DNS/ACME renewal, real SMTP sender/DNS/delivery, installed backup/alert timers and independent offsite restore remain Phase13 gates. SMTP ambiguous acceptance can still duplicate physical delivery. No exactly-once claim.
 
 ### Changed files and next checkpoint
 
@@ -526,7 +526,7 @@ Modified: `.github/workflows/ci.yml` (adds production configuration tests), `.gi
 New:
 - `.dockerignore`.
 - `infra/production/`: compose.yaml, backup.compose.yaml, restore.compose.yaml; six Dockerfiles (backend/frontend/mock-sap/keycloak/caddy/backup); Caddyfile; images.lock.json/resolve-images.mjs; workforce-realm.json; postgres-init.sh/with-secrets.sh; production.env.example/validate-env.mjs; backup.sh/manifest.sql/ops.sh/operations.sql/offsite.sh/monitor.sh; production.test.mjs; verify.mjs/browser-check.mjs/internal-check.mjs/edge-check.mjs/verify-backup.mjs/verify-health.mjs.
-- [Production deployment](production-deployment.md), [environment reference](production-environment.md), [Keycloak production](keycloak-production.md), [backup/restore](backup-restore.md), [operations](operations.md), [Phase13 checklist](phase13-deployment-checklist.md).
+- [Production deployment](production-deployment.md), [environment reference](production-environment.md), [Keycloak production](keycloak-production.md), [backup/restore](backup-restore.md), [operations](operations.md), [Phase13 checklist](public-production-readiness.md).
 
 No changes to AGENTS, migrations, backend/frontend application logic, original realms or original/CI Compose files. New root dockerignore excludes private verification/environment/key/dump artifacts. GitHub-hosted runs of the modified CI gate were not executed.
 
@@ -581,7 +581,7 @@ Original V14 database/realm and volumes were not migrated or reset. Their post-i
 
 Exact commands, per-run evidence and limitations are in the release report. Java 21 Docker tests/package, Docker build/probes/restore, dependency downloads/audits and browser execution used outside-sandbox access; no global toolchain was replaced.
 
-15 working-tree paths (12 modified, three new): .gitattributes; .github/workflows/ci.yml and e2e.yml; README.md; infra/production/Caddyfile (line endings only), backup.sh, new backup-guards.test.sh and line-endings.test.mjs; frontend/src/app/onboarding/actions.ts and create-form.tsx; frontend/tests/browser/onboarding.spec.ts; docs/backup-restore.md, phase12-progress.md, phase13-deployment-checklist.md and new phase12-production-readiness-verification.md.
+15 working-tree paths (12 modified, three new): .gitattributes; .github/workflows/ci.yml and e2e.yml; README.md; infra/production/Caddyfile (line endings only), backup.sh, new backup-guards.test.sh and line-endings.test.mjs; frontend/src/app/onboarding/actions.ts and create-form.tsx; frontend/tests/browser/onboarding.spec.ts; docs/backup-restore.md, phase12-progress.md, the historical deployment checklist (now retired) and new phase12-production-readiness-verification.md.
 
 Changes remain uncommitted on feature/phase12-production-readiness, HEAD dc03a3f. No commit, push, merge, public deployment or Phase 13 operation was performed. Private QA artifacts remain ignored.
 

@@ -3,9 +3,9 @@
 Follow-on evidence: [frontend runtime remediation](phase13-frontend-runtime-remediation.md)
 records the assembled distroless image's 0 HIGH/0 CRITICAL scan and focused
 compatibility results, including the unresolved baseline Keycloak console error.
-The [private-demo policy proposal](phase13-private-demo-release-proposal.md)
-documents remaining Keycloak, Mock SAP and Java coverage work. No exceptions are
-approved or implemented; the historical Caddy/PostgreSQL/backup evidence below
+The [private-demo implementation record](phase13-private-demo-implementation.md)
+documents the subsequent policy mechanism and Java coverage work. No individual exception is
+approved by this historical checkpoint; the historical Caddy/PostgreSQL/backup evidence below
 is unchanged and was not unnecessarily rebuilt or rescanned.
 
 Parent: `8aa47fccafea1471d7756d6b75da1a4f8e1862f2`; branch:
@@ -326,7 +326,7 @@ GitHub verification. NO-GO for private-demo deployment or public registration.**
    image on GitHub, retain full reports and registry digests, and enforce the
    existing manual environment approval and all-HIGH/CRITICAL gate. The seven
    image release inventory now includes the helper-patched PostgreSQL image.
-6. Real TLS/SMTP and hosting requirements remain the existing Contabo checklist;
+6. Real TLS/SMTP and hosting requirements remain the existing deployment checklist;
    none is provisioned or expanded by this checkpoint.
 
 After separately authorized push, the existing workflows support manual feature
@@ -360,7 +360,7 @@ backups, generated images or application business files are included.
 ```text
 .gitattributes
 .github/workflows/production-publish.yml
-docs/phase13-contabo-readiness.md
+historical provider-readiness report (now retired)
 docs/phase13-remediated-image-findings.csv
 docs/phase13-runtime-remediation.md
 docs/phase13-runtime-security-review.md
