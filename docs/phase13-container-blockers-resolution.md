@@ -82,6 +82,6 @@ Docker/network-dependent commands used approved outside-sandbox execution. No gl
 
 ## Commit scope and next action
 
-Reviewed files: four production Dockerfiles; `java-trust-mitigation.sh`; gosu `go.mod`, `go.sum`, `UPSTREAM.md`; this report; Contabo readiness checkpoint. The two earlier untracked public-audit/final-clearance reports are preserved separately, not silently included in this runtime correction.
+Reviewed files: four production Dockerfiles; `java-trust-mitigation.sh`; gosu `go.mod`, `go.sum`, `UPSTREAM.md`; this report; release readiness checkpoint. The two earlier untracked public-audit/final-clearance reports are preserved separately, not silently included in this runtime correction.
 
 The changes are suitable for a local checkpoint and focused CI review; **they are not a cleared private-demo release**. No automatic exception approval, publication, merge, push, purchase, DNS change or deployment is authorized. The next decision is independent review of the three retained scanner records and backend JRE applicability, plus an explicit decision about how to handle a proven not-imported UNKNOWN under the fail-closed policy. GitHub environment protections and trusted exact-revision publication provenance remain prerequisites already documented in Phase 13.

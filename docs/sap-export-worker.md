@@ -121,7 +121,7 @@ History rows are inserted only when an operation finishes or is abandoned during
 
 Batch size is 1–100, max attempts 1–100; durations must be positive and maximum backoff cannot be below initial backoff. Existing SAP URL/token/connect/response settings remain unchanged.
 
-Local Compose runs API + worker in the existing backend process. For future Render use the same artifact with worker enabled or disabled: an API instance can set false; a worker-enabled instance can run privately without public API routing. No separate runtime deployment, blueprint or Render service is created now. The enabled/disabled flag is sufficient; no extra runtime-role framework was introduced.
+Local Compose runs API + worker in the existing backend process. For separate API/worker instances, use the same artifact with worker enabled or disabled: an API instance can set false; a worker-enabled instance can run privately without public API routing. No separate runtime deployment is required by the current implementation. The enabled/disabled flag is sufficient; no extra runtime-role framework was introduced.
 
 The frontend no longer needs a SAP-length request timeout because commands only enqueue; SAP_EXPORT_REQUEST_TIMEOUT_MS is obsolete. Detail polling runs every 5 seconds while the job is active, pauses while hidden, stops after terminal job state or three refresh failures, and never repeats a mutating command. Worklists refresh every 10 seconds only when they show active jobs. Read-only employee/manager views do not receive command buttons.
 

@@ -21,7 +21,7 @@ No public exploit was demonstrated in this application; that is different from p
 | Proxy | `sha256:f046885d046218b888f969b0c632f1d0695883b9e5def3bf32df00c539ba5c61` | `sha256:43edc0f8d6b440194692399cdc04b8e27fe66f1d5171c7cc28d7be138bfb35db` |
 | Keycloak | `sha256:a117385d0366500e088293cf03c2275d03a05b708ed91286a1e825b4195b3637` | `sha256:64fc6a7800f64594166fa97a6213af40d2abd557231aa32ef1eae2415cc79d22` |
 
-Both inspected images are AMD64. The archive/configuration relationship and scan/SBOM hashes are retained in the [weekend clearance report](phase13-weekend-clearance.md). No supported replacement was established, so no unchanged image was rebuilt/rescanned. Previous totals remain proxy **1 HIGH / 1 UNKNOWN**, Keycloak **3 HIGH / 0 UNKNOWN**, both zero CRITICAL. These are not fresh seven-image release results.
+Both inspected images are AMD64. The archive/configuration relationship and scan/SBOM hashes are retained in the [public-policy verification record](phase13-public-policy-verification.md). No supported replacement was established, so no unchanged image was rebuilt/rescanned. Previous totals remain proxy **1 HIGH / 1 UNKNOWN**, Keycloak **3 HIGH / 0 UNKNOWN**, both zero CRITICAL. These are not fresh seven-image release results.
 
 The probe adapts the repository production Caddyfile using the exact proxy image and synthetic public hostnames; it opens no listener and contacts no CA. SHA256 of inspected working-tree configuration bytes:
 
@@ -107,6 +107,6 @@ Retained source archive SHA256: Keycloak 26.8.1 `f7763d73c33a2d345227522aa51a5ea
 1. Independently review OpenPGP, configuration-specific Go JOSE and Java trust-store remediation. Close Java2D's affected-API question and Guava's remaining native-codec paths or obtain supported fixes. No blanket risk waiver or self-signature.
 2. This documentation/probe-only checkpoint is ready for separately authorized exact-revision GitHub verification. No application behavior changed; another local full application/E2E cycle is unnecessary. Historical CI does not attest the new commit or final images.
 3. Once technical decisions are resolved and execution authorized, generate final seven-image scans/SBOMs/provenance once. Signed decisions must match final digests, evidence, assumptions and expiry. Publication remains separately authorized and blocked until clearance.
-4. Keep the existing Contabo runbook. Actual DNS/TLS, clean-host Resend SMTP (local Avast interception is not a provider defect), B2 restore, firewall/alerts, secrets and production smoke checks remain pending. No purchase or deployment is justified by this report alone.
+4. Keep the existing operator runbook. Actual DNS/TLS, clean-host Resend SMTP (local Avast interception is not a provider defect), B2 restore, firewall/alerts, secrets and production smoke checks remain pending. No purchase or deployment is justified by this report alone.
 
-No production pin changed. This is a narrower, reproducible review package—not security clearance or a guaranteed weekend launch. The two pre-existing untracked audit reports were preserved and excluded from the checkpoint.
+No production pin changed. This is a narrower, reproducible review package—not security clearance or a release authorization. The two pre-existing untracked audit reports were preserved and excluded from the checkpoint.

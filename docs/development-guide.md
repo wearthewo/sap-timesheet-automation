@@ -1,6 +1,6 @@
 # Development reference and phase history
 
-Preserved from the README before the portfolio presentation was added. Phase-specific statements below are historical; the [current README](../README.md), [architecture](architecture.md) and [public-production readiness](public-production-readiness.md) explain the current scope. The old Render section is a historical option, not the selected deployment target. No public deployment is claimed.
+Technical reference retained from the README before the portfolio presentation was added, with obsolete provider/purchasing guidance removed. Phase-specific statements below are historical; the [current README](../README.md), [architecture](architecture.md) and [public-production readiness](public-production-readiness.md) explain the current scope. No public deployment is claimed.
 
 # Employee Timesheet & SAP Automation Platform
 
@@ -21,7 +21,7 @@ Phase 7 adds durable email notifications, scheduled reminders and owner-only not
 
 Dependency maintenance: [Phase 13B.1 assessment and verification](phase13b1-dependency-security.md) records the Node 24.22.1 pins, Boot 4 migration, targeted tests and unresolved container security findings. This dependency checkpoint is not public-launch clearance.
 
-Deployment target is **Contabo Cloud VPS 6, AMD64, 12 GB, Ubuntu 24.04**, with public registration, Namecheap DNS, Resend SMTP and encrypted Backblaze B2 backups. See [public-production readiness](public-production-readiness.md) for READY BEFORE PURCHASE / REQUIRES REAL HOST OR SERVICE / BLOCKED status, and the [Contabo runbook](contabo-deployment.md). Security gates remain blocking; no server or production infrastructure has been provisioned.
+Production preparation uses the existing Docker Compose stack, file secrets, authenticated SMTP and encrypted offsite backups. See [release prerequisites](public-production-readiness.md) and the [operator runbook](deployment-runbook.md). No public deployment is claimed.
 
 Production Keycloak uses an operator-maintained, checksum-pinned source build with Corretto Java 21 and Guava 33.7.2-jre. See [adoption and release verification](phase13-keycloak-adoption.md) for the AMD64 scope, maintenance obligations and outstanding release gates.
 
@@ -143,7 +143,7 @@ See [manager approval rules and UI](approvals.md) for direct-report authorizatio
 
 | Variable | Purpose |
 |---|---|
-| DATABASE_URL | Backend JDBC PostgreSQL URL; use jdbc:postgresql://... (convert Render connection URI) |
+| DATABASE_URL | Backend JDBC PostgreSQL URL; use jdbc:postgresql://... (not a provider-specific connection URI) |
 | DATABASE_USERNAME / DATABASE_PASSWORD | Application database credentials |
 | KEYCLOAK_ISSUER_URI | Public, exact token issuer, including /realms/workforce |
 | KEYCLOAK_JWK_SET_URI | Backend-reachable signing-key endpoint |
@@ -155,7 +155,7 @@ See [manager approval rules and UI](approvals.md) for direct-report authorizatio
 | FRONTEND_URL | Compose public frontend URL and realm redirect origin |
 | KEYCLOAK_PUBLIC_URL | Compose public Keycloak hostname URL |
 | KEYCLOAK_ADMIN_USERNAME / KEYCLOAK_ADMIN_PASSWORD | Local Keycloak bootstrap account |
-| CORS_ALLOWED_ORIGINS | Comma-separated exact origins, local or future Render frontend |
+| CORS_ALLOWED_ORIGINS | Comma-separated exact origins, local or production frontend |
 | MAX_DAILY_HOURS | Backend maximum total hours per work date across projects; default 24 |
 | SAP_BASE_URL / SAP_API_TOKEN | Server-only HTTP integration destination and credential |
 | SAP_CONNECT_TIMEOUT / SAP_RESPONSE_TIMEOUT | Positive backend durations, defaults 2s / 5s |
@@ -221,13 +221,13 @@ pnpm test:smoke
 
 Use pnpm 12.8.1; corepack must be installed/enabled in your chosen Node environment if used. Alternatively install pnpm inside a disposable Node 24 container. The lockfile is committed. Frontend builds do not require a live backend or secrets.
 
-## Future Render deployment (not performed)
+## Runtime commands and production boundaries
 
-Backend root backend: ensure mvnw is executable (chmod +x mvnw after a Windows-created checkout), build ./mvnw clean package -DskipTests, start java -jar target/workforce-0.1.0.jar. Render can use the supplied Java 21 Dockerfile. PORT controls Spring Boot.
+Backend root backend: ensure mvnw is executable (chmod +x mvnw after a Windows-created checkout), build ./mvnw clean package -DskipTests, start java -jar target/workforce-0.1.0.jar. PORT controls Spring Boot.
 
 Frontend root frontend: install pnpm install --frozen-lockfile, build pnpm build, start pnpm start. Set Node 24 and pnpm 12.8.1. next start reads PORT; Docker uses standalone server.js with PORT and HOSTNAME=0.0.0.0.
 
-Use Render's private backend/database addresses for server traffic, HTTPS public frontend/Keycloak URLs, and secret environment variables. Supply a production Keycloak deployment separately; local start-dev is not suitable. Set exact issuer, JWKS reachability, audience, redirect/logout URIs and canonical NEXTAUTH_URL. No production URLs are hardcoded.
+Use private backend/database addresses for server traffic, HTTPS public frontend/Keycloak URLs, and secret environment variables. Supply a production Keycloak deployment separately; local start-dev is not suitable. Set exact issuer, JWKS reachability, audience, redirect/logout URIs and canonical NEXTAUTH_URL. No production URLs are hardcoded.
 
 See [architecture](architecture.md) for future module boundaries. Manager approval is implemented in Phase 3. Phase 5 adds durable SAP processing and Phase 6 adds Finance reporting. Phase 7 adds local Mailpit email and durable notification processing.
 
@@ -285,4 +285,4 @@ See [Phase 9 isolation and verification](phase9-multitenancy-verification.md) fo
 
 ## Production infrastructure preparation (12D)
 
-A separate six-service VPS template is available in [the deployment guide](production-deployment.md): Caddy, Next.js, Spring Boot with workers, production-mode Keycloak, PostgreSQL and private Mock SAP. The local/CI Compose stack still includes Mailpit and is unchanged. Runtime file secrets, pinned multiarchitecture images, encrypted backups, empty-target restoration and operational checks are prepared. No cloud resources, production credentials or public deployment were created. The [12E release assessment](phase12-production-readiness-verification.md) records passing backend/static checks and local AMD64/restore evidence, but **Phase 12 acceptance remains incomplete** because the full browser suite has not passed and launch gates remain unresolved. See [checkpoint history](phase12-progress.md) and [Phase 13 prerequisites](phase13-deployment-checklist.md); no deployment is authorized.
+A separate six-service VPS template is available in [the deployment guide](production-deployment.md): Caddy, Next.js, Spring Boot with workers, production-mode Keycloak, PostgreSQL and private Mock SAP. The local/CI Compose stack still includes Mailpit and is unchanged. Runtime file secrets, pinned multiarchitecture images, encrypted backups, empty-target restoration and operational checks are prepared. No cloud resources, production credentials or public deployment were created. The [12E release assessment](phase12-production-readiness-verification.md) records passing backend/static checks and local AMD64/restore evidence, but this historical checkpoint predates the later [Phase 12F browser acceptance](phase12f-browser-acceptance.md). A historical report is not current release clearance. See [checkpoint history](phase12-progress.md) and [Phase 13 prerequisites](public-production-readiness.md); no deployment is authorized.

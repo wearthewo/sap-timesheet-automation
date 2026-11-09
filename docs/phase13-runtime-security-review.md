@@ -86,12 +86,12 @@ An initial native download pattern used uppercase `Windows`, while the official 
 - Existing frontend image archive SHA256: `2137b7348457eac0b6f7ddbfed2a84566097fcf96766318f5201abcb04e81018`.
 - Report SHA256: `32cd7767cb2df6e17f275565b3688b5cfe522f2568d6a5ead70b9aaa411ca4d6`.
 
-With `GOMAXPROCS=2`, the actual command was:
+With `GOMAXPROCS=2`, the equivalent command below uses placeholders for local tool and evidence paths (replace them before use):
 
 ```powershell
-.verification/phase13-contabo/trivy-native/bin/trivy.exe image --input .verification/phase13-contabo/frontend.tar --cache-dir .verification/phase13b1/trivy-cache --cache-backend memory --parallel 2 --timeout 4m --skip-db-update --skip-java-db-update --scanners vuln --format json --output .verification/phase13-contabo/native-frontend.json
+TRIVY_EXE image --input FRONTEND_OCI_ARCHIVE --cache-dir TRIVY_CACHE --cache-backend memory --parallel 2 --timeout 4m --skip-db-update --skip-java-db-update --scanners vuln --format json --output FRONTEND_REPORT_JSON
 ```
 
 **Exit0, completed analysis in about9seconds**, same fresh DB, all88OS packages and22detected Node packages. Its229 findings exactly match the recovered report and its image ID matches `sha256:e6326259263d0e1955f22b545f69bc43968438a5544e9118246d7c965e62cc0f`. Exit0 means scanner completion, **not vulnerability clearance**. Direct native archive access removes Docker Desktop's cross-filesystem path; the comparison supports a tooling/I/O-path issue, but does not isolate one exact Docker kernel or semaphore defect. No security analyzer or package class was disabled to obtain the result.
 
-Raw reports, downloaded tools, archive and logs remain ignored under `.verification/phase13-contabo`. No QA database, volume or running application was modified. Linux CI final-image scanning must still succeed for the actual release build; this local candidate evidence cannot replace it.
+Raw reports, downloaded tools, archive and logs remain ignored in the ignored local verification directory. No QA database, volume or running application was modified. Linux CI final-image scanning must still succeed for the actual release build; this local candidate evidence cannot replace it.

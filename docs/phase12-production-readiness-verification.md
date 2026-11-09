@@ -153,7 +153,7 @@ Final bounded results (`resumed/architecture-results.json`):
 | ARM64 Keycloak image | TIMEOUT at three-minute caller bound | Base layers downloaded/extracted; `kc.sh build` began; child log continued after caller timeout, with no verified completed image |
 | ARM64 frontend/Keycloak health and complete stack | NOT TESTED | No usable verified frontend/Keycloak build from these attempts |
 
-Caller timeouts are not proof that every Docker daemon build stopped immediately. Later log output is not a completed-image result. The architecture driver itself exiting successfully means it recorded these outcomes, not that all builds passed. Native Oracle compatibility remains **UNVERIFIED**. The original frontend download stall was not reproduced in the final attempt; emulated compilation and Keycloak augmentation remained bounded verification gaps, with no demonstrated native dependency incompatibility.
+Caller timeouts are not proof that every Docker daemon build stopped immediately. Later log output is not a completed-image result. The architecture driver itself exiting successfully means it recorded these outcomes, not that all builds passed. Native ARM64 compatibility remains **UNVERIFIED**. The original frontend download stall was not reproduced in the final attempt; emulated compilation and Keycloak augmentation remained bounded verification gaps, with no demonstrated native dependency incompatibility.
 
 The disposable AMD64 production frontend was refreshed successfully from the new image. An additional HTTPS browser probe could not start because the local `workforce-browser-tests` image was absent and its pull was denied. This is **NOT TESTED**, not an application assertion failure. The earlier production edge/internal results below remain scoped to their recorded execution; they were not rerun after that refresh.
 
@@ -192,7 +192,7 @@ Resolved runtime versions: Spring Boot 3.5.16, Framework 6.2.19, POI 5.5.1, spri
 - Next 16.4.1 includes the [October 14 fixes](https://nextjs.org/blog/nextjs-security-update-october-14-2026). [Node 24.21](https://nodejs.org/en/blog/release/v24.21.0) is available; a further [October 21 security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases) was announced but not yet available at this review. Recheck before launch.
 - **BLOCKER:** partial Trivy 0.76.0 OS scans require remediation/disposition and rescan. Frontend: 88 Debian packages, 251 advisory/package occurrences (4 critical, 64 high, 96 medium, 83 low, 4 unknown). These are not 251 unique exploitable flaws. [Debian's zlib assessment](https://security-tracker.debian.org/tracker/CVE-2023-45853) excludes Bookworm's binary from the vulnerable contrib/minizip build; Perl/PCRE package updates still require review. Backend had 59 and Keycloak 51 occurrences, neither HIGH/CRITICAL in these OS-only reports. PostgreSQL/proxy/mock/backup scans were incomplete after interruption. No blanket suppression was added.
 
-Preliminary license inventory: Next/React/server-only MIT, NextAuth ISC; Spring/POI/Keycloak/Caddy Apache 2.0; PostgreSQL its own license; Node MIT with bundled notices; OpenJDK GPLv2 with Classpath Exception. Container packages add GPL/LGPL and other obligations. Preserve notices. This is not exhaustive legal certification. No top-level application LICENSE was found; settle distribution licensing before publishing reusable source/images. No paid Spring support is assumed within the budget.
+Preliminary license inventory: Next/React/server-only MIT, NextAuth ISC; Spring/POI/Keycloak/Caddy Apache 2.0; PostgreSQL its own license; Node MIT with bundled notices; OpenJDK GPLv2 with Classpath Exception. Container packages add GPL/LGPL and other obligations. Preserve notices. This is not exhaustive legal certification. No top-level application LICENSE was found; settle distribution licensing before publishing reusable source/images. Dependency support must be assessed for the release.
 
 ## Exact commands and environment
 
@@ -255,13 +255,12 @@ Docker, dependency downloads, browser installation/execution and security-audit 
 | B: Begin controlled Phase 13 deployment | **NO-GO from this checkpoint** until the regression gate and target-architecture decision are resolved and deployment is explicitly authorized. AMD64 infrastructure is prepared with substantial local verification, not an unconditional release approval. |
 | C: Open public registration | **NO-GO** |
 
-**BLOCKER before public launch:** complete successful browser/notification acceptance; maintained Spring support; review/remediate release-image findings and rescan; anonymous registration/recovery abuse controls; unresolved ownership mapping if migrating populated data. Unverified ARM64 blocks selecting Oracle ARM64, not an independently verified AMD64 target.
+**BLOCKER before public launch:** complete successful browser/notification acceptance; maintained Spring support; review/remediate release-image findings and rescan; anonymous registration/recovery abuse controls; unresolved ownership mapping if migrating populated data. Unverified ARM64 blocks selecting an ARM64 host, not an independently verified AMD64 target.
 
 **REQUIRED FOR PHASE 13:** approved cloud/account/capacity choice; native resource checks; domain/DNS and real TLS/renewal; production secret provisioning/rotation; SSH/firewall; real SMTP sender/DNS/delivery; offsite encrypted backup/restore and retention; operational alert delivery; disk monitoring; clean production identities; full production smoke tests. No deployment was started.
 
 **NON-BLOCKING with follow-up:** development-only dependency finding, documented SMTP duplicate ambiguity, load/capacity testing beyond these bounded local checks. No throughput/user-capacity guarantee is made.
 
-Budget is at most EUR15/month total. The [Phase 13 checklist](phase13-deployment-checklist.md) records a conditional Hetzner calculation (EUR8.49 net base, assumed 24% VAT gives EUR10.53 before IPv4) and unquoted domain/SMTP/offsite costs. Oracle Always Free capacity is not guaranteed. Neither provider was purchased/provisioned and the final monthly total is not verified.
 
 ## Changed-file inventory and Git
 
@@ -269,7 +268,7 @@ Budget is at most EUR15/month total. The [Phase 13 checklist](phase13-deployment
 - `infra/production/Caddyfile` (line endings only), `backup.sh`, new `backup-guards.test.sh`, new `line-endings.test.mjs`.
 - `frontend/src/app/onboarding/actions.ts`, `create-form.tsx`, `frontend/tests/browser/onboarding.spec.ts`.
 - `frontend/src/app/login/sign-in.tsx`, `frontend/tests/browser/administration.spec.ts` (registration follow-up).
-- `docs/backup-restore.md`, `docs/phase12-progress.md`, `docs/phase13-deployment-checklist.md`, this new report.
+- `docs/backup-restore.md`, `docs/phase12-progress.md`, the historical deployment checklist (now retired), this report.
 
 Before checkpoint staging, **17 working-tree paths** were reviewed on `feature/phase12-production-readiness`, parent `dc03a3f`: 14 modified tracked files and three new files. Caddy's working-copy normalization has no semantic Git diff, so the checkpoint contains 16 changed files. The local commit accompanying this update preserves the reviewed work; use Git history for its hash. Private verification material, secrets, backups and QA databases are excluded. No push, merge or deployment is authorized. Phase 12 acceptance remains incomplete and Phase 13 has not started.
 

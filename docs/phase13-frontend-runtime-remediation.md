@@ -8,7 +8,7 @@ approved. This checkpoint does not repeat Phase 12F or Caddy/PostgreSQL remediat
 
 The later complete-inventory review also confirmed an existing Mock SAP scan
 with 1 CRITICAL/56 HIGH findings on its unchanged Bookworm runtime. See the
-[private-demo policy proposal](phase13-private-demo-release-proposal.md); the
+[private-demo implementation record](phase13-private-demo-implementation.md); the
 remaining release scope must not be described as Keycloak alone.
 
 ## Actual image, not just a base-image result
@@ -129,7 +129,7 @@ The focused browser helper retains its strict zero-error assertion.
 Earlier bounded failures are retained, not counted as passes:
 
 1. The initially selected test subnet overlapped an existing Docker network.
-   It was changed to independently checked `10.233.67.0/24`; no existing network changed.
+   It was changed to independently checked a non-overlapping private test subnet; no existing network changed.
 2. The reused Alpine backend lacked Bash. Its isolated probe was corrected to
    curl; readiness then passed with the original timeout unchanged.
 3. Two early registrations hit the standalone helper's default 5-second URL

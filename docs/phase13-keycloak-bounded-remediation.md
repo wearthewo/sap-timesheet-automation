@@ -125,7 +125,7 @@ A Windows Docker archive export timed out at 300 seconds. A direct-daemon scan a
 | Local proxy TLS chain/hostname/HTTPS issuer | PASS with an explicit disposable Caddy CA. This is not a public-domain certificate test. |
 | Registration/email verification/OIDC/login/logout/recovery/TOTP enrollment/PNG | **PASS on corrected image**, in the single final paced browser execution. Exact Mailpit recipients, PKCE, signatures, issuer, audience, nonce and verified-email state checked. |
 | Fresh-interval TOTP login/logout | **PASS on corrected image**, with a new time-interval code. Replay prevention unchanged. |
-| Production SMTP TLS/delivery | **UNVERIFIED.** Local probes encounter the documented Avast TLS interception; no Avast CA was added and certificate checks were not disabled. A clean Contabo-side TLS and delivery check is mandatory. |
+| Production SMTP TLS/delivery | **UNVERIFIED.** Local probes encounter the documented Avast TLS interception; no Avast CA was added and certificate checks were not disabled. A clean-host TLS and delivery check is mandatory. |
 
 The focused harness initially assumed password reset always precedes authenticator setup. Existing Keycloak reset behavior can require `CONFIGURE_TOTP` first and retain older OTP credentials. The active `keycloak.v2` theme selects credentials with a clickable card, not the radio control in the base theme. The corrected test follows actual required actions, selects the new credential, and waits for a genuinely new 30-second TOTP interval. It does not alter authentication policy or allow replay.
 

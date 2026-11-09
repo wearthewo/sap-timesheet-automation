@@ -55,8 +55,7 @@ There is no third Keycloak exception to manufacture: the corrected runtime no lo
 - [Production Keycloak adoption](phase13-keycloak-adoption.md): 8/8 actual browser checkpoints, four Java/TLS checks and public-certificate chain/hostname validation passed against the production image.
 - Build metadata, rootfs-to-OCI bindings, SHA-256-verified archives, unfiltered scans and SBOMs exist for every baseline image. BuildKit reports `materials: false` in completeness: pinned roots/source checksums and recorded dependencies do not constitute signed, exhaustive supply-chain attestation or byte-for-byte Maven reproducibility.
 - Keycloak compilation completed under 3 GiB/2 CPU limits in approximately 35m41s active elapsed time after documented host sleeps; 53 packaging modules succeeded, with upstream tests skipped. GitHub's 40-minute compilation/90-minute candidate-job budgets remain unverified on an uninterrupted hosted runner. Do not claim cached local export time as clean-build time.
-- Read-only accounting found about 21.06 GiB in `.verification`, including 3.02 GiB in scanner databases, older image copies, a 7.99 GB Keycloak BuildKit cache and 4.66 GB desktop build cache. Docker reports shared layers separately; these totals must not be added as unique physical usage.
-- Only three explicitly approved, equivalent Docker-format archives were removed (2,291,895,296 bytes / 2.13 GiB). Retained OCI copies passed all blob hashes and matched filesystem/runtime settings. No image, database, volume or build cache was pruned. Sequential exports completed all five remaining images without another drive. Exact paths and comparison proof remain in `approved-archive-cleanup.json` and `archive-redundancy.json`.
+- Redundant Docker-format archive copies were removed only after retained OCI copies passed blob hashes and runtime-equivalence checks. Image, database, volume and build-cache evidence was preserved.
 
 ## Minimum remaining release sequence
 
