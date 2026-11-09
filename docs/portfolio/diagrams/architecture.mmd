@@ -1,0 +1,10 @@
+flowchart LR
+    Browser["Browser<br/>Role-specific workspace"] --> BFF["Next.js 16 / React<br/>Node-runtime BFF"]
+    Browser <-->|"OIDC authorization code + PKCE"| KC["Keycloak<br/>Identity and credentials"]
+    BFF -->|"Bearer token + selected organization"| API["Spring Boot / Java 21<br/>Modular monolith"]
+    API --> PG[("PostgreSQL<br/>Business data, memberships,<br/>durable jobs and outbox")]
+    KC --> KDB[("Keycloak database")]
+    API --> SAP["SapTimesheetGateway"]
+    SAP -->|"HTTP / stable export identity"| Mock["Mock SAP<br/>Simulated external system"]
+    API --> Mail["EmailGateway"]
+    Mail -->|SMTP| Mailpit["Mailpit<br/>Local email sink"]

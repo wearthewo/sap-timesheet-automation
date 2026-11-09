@@ -1,0 +1,10 @@
+flowchart TD
+    Identity["One authenticated identity"] --> Memberships["Active organization memberships<br/>PostgreSQL is authoritative"]
+    Memberships --> A["Organization A<br/>Effective role: MANAGER"]
+    Memberships --> B["Organization B<br/>Effective role: FINANCE"]
+    A --> PolicyA["Only own/direct-report resources<br/>No self-review or admin override"]
+    B --> PolicyB["Only this organization's<br/>SAP operations and reports"]
+    PolicyA --> Scope["Tenant-scoped queries + ownership chains"]
+    PolicyB --> Scope
+    Scope --> Constraints["Composite foreign keys<br/>Tenant-inclusive uniqueness"]
+    Constraints --> Workers["Background jobs carry persisted organization IDs<br/>No request-local tenant context"]

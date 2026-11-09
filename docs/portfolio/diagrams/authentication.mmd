@@ -1,0 +1,19 @@
+sequenceDiagram
+    actor User
+    participant Browser
+    participant BFF as Next.js BFF
+    participant KC as Keycloak
+    participant API as Spring Boot
+    participant PG as PostgreSQL
+    User->>Browser: Sign in
+    Browser->>KC: Authorization code flow with PKCE and state
+    KC-->>BFF: Authorization callback
+    BFF->>KC: Exchange and validate tokens
+    BFF-->>Browser: Encrypted HttpOnly session cookie
+    Browser->>BFF: Open a protected page
+    BFF->>API: Bearer token + X-Organization-Id
+    API->>API: Validate signature, issuer, audience and expiry
+    API->>PG: Resolve active organization membership and role
+    API->>PG: Apply ownership / direct-report rules
+    API-->>BFF: Authorized DTO or safe error
+    BFF-->>Browser: Rendered page with no bearer token in browser JS
